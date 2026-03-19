@@ -16,12 +16,16 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen
-          name="index"
-          options={{ title: '', headerShown: false }}
+          name="(tabs)"
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="results"
           options={{ title: 'Results', presentation: 'card' }}
+        />
+        <Stack.Screen
+          name="history-detail"
+          options={{ title: 'Session', presentation: 'card' }}
         />
       </Stack>
     </QueryClientProvider>

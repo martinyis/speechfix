@@ -2,10 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
-import { useRecording } from '../hooks/useRecording';
-import { useUpload } from '../hooks/useUpload';
-import { RecordButton } from '../components/RecordButton';
-import { Waveform } from '../components/Waveform';
+import { useRecording } from '../../hooks/useRecording';
+import { useUpload } from '../../hooks/useUpload';
+import { RecordButton } from '../../components/RecordButton';
+import { Waveform } from '../../components/Waveform';
 
 export default function RecordScreen() {
   const {
