@@ -12,7 +12,7 @@ Reframe delivers a personal speech feedback tool in three phases. Phase 1 stands
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation + Pipeline Validation** - Expo app, Fastify server, database, audio recording, and Whisper transcription with validated filler/grammar preservation
+- [x] **Phase 1: Foundation + Pipeline Validation** (2026-03-19) - Expo app, Fastify server, database, audio recording, and Whisper transcription with validated filler/grammar preservation
 - [ ] **Phase 2: Complete Feedback Loop** - Claude analysis, results display, session storage, and session history -- the full daily-use experience
 - [ ] **Phase 3: Pattern Analysis** - Cross-session recurring mistake identification via SQL aggregation and Claude insights
 
@@ -31,8 +31,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md -- Backend foundation: Fastify server, PostgreSQL database, Drizzle ORM schema
-- [ ] 01-02-PLAN.md -- Expo app: project setup, recording UI with mic button and waveform, stack navigation
-- [ ] 01-03-PLAN.md -- Pipeline wiring: audio upload, silence stripping, Whisper transcription, results display
+- [x] 01-02-PLAN.md -- Expo app: project setup, recording UI with mic button and waveform, stack navigation
+- [x] 01-03-PLAN.md -- Pipeline wiring: audio upload, silence stripping, Whisper transcription, results display
 
 ### Phase 2: Complete Feedback Loop
 **Goal**: User can record speech, see grammar corrections with errors highlighted alongside corrected versions, review filler word counts, and browse past sessions -- the complete daily-use tool
@@ -71,6 +71,6 @@ Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Pipeline Validation | 1/3 | In Progress | - |
+| 1. Foundation + Pipeline Validation | 3/3 | Complete | 2026-03-19 |
 | 2. Complete Feedback Loop | 0/3 | Not started | - |
 | 3. Pattern Analysis | 0/1 | Not started | - |
