@@ -4,6 +4,7 @@ import fastifyCors from '@fastify/cors';
 import fastifyMultipart from '@fastify/multipart';
 import { db } from './db/index.js';
 import { sql } from 'drizzle-orm';
+import { sessionRoutes } from './routes/sessions.js';
 
 const app = Fastify({ logger: true });
 
@@ -13,6 +14,8 @@ await app.register(fastifyMultipart, { limits: { fileSize: 25 * 1024 * 1024 } })
 app.get('/health', async () => {
   return { status: 'ok', timestamp: new Date().toISOString() };
 });
+
+await app.register(sessionRoutes);
 
 async function start() {
   try {
