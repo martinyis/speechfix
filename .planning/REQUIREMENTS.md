@@ -24,8 +24,8 @@
 
 - [x] **STOR-01**: Each session stores transcription, structured corrections, and metadata
 - [x] **STOR-02**: Corrections are stored in structured form (error type, original, corrected, position)
-- [ ] **STOR-03**: User can view a list of previous sessions
-- [ ] **STOR-04**: User can tap a session to review its full results
+- [x] **STOR-03**: User can view a list of previous sessions
+- [x] **STOR-04**: User can tap a session to review its full results
 
 ### Patterns
 
@@ -88,8 +88,8 @@
 | ANLYS-05 | Phase 2 | Complete |
 | STOR-01 | Phase 2 | Complete |
 | STOR-02 | Phase 2 | Complete |
-| STOR-03 | Phase 2 | Pending |
-| STOR-04 | Phase 2 | Pending |
+| STOR-03 | Phase 2 | Complete |
+| STOR-04 | Phase 2 | Complete |
 | PAT-01 | Phase 3 | Pending |
 | PAT-02 | Phase 3 | Pending |
 | PAT-03 | Phase 3 | Pending |
