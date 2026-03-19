@@ -15,7 +15,7 @@
 ### Analysis
 
 - [x] **ANLYS-01**: Transcription is sent to Claude for grammar and structure analysis
-- [ ] **ANLYS-02**: Results display original sentences with errors highlighted and corrected versions side by side
+- [x] **ANLYS-02**: Results display original sentences with errors highlighted and corrected versions side by side
 - [x] **ANLYS-03**: Filler words are flagged with per-word counts
 - [x] **ANLYS-04**: Errors are categorized by type (articles, verb tense, prepositions, word order, etc.)
 - [x] **ANLYS-05**: Analysis distinguishes spoken-English norms from actual errors (no overcorrection)
@@ -40,7 +40,7 @@
 - [x] **INFRA-02**: expo-audio for recording, compatible with dev client
 - [x] **INFRA-03**: Fastify backend with API routes for upload, analysis, and history
 - [x] **INFRA-04**: PostgreSQL database with Drizzle ORM schema
-- [ ] **INFRA-05**: Progressive display (show transcription first, then corrections)
+- [x] **INFRA-05**: Progressive display (show transcription first, then corrections)
 - [x] **INFRA-06**: App testable on physical iPhone via development build
 
 ## v2 Requirements
@@ -82,7 +82,7 @@
 | REC-03 | Phase 1 | Pending |
 | REC-04 | Phase 1 | Pending |
 | ANLYS-01 | Phase 2 | Complete |
-| ANLYS-02 | Phase 2 | Pending |
+| ANLYS-02 | Phase 2 | Complete |
 | ANLYS-03 | Phase 2 | Complete |
 | ANLYS-04 | Phase 2 | Complete |
 | ANLYS-05 | Phase 2 | Complete |
@@ -98,7 +98,7 @@
 | INFRA-02 | Phase 1 | Complete |
 | INFRA-03 | Phase 1 | Complete |
 | INFRA-04 | Phase 1 | Complete |
-| INFRA-05 | Phase 2 | Pending |
+| INFRA-05 | Phase 2 | Complete |
 | INFRA-06 | Phase 1 | Complete |
 
 **Coverage:**
