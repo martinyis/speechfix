@@ -3,6 +3,7 @@ import {
   useAudioRecorder,
   RecordingPresets,
   requestRecordingPermissionsAsync,
+  setAudioModeAsync,
 } from 'expo-audio';
 import type { RecordingStatus } from 'expo-audio';
 
@@ -49,6 +50,8 @@ export function useRecording() {
 
     setAudioUri(null);
     setMeteringValues([]);
+
+    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
 
     await recorder.prepareToRecordAsync({
       ...RecordingPresets.HIGH_QUALITY,

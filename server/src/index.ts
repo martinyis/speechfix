@@ -19,7 +19,7 @@ await app.register(sessionRoutes);
 
 async function start() {
   try {
-    await app.listen({ port: Number(process.env.PORT) || 3000, host: '0.0.0.0' });
+    await app.listen({ port: Number(process.env.PORT) || 3005, host: '0.0.0.0' });
     await db.execute(sql`SELECT 1`);
     app.log.info('Database connected');
   } catch (err) {
