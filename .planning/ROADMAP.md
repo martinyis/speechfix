@@ -44,12 +44,12 @@ Plans:
   3. Errors are categorized by type (articles, verb tense, prepositions, word order, etc.)
   4. Transcription appears first while Claude analysis is still processing (progressive display)
   5. User can view a list of previous sessions and tap any session to review its full results
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
-- [ ] 02-03: TBD
+- [ ] 02-01-PLAN.md -- Claude analysis service, session API routes (POST with analysis, GET list, GET detail), types
+- [ ] 02-02-PLAN.md -- Results screen with progressive display, color-coded error highlights, tooltips, filler chips
+- [ ] 02-03-PLAN.md -- Tab navigation (Record + History), history list screen, history detail screen
 
 ### Phase 3: Pattern Analysis
 **Goal**: User can trigger cross-session analysis that surfaces recurring mistakes with specific examples, validating whether tracking patterns over time adds value
