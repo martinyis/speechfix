@@ -61,8 +61,11 @@ export default function RecordScreen() {
         router.push({
           pathname: '/results',
           params: {
-            transcription: JSON.stringify(session.sentences || []),
             sessionId: String(session.id),
+            sentences: JSON.stringify(session.sentences || []),
+            corrections: JSON.stringify(session.corrections || []),
+            fillerWords: JSON.stringify(session.fillerWords || []),
+            fillerPositions: JSON.stringify(session.fillerPositions || []),
           },
         });
       } else {
@@ -70,7 +73,7 @@ export default function RecordScreen() {
         router.push({
           pathname: '/results',
           params: {
-            transcription: JSON.stringify([]),
+            sentences: JSON.stringify([]),
           },
         });
       }
