@@ -7,7 +7,7 @@
 
 ### Recording
 
-- [ ] **REC-01**: User can tap a microphone button to start/stop recording
+- [x] **REC-01**: User can tap a microphone button to start/stop recording
 - [ ] **REC-02**: Audio is uploaded to the backend after recording stops
 - [ ] **REC-03**: Audio is transcribed via OpenAI Whisper API with filler word preservation
 - [ ] **REC-04**: Silence is stripped from audio before transcription to prevent hallucinations
@@ -36,12 +36,12 @@
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: Expo app with prebuild (development build) targeting iOS
-- [ ] **INFRA-02**: expo-audio for recording, compatible with dev client
+- [x] **INFRA-01**: Expo app with prebuild (development build) targeting iOS
+- [x] **INFRA-02**: expo-audio for recording, compatible with dev client
 - [x] **INFRA-03**: Fastify backend with API routes for upload, analysis, and history
 - [x] **INFRA-04**: PostgreSQL database with Drizzle ORM schema
 - [ ] **INFRA-05**: Progressive display (show transcription first, then corrections)
-- [ ] **INFRA-06**: App testable on physical iPhone via development build
+- [x] **INFRA-06**: App testable on physical iPhone via development build
 
 ## v2 Requirements
 
@@ -77,7 +77,7 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REC-01 | Phase 1 | Pending |
+| REC-01 | Phase 1 | Complete |
 | REC-02 | Phase 1 | Pending |
 | REC-03 | Phase 1 | Pending |
 | REC-04 | Phase 1 | Pending |
@@ -94,12 +94,12 @@
 | PAT-02 | Phase 3 | Pending |
 | PAT-03 | Phase 3 | Pending |
 | PAT-04 | Phase 3 | Pending |
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Complete |
+| INFRA-02 | Phase 1 | Complete |
 | INFRA-03 | Phase 1 | Complete |
 | INFRA-04 | Phase 1 | Complete |
 | INFRA-05 | Phase 2 | Pending |
-| INFRA-06 | Phase 1 | Pending |
+| INFRA-06 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 23 total
