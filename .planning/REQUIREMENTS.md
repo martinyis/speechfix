@@ -14,16 +14,16 @@
 
 ### Analysis
 
-- [ ] **ANLYS-01**: Transcription is sent to Claude for grammar and structure analysis
+- [x] **ANLYS-01**: Transcription is sent to Claude for grammar and structure analysis
 - [ ] **ANLYS-02**: Results display original sentences with errors highlighted and corrected versions side by side
-- [ ] **ANLYS-03**: Filler words are flagged with per-word counts
-- [ ] **ANLYS-04**: Errors are categorized by type (articles, verb tense, prepositions, word order, etc.)
-- [ ] **ANLYS-05**: Analysis distinguishes spoken-English norms from actual errors (no overcorrection)
+- [x] **ANLYS-03**: Filler words are flagged with per-word counts
+- [x] **ANLYS-04**: Errors are categorized by type (articles, verb tense, prepositions, word order, etc.)
+- [x] **ANLYS-05**: Analysis distinguishes spoken-English norms from actual errors (no overcorrection)
 
 ### Storage
 
-- [ ] **STOR-01**: Each session stores transcription, structured corrections, and metadata
-- [ ] **STOR-02**: Corrections are stored in structured form (error type, original, corrected, position)
+- [x] **STOR-01**: Each session stores transcription, structured corrections, and metadata
+- [x] **STOR-02**: Corrections are stored in structured form (error type, original, corrected, position)
 - [ ] **STOR-03**: User can view a list of previous sessions
 - [ ] **STOR-04**: User can tap a session to review its full results
 
@@ -81,13 +81,13 @@
 | REC-02 | Phase 1 | Pending |
 | REC-03 | Phase 1 | Pending |
 | REC-04 | Phase 1 | Pending |
-| ANLYS-01 | Phase 2 | Pending |
+| ANLYS-01 | Phase 2 | Complete |
 | ANLYS-02 | Phase 2 | Pending |
-| ANLYS-03 | Phase 2 | Pending |
-| ANLYS-04 | Phase 2 | Pending |
-| ANLYS-05 | Phase 2 | Pending |
-| STOR-01 | Phase 2 | Pending |
-| STOR-02 | Phase 2 | Pending |
+| ANLYS-03 | Phase 2 | Complete |
+| ANLYS-04 | Phase 2 | Complete |
+| ANLYS-05 | Phase 2 | Complete |
+| STOR-01 | Phase 2 | Complete |
+| STOR-02 | Phase 2 | Complete |
 | STOR-03 | Phase 2 | Pending |
 | STOR-04 | Phase 2 | Pending |
 | PAT-01 | Phase 3 | Pending |
