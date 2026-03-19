@@ -1,7 +1,7 @@
 # Requirements: Reframe
 
 **Defined:** 2026-03-19
-**Core Value:** Show me exactly what I said wrong and how to say it right — no scores, no gamification, just honest corrections.
+**Core Value:** Show me exactly what I said wrong and how to say it right -- no scores, no gamification, just honest corrections.
 
 ## v1 Requirements
 
@@ -66,9 +66,9 @@
 
 | Feature | Reason |
 |---------|--------|
-| Scores/streaks/gamification | Deliberately excluded — not the product philosophy |
+| Scores/streaks/gamification | Deliberately excluded -- not the product philosophy |
 | Pronunciation coaching | Different product category (ELSA territory) |
-| Lesson-based learning | Not a teaching app — it's a feedback mirror |
+| Lesson-based learning | Not a teaching app -- it's a feedback mirror |
 | Authentication/accounts | Personal tool, single user |
 | App Store deployment | Testing locally first |
 | Multi-language support | English corrections only for v1 |
@@ -77,13 +77,35 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated during roadmap creation) | | |
+| REC-01 | Phase 1 | Pending |
+| REC-02 | Phase 1 | Pending |
+| REC-03 | Phase 1 | Pending |
+| REC-04 | Phase 1 | Pending |
+| ANLYS-01 | Phase 2 | Pending |
+| ANLYS-02 | Phase 2 | Pending |
+| ANLYS-03 | Phase 2 | Pending |
+| ANLYS-04 | Phase 2 | Pending |
+| ANLYS-05 | Phase 2 | Pending |
+| STOR-01 | Phase 2 | Pending |
+| STOR-02 | Phase 2 | Pending |
+| STOR-03 | Phase 2 | Pending |
+| STOR-04 | Phase 2 | Pending |
+| PAT-01 | Phase 3 | Pending |
+| PAT-02 | Phase 3 | Pending |
+| PAT-03 | Phase 3 | Pending |
+| PAT-04 | Phase 3 | Pending |
+| INFRA-01 | Phase 1 | Pending |
+| INFRA-02 | Phase 1 | Pending |
+| INFRA-03 | Phase 1 | Pending |
+| INFRA-04 | Phase 1 | Pending |
+| INFRA-05 | Phase 2 | Pending |
+| INFRA-06 | Phase 1 | Pending |
 
 **Coverage:**
-- v1 requirements: 18 total
-- Mapped to phases: 0
-- Unmapped: 18 ⚠️
+- v1 requirements: 23 total
+- Mapped to phases: 23
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-19*
-*Last updated: 2026-03-19 after initial definition*
+*Last updated: 2026-03-19 after roadmap creation*
