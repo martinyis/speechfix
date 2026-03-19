@@ -15,6 +15,7 @@ export const corrections = pgTable('corrections', {
   correctedText: text('corrected_text').notNull(),
   explanation: text('explanation'),
   correctionType: text('correction_type').notNull(),
+  sentenceIndex: integer('sentence_index').notNull().default(0),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
