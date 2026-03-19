@@ -12,17 +12,16 @@ Show me exactly what I said wrong and how to say it right — no scores, no gami
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] User can tap a microphone button and record free-form speech of any duration — Validated in Phase 1
+- [x] Recording is transcribed via Whisper API — Validated in Phase 1
+- [x] Transcription is sent to Claude for grammar, structure, and filler word analysis — Validated in Phase 2
+- [x] Results show original sentences with mistakes highlighted and corrected versions side by side — Validated in Phase 2
+- [x] Filler words (like, so, you know, etc.) are flagged separately with counts — Validated in Phase 2
+- [x] Each speech session is stored in the database (transcription + corrections + metadata) — Validated in Phase 2
+- [x] User can view history of previous speech sessions — Validated in Phase 2
 
 ### Active
 
-- [ ] User can tap a microphone button and record free-form speech of any duration
-- [ ] Recording is transcribed via Whisper API
-- [ ] Transcription is sent to Claude for grammar, structure, and filler word analysis
-- [ ] Results show original sentences with mistakes highlighted and corrected versions side by side
-- [ ] Filler words (like, so, you know, etc.) are flagged separately with counts
-- [ ] Each speech session is stored in the database (transcription + corrections + metadata)
-- [ ] User can view history of previous speech sessions
 - [ ] User can trigger pattern analysis across accumulated sessions to surface recurring mistakes
 - [ ] Pattern analysis is smart about context size (doesn't dump all sessions into one API call)
 
@@ -68,4 +67,4 @@ Show me exactly what I said wrong and how to say it right — no scores, no gami
 | No scores/gamification | Philosophy: respect user intelligence, just show corrections | — Pending |
 
 ---
-*Last updated: 2026-03-19 after initialization*
+*Last updated: 2026-03-19 after Phase 2 completion — complete feedback loop built*
