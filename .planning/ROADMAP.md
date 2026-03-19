@@ -27,12 +27,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. After recording stops, audio is uploaded to the backend and a transcription appears on screen
   3. Filler words (um, uh, like, you know) are present in the transcription when spoken -- verified with a deliberate test recording
   4. Silence-only recordings do not produce hallucinated text
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md -- Backend foundation: Fastify server, PostgreSQL database, Drizzle ORM schema
+- [ ] 01-02-PLAN.md -- Expo app: project setup, recording UI with mic button and waveform, stack navigation
+- [ ] 01-03-PLAN.md -- Pipeline wiring: audio upload, silence stripping, Whisper transcription, results display
 
 ### Phase 2: Complete Feedback Loop
 **Goal**: User can record speech, see grammar corrections with errors highlighted alongside corrected versions, review filler word counts, and browse past sessions -- the complete daily-use tool
