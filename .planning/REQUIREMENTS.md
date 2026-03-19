@@ -38,8 +38,8 @@
 
 - [ ] **INFRA-01**: Expo app with prebuild (development build) targeting iOS
 - [ ] **INFRA-02**: expo-audio for recording, compatible with dev client
-- [ ] **INFRA-03**: Fastify backend with API routes for upload, analysis, and history
-- [ ] **INFRA-04**: PostgreSQL database with Drizzle ORM schema
+- [x] **INFRA-03**: Fastify backend with API routes for upload, analysis, and history
+- [x] **INFRA-04**: PostgreSQL database with Drizzle ORM schema
 - [ ] **INFRA-05**: Progressive display (show transcription first, then corrections)
 - [ ] **INFRA-06**: App testable on physical iPhone via development build
 
@@ -96,8 +96,8 @@
 | PAT-04 | Phase 3 | Pending |
 | INFRA-01 | Phase 1 | Pending |
 | INFRA-02 | Phase 1 | Pending |
-| INFRA-03 | Phase 1 | Pending |
-| INFRA-04 | Phase 1 | Pending |
+| INFRA-03 | Phase 1 | Complete |
+| INFRA-04 | Phase 1 | Complete |
 | INFRA-05 | Phase 2 | Pending |
 | INFRA-06 | Phase 1 | Pending |
 

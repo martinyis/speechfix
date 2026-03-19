@@ -30,7 +30,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md -- Backend foundation: Fastify server, PostgreSQL database, Drizzle ORM schema
+- [x] 01-01-PLAN.md -- Backend foundation: Fastify server, PostgreSQL database, Drizzle ORM schema
 - [ ] 01-02-PLAN.md -- Expo app: project setup, recording UI with mic button and waveform, stack navigation
 - [ ] 01-03-PLAN.md -- Pipeline wiring: audio upload, silence stripping, Whisper transcription, results display
 
@@ -71,6 +71,6 @@ Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation + Pipeline Validation | 0/3 | Not started | - |
+| 1. Foundation + Pipeline Validation | 1/3 | In Progress | - |
 | 2. Complete Feedback Loop | 0/3 | Not started | - |
 | 3. Pattern Analysis | 0/1 | Not started | - |
