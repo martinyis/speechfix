@@ -40,7 +40,7 @@ export function RecordButton({ isRecording, onPress }: RecordButtonProps) {
         {isRecording ? (
           <View style={styles.stopIcon} />
         ) : (
-          <Ionicons name="mic" size={48} color="#fff" />
+          <Ionicons name="mic" size={48} color="#fff"  />
         )}
       </Animated.View>
     </Pressable>
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   idle: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#222',
   },
   recording: {
     backgroundColor: '#ff3b30',

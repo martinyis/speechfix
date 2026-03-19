@@ -39,17 +39,17 @@ export default function ResultsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#fff',
   },
   header: {
-    color: '#888',
+    color: '#999',
     fontSize: 14,
     marginBottom: 8,
     paddingHorizontal: 16,
     paddingTop: 16,
   },
   emptyText: {
-    color: '#888',
+    color: '#999',
     fontSize: 16,
     textAlign: 'center',
     marginTop: 40,
@@ -58,10 +58,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#333',
+    borderBottomColor: '#e0e0e0',
   },
   sentenceText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 16,
     lineHeight: 24,
   },

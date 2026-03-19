@@ -46,8 +46,8 @@ const styles = StyleSheet.create({
   bar: {
     width: BAR_WIDTH,
     marginHorizontal: BAR_GAP / 2,
-    backgroundColor: '#fff',
-    opacity: 0.8,
+    backgroundColor: '#000',
+    opacity: 0.6,
     borderRadius: 2,
   },
 });

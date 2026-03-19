@@ -7,12 +7,12 @@ const queryClient = new QueryClient();
 export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#000' },
-          headerTintColor: '#fff',
-          contentStyle: { backgroundColor: '#000' },
+          headerStyle: { backgroundColor: '#fff' },
+          headerTintColor: '#000',
+          contentStyle: { backgroundColor: '#fff' },
         }}
       >
         <Stack.Screen

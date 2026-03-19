@@ -88,7 +88,7 @@ export default function RecordScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <View style={styles.waveformArea}>
         <Waveform meteringValues={meteringValues} isActive={isRecording} />
       </View>
@@ -97,7 +97,7 @@ export default function RecordScreen() {
 
       {upload.isPending && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#fff" />
+          <ActivityIndicator size="large" color="#000" />
           <Text style={styles.loadingText}>{statusText}</Text>
         </View>
       )}
@@ -108,7 +108,7 @@ export default function RecordScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -122,12 +122,12 @@ const styles = StyleSheet.create({
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
-    color: '#fff',
+    color: '#000',
     fontSize: 16,
     marginTop: 16,
   },
