@@ -22,6 +22,8 @@ export interface Correction {
   correctedText: string;
   explanation: string | null;
   correctionType: string;
+  severity: 'error' | 'improvement' | 'polish';
+  contextSnippet: string | null;
 }
 
 export interface FillerWord {
@@ -37,6 +39,11 @@ export interface FillerWordPosition {
   startIndex: number;
 }
 
+export interface SessionInsight {
+  type: 'repetitive_word' | 'hedging_pattern' | 'discourse_pattern';
+  description: string;
+}
+
 export interface SessionDetail {
   id: number;
   transcription: string;
@@ -46,6 +53,7 @@ export interface SessionDetail {
   corrections: Correction[];
   fillerWords: FillerWord[];
   fillerPositions: FillerWordPosition[];
+  sessionInsights: SessionInsight[];
 }
 
 export interface SessionListItem {
@@ -53,4 +61,6 @@ export interface SessionListItem {
   durationSeconds: number;
   createdAt: string;
   errorCount: number;
+  improvementCount: number;
+  polishCount: number;
 }

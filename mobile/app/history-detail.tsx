@@ -2,8 +2,10 @@ import { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSession } from '../hooks/useSession';
-import { CorrectionHighlight } from '../components/CorrectionHighlight';
+import { SummaryBar } from '../components/SummaryBar';
 import { FillerChips } from '../components/FillerChips';
+import { SessionInsightCard } from '../components/SessionInsightCard';
+import { CorrectionCard } from '../components/CorrectionCard';
 
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
@@ -17,41 +19,29 @@ export default function HistoryDetailScreen() {
     sessionId ? Number(sessionId) : null,
   );
 
-  // Group corrections by sentenceIndex
-  const correctionsBySentence = useMemo(() => {
-    if (!session) return new Map();
-    const map = new Map<number, typeof session.corrections>();
-    session.corrections.forEach((c) => {
-      const existing = map.get(c.sentenceIndex) || [];
-      existing.push(c);
-      map.set(c.sentenceIndex, existing);
-    });
-    return map;
+  // Compute correction counts
+  const errorCount = useMemo(() => {
+    if (!session) return 0;
+    return session.corrections.filter((c) => c.severity === 'error').length;
   }, [session?.corrections]);
 
-  // Group filler positions by sentenceIndex
-  const fillersBySentence = useMemo(() => {
-    if (!session) return new Map();
-    const map = new Map<number, typeof session.fillerPositions>();
-    session.fillerPositions.forEach((f) => {
-      const existing = map.get(f.sentenceIndex) || [];
-      existing.push(f);
-      map.set(f.sentenceIndex, existing);
-    });
-    return map;
-  }, [session?.fillerPositions]);
+  const improvementCount = useMemo(() => {
+    if (!session) return 0;
+    return session.corrections.filter((c) => c.severity === 'improvement').length;
+  }, [session?.corrections]);
 
-  // Filter to sentences with corrections or fillers
-  const sentencesWithIssues = useMemo(() => {
-    if (!session) return [];
-    return session.sentences
-      .map((text, index) => ({ text, index }))
-      .filter(
-        ({ index }) =>
-          (correctionsBySentence.get(index)?.length ?? 0) > 0 ||
-          (fillersBySentence.get(index)?.length ?? 0) > 0,
-      );
-  }, [session?.sentences, correctionsBySentence, fillersBySentence]);
+  const polishCount = useMemo(() => {
+    if (!session) return 0;
+    return session.corrections.filter((c) => c.severity === 'polish').length;
+  }, [session?.corrections]);
+
+  // Unique sentence indices that have corrections
+  const sentenceIndicesWithCorrections = useMemo(() => {
+    if (!session) return new Set<number>();
+    const indices = new Set<number>();
+    session.corrections.forEach((c) => indices.add(c.sentenceIndex));
+    return indices;
+  }, [session?.corrections]);
 
   if (isLoading) {
     return (
@@ -76,7 +66,9 @@ export default function HistoryDetailScreen() {
   });
   const formattedDuration = formatDuration(session.durationSeconds);
   const hasFillerWords = session.fillerWords.length > 0;
-  const hasIssues = sentencesWithIssues.length > 0;
+  const hasCorrections = session.corrections.length > 0;
+  const sessionInsights = session.sessionInsights ?? [];
+  const hasInsights = sessionInsights.length > 0;
 
   return (
     <ScrollView style={styles.container}>
@@ -85,22 +77,42 @@ export default function HistoryDetailScreen() {
         <Text style={styles.durationText}>{formattedDuration}</Text>
       </View>
 
-      {hasFillerWords && (
-        <View>
-          <FillerChips fillerWords={session.fillerWords} />
+      <SummaryBar
+        totalSentences={session.sentences.length}
+        errorCount={errorCount}
+        improvementCount={improvementCount}
+        polishCount={polishCount}
+        sentencesWithCorrections={sentenceIndicesWithCorrections.size}
+      />
+
+      {hasFillerWords && <FillerChips fillerWords={session.fillerWords} />}
+
+      {hasInsights && (
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>INSIGHTS</Text>
+          {sessionInsights.map((insight, index) => (
+            <SessionInsightCard
+              key={index}
+              type={insight.type}
+              description={insight.description}
+            />
+          ))}
         </View>
       )}
 
-      {hasIssues ? (
-        <View>
-          {sentencesWithIssues.map(({ text, index }) => (
-            <View key={index} style={styles.sentenceRow}>
-              <CorrectionHighlight
-                sentence={text}
-                corrections={correctionsBySentence.get(index) || []}
-                fillerPositions={fillersBySentence.get(index) || []}
-              />
-            </View>
+      {hasCorrections ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionHeader}>CORRECTIONS</Text>
+          {session.corrections.map((correction, index) => (
+            <CorrectionCard
+              key={index}
+              contextSnippet={correction.contextSnippet}
+              originalText={correction.originalText}
+              correctedText={correction.correctedText}
+              explanation={correction.explanation}
+              correctionType={correction.correctionType}
+              severity={correction.severity ?? 'error'}
+            />
           ))}
         </View>
       ) : (
@@ -144,11 +156,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
   },
-  sentenceRow: {
-    paddingVertical: 14,
+  section: {
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  sectionHeader: {
+    color: '#999',
+    fontSize: 12,
+    letterSpacing: 1,
+    marginBottom: 8,
     paddingHorizontal: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e0e0e0',
   },
   noIssuesContainer: {
     alignItems: 'center',

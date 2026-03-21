@@ -13,7 +13,7 @@ Reframe delivers a personal speech feedback tool in three phases. Phase 1 stands
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation + Pipeline Validation** (2026-03-19) - Expo app, Fastify server, database, audio recording, and Whisper transcription with validated filler/grammar preservation
-- [ ] **Phase 2: Complete Feedback Loop** - Claude analysis, results display, session storage, and session history -- the full daily-use experience
+- [x] **Phase 2: Complete Feedback Loop** (2026-03-19) - Claude analysis, results display, session storage, and session history -- the full daily-use experience
 - [ ] **Phase 3: Pattern Analysis** - Cross-session recurring mistake identification via SQL aggregation and Claude insights
 
 ## Phase Details
@@ -47,9 +47,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md -- Claude analysis service, session API routes (POST with analysis, GET list, GET detail), types
-- [ ] 02-02-PLAN.md -- Results screen with progressive display, color-coded error highlights, tooltips, filler chips
-- [ ] 02-03-PLAN.md -- Tab navigation (Record + History), history list screen, history detail screen
+- [x] 02-01-PLAN.md -- Claude analysis service, session API routes (POST with analysis, GET list, GET detail), types
+- [x] 02-02-PLAN.md -- Results screen with progressive display, color-coded error highlights, tooltips, filler chips
+- [x] 02-03-PLAN.md -- Tab navigation (Record + History), history list screen, history detail screen
 
 ### Phase 3: Pattern Analysis
 **Goal**: User can trigger cross-session analysis that surfaces recurring mistakes with specific examples, validating whether tracking patterns over time adds value
@@ -72,5 +72,5 @@ Phases execute in numeric order: 1 -> 2 -> 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation + Pipeline Validation | 3/3 | Complete | 2026-03-19 |
-| 2. Complete Feedback Loop | 0/3 | Not started | - |
+| 2. Complete Feedback Loop | 3/3 | Complete | 2026-03-19 |
 | 3. Pattern Analysis | 0/1 | Not started | - |

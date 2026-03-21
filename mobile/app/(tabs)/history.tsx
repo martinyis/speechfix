@@ -55,7 +55,19 @@ export default function HistoryScreen() {
       day: 'numeric',
       year: 'numeric',
     });
-    const errors = `${item.errorCount} error${item.errorCount !== 1 ? 's' : ''}`;
+    const parts: string[] = [];
+    if (item.errorCount > 0) {
+      parts.push(`${item.errorCount} error${item.errorCount !== 1 ? 's' : ''}`);
+    }
+    if (item.improvementCount > 0) {
+      parts.push(`${item.improvementCount} improvement${item.improvementCount !== 1 ? 's' : ''}`);
+    }
+    if (item.polishCount > 0) {
+      parts.push(`${item.polishCount} polish`);
+    }
+    if (parts.length === 0) {
+      parts.push('No issues');
+    }
     const duration = formatDuration(item.durationSeconds);
 
     return (
@@ -70,7 +82,7 @@ export default function HistoryScreen() {
       >
         <Text style={styles.dateText}>{date}</Text>
         <Text style={styles.metaText}>
-          {errors} {'\u00B7'} {duration}
+          {parts.join(' \u00B7 ')} {'\u00B7'} {duration}
         </Text>
       </Pressable>
     );

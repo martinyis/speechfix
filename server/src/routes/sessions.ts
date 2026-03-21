@@ -45,13 +45,12 @@ export async function sessionRoutes(fastify: FastifyInstance) {
       // Run Claude analysis
       const analysisResult = await analyzeSpeech(result.sentences);
 
-      // Store sentences and filler positions in the session's analysis column as JSON
-      // fillerPositions are stored here (not in a separate table) because they are
-      // display-only metadata derived from the same analysis pass
+      // Store sentences, filler positions, and session insights in the analysis JSON column
       await db.update(sessions).set({
         analysis: {
           sentences: result.sentences,
           fillerPositions: analysisResult.fillerPositions,
+          sessionInsights: analysisResult.sessionInsights,
         }
       }).where(eq(sessions.id, session.id));
 
@@ -62,9 +61,11 @@ export async function sessionRoutes(fastify: FastifyInstance) {
             sessionId: session.id,
             originalText: c.originalText,
             correctedText: c.correctedText,
-            explanation: null,
-            correctionType: c.correctionType,
+            explanation: c.explanation || null,
+            correctionType: c.correctionType || 'other',
             sentenceIndex: c.sentenceIndex,
+            severity: c.severity,
+            contextSnippet: c.contextSnippet || null,
           }))
         );
       }
@@ -101,7 +102,9 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         id: sessions.id,
         durationSeconds: sessions.durationSeconds,
         createdAt: sessions.createdAt,
-        errorCount: sql<number>`(SELECT count(*) FROM corrections WHERE corrections.session_id = ${sessions.id})`.as('error_count'),
+        errorCount: sql<number>`(SELECT count(*) FROM corrections WHERE corrections.session_id = ${sessions.id} AND corrections.severity = 'error')`.as('error_count'),
+        improvementCount: sql<number>`(SELECT count(*) FROM corrections WHERE corrections.session_id = ${sessions.id} AND corrections.severity = 'improvement')`.as('improvement_count'),
+        polishCount: sql<number>`(SELECT count(*) FROM corrections WHERE corrections.session_id = ${sessions.id} AND corrections.severity = 'polish')`.as('polish_count'),
       })
       .from(sessions)
       .orderBy(desc(sessions.createdAt));
@@ -121,10 +124,15 @@ export async function sessionRoutes(fastify: FastifyInstance) {
     const sessionCorrections = await db.select().from(corrections).where(eq(corrections.sessionId, sessionId));
     const sessionFillerWords = await db.select().from(fillerWords).where(eq(fillerWords.sessionId, sessionId));
 
-    // Extract sentences and fillerPositions from the analysis JSON column
-    const analysisData = session.analysis as { sentences?: string[]; fillerPositions?: Array<{ sentenceIndex: number; word: string; startIndex: number }> } | null;
+    // Extract sentences, fillerPositions, and sessionInsights from the analysis JSON column
+    const analysisData = session.analysis as {
+      sentences?: string[];
+      fillerPositions?: Array<{ sentenceIndex: number; word: string; startIndex: number }>;
+      sessionInsights?: Array<{ type: string; description: string }>;
+    } | null;
     const sentences = analysisData?.sentences ?? [];
     const fillerPositions = analysisData?.fillerPositions ?? [];
+    const sessionInsights = analysisData?.sessionInsights ?? [];
 
     return {
       session: {
@@ -133,6 +141,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         corrections: sessionCorrections,
         fillerWords: sessionFillerWords,
         fillerPositions,
+        sessionInsights,
       },
     };
   });

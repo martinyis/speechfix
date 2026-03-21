@@ -27,6 +27,14 @@ export default function RootLayout() {
           name="history-detail"
           options={{ title: 'Session', presentation: 'card' }}
         />
+        <Stack.Screen
+          name="voice-session"
+          options={{
+            headerShown: false,
+            presentation: 'fullScreenModal',
+            gestureEnabled: false,
+          }}
+        />
       </Stack>
     </QueryClientProvider>
   );

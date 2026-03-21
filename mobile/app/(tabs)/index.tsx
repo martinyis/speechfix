@@ -1,109 +1,47 @@
-import { useEffect, useState, useRef } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, Alert } from 'react-native';
+import { useRef } from 'react';
+import { View, StyleSheet, Pressable, Animated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
-import { useRecording } from '../../hooks/useRecording';
-import { useUpload } from '../../hooks/useUpload';
-import { RecordButton } from '../../components/RecordButton';
-import { Waveform } from '../../components/Waveform';
+import { Ionicons } from '@expo/vector-icons';
 
-export default function RecordScreen() {
-  const {
-    isRecording,
-    startRecording,
-    stopRecording,
-    audioUri,
-    duration,
-    meteringValues,
-  } = useRecording();
+export default function HomeScreen() {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const upload = useUpload();
-  const [statusText, setStatusText] = useState('Uploading...');
-  const wasRecordingRef = useRef(false);
-
-  const handlePress = async () => {
-    if (isRecording) {
-      await stopRecording();
-    } else {
-      await startRecording();
-    }
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start();
   };
 
-  // Track recording state transitions
-  useEffect(() => {
-    wasRecordingRef.current = isRecording;
-  }, [isRecording]);
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+  };
 
-  // Auto-upload when audioUri becomes available after recording stops
-  useEffect(() => {
-    if (audioUri && !isRecording) {
-      setStatusText('Uploading...');
-      upload.mutate({ audioUri, duration });
-    }
-  }, [audioUri]);
-
-  // Switch status text after a delay to simulate stage progression
-  useEffect(() => {
-    if (upload.isPending) {
-      setStatusText('Uploading...');
-      const timer = setTimeout(() => {
-        setStatusText('Transcribing...');
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [upload.isPending]);
-
-  // Handle upload success -- navigate to results
-  useEffect(() => {
-    if (upload.isSuccess && upload.data) {
-      const session = upload.data.session;
-      if (session) {
-        router.push({
-          pathname: '/results',
-          params: {
-            sessionId: String(session.id),
-            sentences: JSON.stringify(session.sentences || []),
-            corrections: JSON.stringify(session.corrections || []),
-            fillerWords: JSON.stringify(session.fillerWords || []),
-            fillerPositions: JSON.stringify(session.fillerPositions || []),
-          },
-        });
-      } else {
-        // No speech detected case
-        router.push({
-          pathname: '/results',
-          params: {
-            sentences: JSON.stringify([]),
-          },
-        });
-      }
-      upload.reset();
-    }
-  }, [upload.isSuccess, upload.data]);
-
-  // Handle upload error
-  useEffect(() => {
-    if (upload.isError) {
-      Alert.alert('Upload Error', upload.error?.message || 'Something went wrong');
-      upload.reset();
-    }
-  }, [upload.isError]);
+  const handlePress = () => {
+    router.push('/voice-session');
+  };
 
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
-      <View style={styles.waveformArea}>
-        <Waveform meteringValues={meteringValues} isActive={isRecording} />
-      </View>
-      <RecordButton isRecording={isRecording} onPress={handlePress} />
-      <View style={styles.bottomSpace} />
-
-      {upload.isPending && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#000" />
-          <Text style={styles.loadingText}>{statusText}</Text>
-        </View>
-      )}
+      <Pressable
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+      >
+        <Animated.View
+          style={[
+            styles.button,
+            { transform: [{ scale: scaleAnim }] },
+          ]}
+        >
+          <Ionicons name="mic" size={48} color="#fff" />
+        </Animated.View>
+      </Pressable>
     </View>
   );
 }
@@ -115,23 +53,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  waveformArea: {
+  button: {
+    width: 120,
     height: 120,
-    justifyContent: 'flex-end',
-    marginBottom: 40,
-  },
-  bottomSpace: {
-    height: 160,
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 60,
+    backgroundColor: '#222',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  loadingText: {
-    color: '#000',
-    fontSize: 16,
-    marginTop: 16,
   },
 });

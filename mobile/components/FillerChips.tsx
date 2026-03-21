@@ -7,14 +7,16 @@ interface Props {
 export function FillerChips({ fillerWords }: Props) {
   if (fillerWords.length === 0) return null;
 
+  const sorted = [...fillerWords].sort((a, b) => b.count - a.count);
+
   return (
     <View style={styles.section}>
       <Text style={styles.sectionHeader}>FILLER WORDS</Text>
       <View style={styles.chipContainer}>
-        {fillerWords.map((filler) => (
+        {sorted.map((filler) => (
           <View key={filler.word} style={styles.chip}>
             <Text style={styles.chipText}>
-              {filler.word}: {filler.count}
+              {filler.word} {'\u00D7'}{filler.count}
             </Text>
           </View>
         ))}

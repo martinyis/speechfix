@@ -2,21 +2,23 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Animated } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { AnalyzingBanner } from '../components/AnalyzingBanner';
+import { SummaryBar } from '../components/SummaryBar';
 import { FillerChips } from '../components/FillerChips';
-import { CorrectionHighlight } from '../components/CorrectionHighlight';
-import type { Correction, FillerWord, FillerWordPosition } from '../types/session';
+import { SessionInsightCard } from '../components/SessionInsightCard';
+import { CorrectionCard } from '../components/CorrectionCard';
+import type { Correction, FillerWord, FillerWordPosition, SessionInsight } from '../types/session';
 
 export default function ResultsScreen() {
-  const { sessionId, sentences, corrections, fillerWords, fillerPositions } =
+  const { sessionId, sentences, corrections, fillerWords, fillerPositions, sessionInsights } =
     useLocalSearchParams<{
       sessionId: string;
       sentences: string;
       corrections: string;
       fillerWords: string;
       fillerPositions: string;
+      sessionInsights: string;
     }>();
 
-  // Parse JSON params into typed arrays
   const parsedSentences: string[] = useMemo(() => {
     try {
       return sentences ? JSON.parse(sentences) : [];
@@ -41,19 +43,18 @@ export default function ResultsScreen() {
     }
   }, [fillerWords]);
 
-  const parsedFillerPositions: FillerWordPosition[] = useMemo(() => {
+  const parsedSessionInsights: SessionInsight[] = useMemo(() => {
     try {
-      return fillerPositions ? JSON.parse(fillerPositions) : [];
+      return sessionInsights ? JSON.parse(sessionInsights) : [];
     } catch {
       return [];
     }
-  }, [fillerPositions]);
+  }, [sessionInsights]);
 
   // Progressive display state
   const [showAnalysis, setShowAnalysis] = useState(false);
   const analysisOpacity = useRef(new Animated.Value(0)).current;
 
-  // After 800ms delay, reveal analysis with fade-in
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowAnalysis(true);
@@ -66,41 +67,30 @@ export default function ResultsScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Group corrections by sentenceIndex
-  const correctionsBySentence = useMemo(() => {
-    const map = new Map<number, Correction[]>();
-    parsedCorrections.forEach((c) => {
-      const existing = map.get(c.sentenceIndex) || [];
-      existing.push(c);
-      map.set(c.sentenceIndex, existing);
-    });
-    return map;
+  // Compute counts
+  const errorCount = useMemo(
+    () => parsedCorrections.filter((c) => c.severity === 'error').length,
+    [parsedCorrections],
+  );
+  const improvementCount = useMemo(
+    () => parsedCorrections.filter((c) => c.severity === 'improvement').length,
+    [parsedCorrections],
+  );
+  const polishCount = useMemo(
+    () => parsedCorrections.filter((c) => c.severity === 'polish').length,
+    [parsedCorrections],
+  );
+
+  // Unique sentence indices that have corrections
+  const sentenceIndicesWithCorrections = useMemo(() => {
+    const indices = new Set<number>();
+    parsedCorrections.forEach((c) => indices.add(c.sentenceIndex));
+    return indices;
   }, [parsedCorrections]);
 
-  // Group fillerPositions by sentenceIndex
-  const fillersBySentence = useMemo(() => {
-    const map = new Map<number, FillerWordPosition[]>();
-    parsedFillerPositions.forEach((f) => {
-      const existing = map.get(f.sentenceIndex) || [];
-      existing.push(f);
-      map.set(f.sentenceIndex, existing);
-    });
-    return map;
-  }, [parsedFillerPositions]);
-
-  // Filter to only sentences with corrections or fillers
-  const sentencesWithIssues = useMemo(() => {
-    return parsedSentences
-      .map((text, index) => ({ text, index }))
-      .filter(
-        ({ index }) =>
-          (correctionsBySentence.get(index)?.length ?? 0) > 0 ||
-          (fillersBySentence.get(index)?.length ?? 0) > 0,
-      );
-  }, [parsedSentences, correctionsBySentence, fillersBySentence]);
-
-  const hasIssues = sentencesWithIssues.length > 0;
+  const hasCorrections = parsedCorrections.length > 0;
   const hasFillerWords = parsedFillerWords.length > 0;
+  const hasInsights = parsedSessionInsights.length > 0;
 
   if (parsedSentences.length === 0) {
     return (
@@ -115,7 +105,6 @@ export default function ResultsScreen() {
       <AnalyzingBanner visible={!showAnalysis} />
 
       {!showAnalysis && (
-        // Show all sentences as plain text while analyzing
         <View>
           {parsedSentences.map((sentence, index) => (
             <View key={index} style={styles.sentenceRow}>
@@ -127,18 +116,42 @@ export default function ResultsScreen() {
 
       {showAnalysis && (
         <Animated.View style={{ opacity: analysisOpacity }}>
+          <SummaryBar
+            totalSentences={parsedSentences.length}
+            errorCount={errorCount}
+            improvementCount={improvementCount}
+            polishCount={polishCount}
+            sentencesWithCorrections={sentenceIndicesWithCorrections.size}
+          />
+
           {hasFillerWords && <FillerChips fillerWords={parsedFillerWords} />}
 
-          {hasIssues ? (
-            <View>
-              {sentencesWithIssues.map(({ text, index }) => (
-                <View key={index} style={styles.sentenceRow}>
-                  <CorrectionHighlight
-                    sentence={text}
-                    corrections={correctionsBySentence.get(index) || []}
-                    fillerPositions={fillersBySentence.get(index) || []}
-                  />
-                </View>
+          {hasInsights && (
+            <View style={styles.section}>
+              <Text style={styles.sectionHeader}>INSIGHTS</Text>
+              {parsedSessionInsights.map((insight, index) => (
+                <SessionInsightCard
+                  key={index}
+                  type={insight.type}
+                  description={insight.description}
+                />
+              ))}
+            </View>
+          )}
+
+          {hasCorrections ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionHeader}>CORRECTIONS</Text>
+              {parsedCorrections.map((correction, index) => (
+                <CorrectionCard
+                  key={index}
+                  contextSnippet={correction.contextSnippet}
+                  originalText={correction.originalText}
+                  correctedText={correction.correctedText}
+                  explanation={correction.explanation}
+                  correctionType={correction.correctionType}
+                  severity={correction.severity ?? 'error'}
+                />
               ))}
             </View>
           ) : (
@@ -173,6 +186,17 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 16,
     lineHeight: 24,
+  },
+  section: {
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
+  sectionHeader: {
+    color: '#999',
+    fontSize: 12,
+    letterSpacing: 1,
+    marginBottom: 8,
+    paddingHorizontal: 16,
   },
   successContainer: {
     alignItems: 'center',
