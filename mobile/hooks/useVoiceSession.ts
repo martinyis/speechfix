@@ -6,10 +6,9 @@ import {
 } from '@mykin-ai/expo-audio-stream';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSessionStore } from '../stores/sessionStore';
-import { WS_BASE_URL } from '../lib/api';
-import type { Correction, FillerWord, FillerWordPosition, SessionDetail, SessionInsight } from '../types/session';
-
-const WS_URL = `${WS_BASE_URL}/voice-session`;
+import { useAgentStore } from '../stores/agentStore';
+import { wsUrl } from '../lib/api';
+import type { Agent, Correction, FillerWord, FillerWordPosition, SessionDetail, SessionInsight } from '../types/session';
 
 // -- WebSocket message types --
 
@@ -26,6 +25,7 @@ type VoiceMessage =
       fillerPositions: FillerWordPosition[];
       sessionInsights: SessionInsight[];
     }}
+  | { type: 'agent_created'; agent: Agent }
   | { type: 'error'; message?: string };
 
 // PCM 16kHz 16-bit mono = 32000 bytes/sec
@@ -34,9 +34,11 @@ const PCM_BYTES_PER_SEC = 32000;
 interface UseVoiceSessionCallbacks {
   onSessionEnd: (results: SessionDetail, dbSessionId: number) => void;
   onError: (message: string) => void;
+  onAgentCreated?: (agent: Agent) => void;
+  agentId?: number | null;
 }
 
-export function useVoiceSession({ onSessionEnd, onError }: UseVoiceSessionCallbacks) {
+export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId }: UseVoiceSessionCallbacks) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscriptionRef = useRef<{ remove(): void } | null>(null);
   const isStoppingRef = useRef(false);
@@ -202,13 +204,20 @@ export function useVoiceSession({ onSessionEnd, onError }: UseVoiceSessionCallba
         break;
       }
 
+      case 'agent_created':
+        if (msg.agent) {
+          useAgentStore.getState().addAgent(msg.agent);
+          onAgentCreated?.(msg.agent);
+        }
+        break;
+
       case 'error':
         onError(msg.message || 'An error occurred');
         cleanup();
         s.endVoiceSession();
         break;
     }
-  }, [startMicAndTimer, cleanup, onSessionEnd, onError]);
+  }, [startMicAndTimer, cleanup, onSessionEnd, onError, onAgentCreated]);
 
   const start = useCallback(async () => {
     isStoppingRef.current = false;
@@ -230,13 +239,18 @@ export function useVoiceSession({ onSessionEnd, onError }: UseVoiceSessionCallba
     // Configure sound for conversation mode
     try {
       await ExpoPlayAudioStream.setSoundConfig({
-        sampleRate: 16000,
+        sampleRate: 24000,
         playbackMode: PlaybackModes.CONVERSATION,
       });
     } catch {}
 
-    // Connect WebSocket
-    const ws = new WebSocket(WS_URL);
+    // Connect WebSocket — append agent ID if selected
+    const selectedAgent = agentId ?? useAgentStore.getState().selectedAgentId;
+    let wsPath = '/voice-session';
+    if (selectedAgent) {
+      wsPath += `&agent=${selectedAgent}`;
+    }
+    const ws = new WebSocket(wsUrl(wsPath));
     wsRef.current = ws;
 
     ws.onopen = () => {

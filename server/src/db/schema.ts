@@ -1,13 +1,44 @@
-import { pgTable, serial, text, integer, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, integer, jsonb, timestamp, varchar, boolean } from 'drizzle-orm/pg-core';
+
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  name: varchar('name', { length: 255 }),
+  displayName: varchar('display_name', { length: 255 }),
+  context: text('context'),
+  goals: jsonb('goals'),
+  contextNotes: jsonb('context_notes').default([]),
+  onboardingComplete: boolean('onboarding_complete').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const agents = pgTable('agents', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  type: text('type').notNull().default('conversation'),
+  name: varchar('name', { length: 255 }).notNull(),
+  systemPrompt: text('system_prompt').notNull(),
+  behaviorPrompt: text('behavior_prompt'),
+  voiceId: varchar('voice_id', { length: 255 }),
+  settings: jsonb('settings').default({}).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
 
 export const sessions = pgTable('sessions', {
   id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  agentId: integer('agent_id').references(() => agents.id, { onDelete: 'set null' }),
   type: text('type').notNull().default('recording'),
   status: text('status').notNull().default('completed'),
   transcription: text('transcription').notNull(),
   durationSeconds: integer('duration_seconds').notNull(),
   analysis: jsonb('analysis'),
   conversationTranscript: jsonb('conversation_transcript'),
+  title: varchar('title', { length: 255 }),
+  description: text('description'),
+  topicCategory: varchar('topic_category', { length: 50 }),
+  clarityScore: integer('clarity_score'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

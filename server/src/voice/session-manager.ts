@@ -1,19 +1,14 @@
 import { WebSocket } from 'ws';
 import { DeepgramClient, TranscriptResult } from './deepgram.js';
 import { generateResponse } from './response-generator.js';
+import type { ConversationMessage } from './response-generator.js';
 import { ElevenLabsTTS } from './tts.js';
-import { getRandomGreeting } from './greeting-cache.js';
-import { analyzeSpeech } from '../services/analysis.js';
+import type { AgentTypeHandler, AgentConfig, FullUserContext } from './handlers/types.js';
 import { db } from '../db/index.js';
-import { sessions, corrections, fillerWords } from '../db/schema.js';
+import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 
 export type SessionState = 'idle' | 'listening' | 'thinking' | 'speaking';
-
-interface ConversationMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
 
 export class VoiceSession {
   sessionId: string;
@@ -32,18 +27,53 @@ export class VoiceSession {
   private speakingEndedAt = 0;
   private currentTurnId = 0;
   private turnAudioBytes = 0;
+  private turnCount = 0;
 
   private deepgram: DeepgramClient | null = null;
   private tts: ElevenLabsTTS | null = null;
+  private userId: number;
+  private handler: AgentTypeHandler;
+  private agentConfig: AgentConfig | null;
+  private systemPrompt: string = '';
+  private sessionEnding = false;
 
-  constructor(ws: WebSocket) {
+  constructor(ws: WebSocket, userId: number, handler: AgentTypeHandler, agentConfig: AgentConfig | null) {
     this.sessionId = crypto.randomUUID();
     this.ws = ws;
+    this.userId = userId;
+    this.handler = handler;
+    this.agentConfig = agentConfig;
   }
 
   async start() {
     this.startTime = Date.now();
     this.state = 'listening';
+
+    // Fetch user context if handler needs it
+    let userContext: FullUserContext | undefined;
+    if (this.handler.needsUserContext) {
+      try {
+        const [user] = await db.select({
+          displayName: users.displayName,
+          context: users.context,
+          goals: users.goals,
+          contextNotes: users.contextNotes,
+        }).from(users).where(eq(users.id, this.userId));
+        if (user) {
+          userContext = {
+            displayName: user.displayName,
+            context: user.context,
+            goals: user.goals as string[] | null,
+            contextNotes: user.contextNotes as FullUserContext['contextNotes'],
+          };
+        }
+      } catch (err) {
+        console.error('[voice-session] Failed to fetch user profile:', err);
+      }
+    }
+
+    // Build system prompt via handler
+    this.systemPrompt = this.handler.buildSystemPrompt(this.agentConfig, userContext);
 
     // Connect to Deepgram for streaming STT
     const deepgramKey = process.env.DEEPGRAM_API_KEY;
@@ -66,9 +96,9 @@ export class VoiceSession {
       console.warn('[voice-session] No DEEPGRAM_API_KEY, STT disabled');
     }
 
-    // Connect to ElevenLabs for TTS
+    // Connect to ElevenLabs for TTS - use agentConfig voiceId if available
     const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
-    const voiceId = process.env.ELEVENLABS_VOICE_ID;
+    const voiceId = this.agentConfig?.voiceId || process.env.ELEVENLABS_VOICE_ID;
     if (elevenLabsKey && voiceId) {
       this.tts = new ElevenLabsTTS(elevenLabsKey, voiceId, {
         onAudio: (base64Chunk) => {
@@ -101,18 +131,11 @@ export class VoiceSession {
     console.log(`[DEBUG] Sent 'ready' to client`);
 
     // Generate AI greeting — don't process mic audio until greeting finishes
-    console.log(`[DEBUG] Starting greeting generation...`);
-    this.conversationHistory.push({ role: 'user', content: '[Conversation started]' });
+    console.log(`[DEBUG] Starting greeting generation`);
 
-    // Try cached greeting first for instant playback
-    const cachedGreeting = getRandomGreeting();
-    if (cachedGreeting) {
-      await this.sendCachedGreeting(cachedGreeting);
-    } else {
-      // Fallback: generate greeting live via Claude + TTS
-      console.log(`[DEBUG] No cached greeting available, using live generation`);
-      await this.generateAndSendResponse();
-    }
+    const sentinel = '[Session started]';
+    this.conversationHistory.push({ role: 'user', content: sentinel });
+    await this.generateAndSendResponse();
 
     this.greetingDone = true;
     console.log(`[DEBUG] Greeting done, greetingDone=${this.greetingDone}, state=${this.state}, isSpeaking=${this.isSpeaking}`);
@@ -192,10 +215,15 @@ export class VoiceSession {
       return;
     }
 
-    // Unmuted = conversation mode: always respond when user stops talking.
-    // Deepgram's endpointing handles silence detection. User controls
-    // conversation vs solo practice via the mute/unmute button.
+    this.turnCount++;
+
+    // Generate response first
     await this.generateAndSendResponse();
+
+    // Then check if handler wants to auto-end
+    if (this.handler.shouldAutoEnd(this.turnCount, this.conversationHistory)) {
+      await this.handleDone();
+    }
   }
 
   /** Ensure TTS is connected, reconnecting if needed. */
@@ -212,49 +240,6 @@ export class VoiceSession {
       console.error(`[voice-session] Failed to reconnect TTS:`, err);
       return false;
     }
-  }
-
-  /**
-   * Send a pre-generated cached greeting directly to the client.
-   * Mimics the same protocol as live generation (turn_state, audio chunks,
-   * audio_end, turn_state) so the client doesn't need any changes.
-   */
-  private async sendCachedGreeting(greeting: {
-    text: string;
-    audioChunks: string[];
-    totalAudioBytes: number;
-  }) {
-    console.log(`[voice-session] Using cached greeting: "${greeting.text.substring(0, 50)}..."`);
-
-    this.currentTurnId++;
-    this.turnAudioBytes = 0;
-
-    this.state = 'speaking';
-    this.isSpeaking = true;
-    this.sendToClient({ type: 'turn_state', state: 'speaking', turnId: this.currentTurnId });
-
-    // Stream cached audio chunks to the client
-    for (const chunk of greeting.audioChunks) {
-      this.turnAudioBytes += Math.ceil(chunk.length * 3 / 4);
-      this.sendToClient({ type: 'audio', data: chunk, turnId: this.currentTurnId });
-    }
-
-    // Add greeting text to conversation history
-    this.conversationHistory.push({ role: 'assistant', content: greeting.text });
-
-    // Signal end of audio (same protocol as live generation)
-    this.sendToClient({
-      type: 'audio_end',
-      turnId: this.currentTurnId,
-      totalAudioBytes: this.turnAudioBytes,
-    });
-
-    this.isSpeaking = false;
-    this.speakingEndedAt = Date.now();
-    this.state = 'listening';
-    this.sendToClient({ type: 'turn_state', state: 'listening', turnId: this.currentTurnId });
-
-    console.log(`[voice-session] Cached greeting sent, ${this.turnAudioBytes} audio bytes, ${greeting.audioChunks.length} chunks`);
   }
 
   private async generateAndSendResponse() {
@@ -276,7 +261,13 @@ export class VoiceSession {
     let fullResponse = '';
 
     try {
-      for await (const chunk of generateResponse(this.conversationHistory, abortController.signal)) {
+      const responseGen = generateResponse(
+        this.conversationHistory,
+        abortController.signal,
+        this.systemPrompt,
+      );
+
+      for await (const chunk of responseGen) {
         if (abortController.signal.aborted) break;
 
         fullResponse += (fullResponse ? ' ' : '') + chunk;
@@ -416,123 +407,71 @@ export class VoiceSession {
   }
 
   async handleDone() {
-    console.log(`[DEBUG] handleDone() called, state=${this.state}, isSpeaking=${this.isSpeaking}, greetingDone=${this.greetingDone}`);
-    console.log(`[DEBUG] handleDone stack:`, new Error().stack?.split('\n').slice(1, 5).join('\n'));
+    if (this.sessionEnding) return;
+    this.sessionEnding = true;
+
     console.log(`[voice-session] Session ${this.sessionId} ending`);
 
-    // Stop TTS audio immediately — set isSpeaking=false first so the onAudio
-    // callback drops any buffered chunks, then abort TTS and the response generator.
+    // Stop audio and generation
     this.isSpeaking = false;
-
-    if (this.tts) {
-      this.tts.abort();
-    }
-
+    if (this.tts) this.tts.abort();
     if (this.activeAbortController) {
       this.activeAbortController.abort();
       this.activeAbortController = null;
     }
-
     this.state = 'idle';
 
+    // Flush remaining utterance
     if (this.currentUtteranceBuffer.trim()) {
       this.transcriptBuffer.push(this.currentUtteranceBuffer.trim());
       this.currentUtteranceBuffer = '';
     }
 
     const durationSeconds = Math.round((Date.now() - this.startTime) / 1000);
-    const fullTranscription = this.transcriptBuffer.join(' ');
-
-    // Skip analysis if no speech was captured
-    if (!fullTranscription.trim()) {
-      this.sendToClient({ type: 'session_end', sessionId: this.sessionId, dbSessionId: null });
-      this.cleanup();
-      return;
-    }
 
     try {
-      // Create session in DB
-      const [session] = await db
-        .insert(sessions)
-        .values({
-          type: 'voice',
-          status: 'completed',
-          transcription: fullTranscription,
-          durationSeconds,
-          conversationTranscript: this.conversationHistory,
-        })
-        .returning();
+      const result = await this.handler.onSessionEnd(
+        this.userId,
+        this.agentConfig,
+        this.transcriptBuffer,
+        this.conversationHistory,
+        durationSeconds,
+      );
 
-      console.log(`[voice-session] Session stored in DB: ${session.id}`);
-
-      // Run speech analysis on user utterances
-      const userUtterances = this.transcriptBuffer;
-      console.log(`[DEBUG-ANALYSIS] === SENDING TO CLAUDE ===`);
-      console.log(`[DEBUG-ANALYSIS] transcriptBuffer length: ${userUtterances.length}`);
-      userUtterances.forEach((u, i) => console.log(`[DEBUG-ANALYSIS] sentence[${i}]: "${u}"`));
-      console.log(`[DEBUG-ANALYSIS] conversationHistory (${this.conversationHistory.length} messages):`);
-      this.conversationHistory.forEach((m, i) => console.log(`[DEBUG-ANALYSIS] history[${i}] ${m.role}: "${m.content.substring(0, 120)}${m.content.length > 120 ? '...' : ''}"`));
-      const analysisResult = await analyzeSpeech(userUtterances, 'conversation', this.conversationHistory);
-
-      // Store analysis JSON
-      await db.update(sessions).set({
-        analysis: {
-          sentences: userUtterances,
-          fillerPositions: analysisResult.fillerPositions,
-          sessionInsights: analysisResult.sessionInsights,
-          conversationContext: this.conversationHistory,
-        },
-      }).where(eq(sessions.id, session.id));
-
-      // Store corrections
-      if (analysisResult.corrections.length > 0) {
-        await db.insert(corrections).values(
-          analysisResult.corrections.map(c => ({
-            sessionId: session.id,
-            originalText: c.originalText,
-            correctedText: c.correctedText,
-            explanation: c.explanation || null,
-            correctionType: c.correctionType || 'other',
-            sentenceIndex: c.sentenceIndex,
-            severity: c.severity,
-            contextSnippet: c.contextSnippet || null,
-          }))
-        );
+      // Send result to client based on type
+      switch (result.type) {
+        case 'analysis':
+          this.sendToClient({
+            type: 'session_end',
+            sessionId: this.sessionId,
+            dbSessionId: result.dbSessionId ?? null,
+            agentId: this.agentConfig?.id ?? null,
+            agentName: this.agentConfig?.name ?? null,
+            results: result.analysisResults,
+          });
+          break;
+        case 'onboarding':
+          this.sendToClient({
+            type: 'onboarding_complete',
+            success: result.success,
+            displayName: result.displayName,
+          });
+          break;
+        case 'agent-created':
+          this.sendToClient({
+            type: 'agent_created',
+            agentId: result.agentId,
+            agentName: result.agentName,
+          });
+          break;
       }
-
-      // Store filler words
-      if (analysisResult.fillerWords.length > 0) {
-        await db.insert(fillerWords).values(
-          analysisResult.fillerWords.map(f => ({
-            sessionId: session.id,
-            word: f.word,
-            count: f.count,
-          }))
-        );
-      }
-
-      console.log(`[voice-session] Analysis complete: ${analysisResult.corrections.length} corrections, ${analysisResult.fillerWords.length} filler types`);
-
-      // Send results to client
-      this.sendToClient({
-        type: 'session_end',
-        sessionId: this.sessionId,
-        dbSessionId: session.id,
-        results: {
-          sentences: userUtterances,
-          corrections: analysisResult.corrections,
-          fillerWords: analysisResult.fillerWords,
-          fillerPositions: analysisResult.fillerPositions,
-          sessionInsights: analysisResult.sessionInsights,
-        },
-      });
     } catch (err) {
-      console.error(`[voice-session] Analysis/storage error:`, err);
+      console.error(`[voice-session] Session end error:`, err);
       this.sendToClient({
         type: 'session_end',
         sessionId: this.sessionId,
         dbSessionId: null,
-        error: 'Analysis failed',
+        error: 'Processing failed',
       });
     }
 

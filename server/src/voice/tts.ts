@@ -29,8 +29,8 @@ export class ElevenLabsTTS {
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       const params = new URLSearchParams({
-        model_id: 'eleven_turbo_v2_5',
-        output_format: 'pcm_16000',
+        model_id: 'eleven_multilingual_v2',
+        output_format: 'pcm_24000',
         inactivity_timeout: '60',
       });
 

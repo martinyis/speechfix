@@ -1,10 +1,50 @@
 import { FastifyInstance } from 'fastify';
 import { VoiceSession } from '../voice/session-manager.js';
+import { resolveHandler, type SystemAgentMode } from '../voice/handlers/index.js';
+import type { AgentConfig } from '../voice/handlers/types.js';
+import { db } from '../db/index.js';
+import { agents } from '../db/schema.js';
+import { eq, and } from 'drizzle-orm';
 
 export async function voiceSessionRoute(fastify: FastifyInstance) {
-  fastify.get('/voice-session', { websocket: true }, (socket, req) => {
-    const session = new VoiceSession(socket);
-    fastify.log.info(`[voice-ws] New connection, session ${session.sessionId}`);
+  fastify.get('/voice-session', { websocket: true }, async (socket, req) => {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const agentIdParam = url.searchParams.get('agent');
+    const modeParam = url.searchParams.get('mode') as SystemAgentMode | null;
+
+    let agentConfig: AgentConfig | null = null;
+    let mode: SystemAgentMode | null = modeParam;
+
+    // Load agent from DB if agent ID provided
+    if (agentIdParam) {
+      const agentId = Number(agentIdParam);
+      const [row] = await db.select().from(agents)
+        .where(and(
+          eq(agents.id, agentId),
+          eq(agents.userId, req.user.userId),
+        ));
+
+      if (!row) {
+        socket.close(4004, 'Agent not found');
+        return;
+      }
+
+      agentConfig = {
+        id: row.id,
+        type: row.type,
+        name: row.name,
+        systemPrompt: row.systemPrompt,
+        behaviorPrompt: row.behaviorPrompt,
+        voiceId: row.voiceId,
+        settings: (row.settings as Record<string, unknown>) ?? {},
+      };
+      mode = null;
+    }
+
+    const handler = resolveHandler(mode, agentConfig);
+    const session = new VoiceSession(socket, req.user.userId, handler, agentConfig);
+
+    fastify.log.info(`[voice-ws] New connection, session ${session.sessionId}, agent=${agentConfig?.name ?? 'system'}, mode=${mode ?? 'default'}`);
 
     socket.on('message', (raw) => {
       try {

@@ -48,6 +48,8 @@ interface VoiceSessionOverlayProps {
   isMuted: boolean;
   onToggleMute: () => void;
   onStop: () => void;
+  mode?: 'session' | 'onboarding';
+  agentName?: string;
 }
 
 export function VoiceSessionOverlay({
@@ -56,6 +58,8 @@ export function VoiceSessionOverlay({
   isMuted,
   onToggleMute,
   onStop,
+  mode = 'session',
+  agentName,
 }: VoiceSessionOverlayProps) {
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -181,8 +185,8 @@ export function VoiceSessionOverlay({
             <Ionicons name="person" size={18} color={alpha(colors.white, 0.6)} />
           </View>
           <View style={styles.liveBadgeText}>
-            <Text style={styles.liveModeLabel}>LIVE MODE</Text>
-            <Text style={styles.liveModeName}>Dr. Aris AI</Text>
+            <Text style={styles.liveModeLabel}>{mode === 'onboarding' ? 'ONBOARDING' : 'LIVE MODE'}</Text>
+            <Text style={styles.liveModeName}>{agentName ?? 'Reflexa'}</Text>
           </View>
           <View style={styles.timerPill}>
             <Text style={styles.timerPillText}>{formatTime(elapsedTime)}</Text>

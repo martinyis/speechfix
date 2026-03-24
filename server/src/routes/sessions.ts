@@ -1,12 +1,24 @@
 import { FastifyInstance } from 'fastify';
 import { transcribe } from '../services/transcription.js';
 import { analyzeSpeech } from '../services/analysis.js';
+import { generateSessionMetadata } from '../services/title-generator.js';
 import { db } from '../db/index.js';
 import { sessions, corrections, fillerWords } from '../db/schema.js';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, and } from 'drizzle-orm';
 import { writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import path from 'path';
+
+function computeClarityScore(
+  sentences: string[],
+  correctionsList: Array<{ sentenceIndex: number }>,
+): number {
+  const total = sentences.length;
+  if (total === 0) return 100;
+  const sentencesWithCorrections = new Set(correctionsList.map((c) => c.sentenceIndex)).size;
+  const clean = Math.max(0, total - sentencesWithCorrections);
+  return Math.round((clean / total) * 100);
+}
 
 export async function sessionRoutes(fastify: FastifyInstance) {
   fastify.post('/sessions', async (request, reply) => {
@@ -33,17 +45,27 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         return reply.code(200).send({ session: null, message: 'No speech detected' });
       }
 
+      // Run analysis and title generation in parallel
+      const [analysisResult, metadata] = await Promise.all([
+        analyzeSpeech(result.sentences),
+        generateSessionMetadata(result.text),
+      ]);
+
+      const clarityScore = computeClarityScore(result.sentences, analysisResult.corrections);
+
       const [session] = await db
         .insert(sessions)
         .values({
+          userId: request.user.userId,
           transcription: result.text,
           durationSeconds: durationSeconds,
           analysis: null,
+          title: metadata.title,
+          description: metadata.description,
+          topicCategory: metadata.topicCategory,
+          clarityScore,
         })
         .returning();
-
-      // Run Claude analysis
-      const analysisResult = await analyzeSpeech(result.sentences);
 
       // Store sentences, filler positions, and session insights in the analysis JSON column
       await db.update(sessions).set({
@@ -102,11 +124,17 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         id: sessions.id,
         durationSeconds: sessions.durationSeconds,
         createdAt: sessions.createdAt,
-        errorCount: sql<number>`(SELECT count(*) FROM corrections WHERE corrections.session_id = ${sessions.id} AND corrections.severity = 'error')`.as('error_count'),
-        improvementCount: sql<number>`(SELECT count(*) FROM corrections WHERE corrections.session_id = ${sessions.id} AND corrections.severity = 'improvement')`.as('improvement_count'),
-        polishCount: sql<number>`(SELECT count(*) FROM corrections WHERE corrections.session_id = ${sessions.id} AND corrections.severity = 'polish')`.as('polish_count'),
+        title: sessions.title,
+        description: sessions.description,
+        topicCategory: sessions.topicCategory,
+        clarityScore: sessions.clarityScore,
+        errorCount: sql<number>`(SELECT count(*)::int FROM corrections WHERE corrections.session_id = "sessions"."id" AND corrections.severity = 'error')`.as('error_count'),
+        improvementCount: sql<number>`(SELECT count(*)::int FROM corrections WHERE corrections.session_id = "sessions"."id" AND corrections.severity = 'improvement')`.as('improvement_count'),
+        polishCount: sql<number>`(SELECT count(*)::int FROM corrections WHERE corrections.session_id = "sessions"."id" AND corrections.severity = 'polish')`.as('polish_count'),
+        totalFillerCount: sql<number>`(SELECT COALESCE(sum(count), 0)::int FROM filler_words WHERE filler_words.session_id = "sessions"."id")`.as('total_filler_count'),
       })
       .from(sessions)
+      .where(eq(sessions.userId, request.user.userId))
       .orderBy(desc(sessions.createdAt));
 
     return { sessions: rows };
@@ -116,7 +144,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: { id: string } }>('/sessions/:id', async (request, reply) => {
     const sessionId = Number(request.params.id);
 
-    const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId));
+    const [session] = await db.select().from(sessions).where(and(eq(sessions.id, sessionId), eq(sessions.userId, request.user.userId)));
     if (!session) {
       return reply.code(404).send({ error: 'Session not found' });
     }

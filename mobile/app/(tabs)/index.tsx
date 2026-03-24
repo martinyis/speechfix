@@ -185,8 +185,8 @@ export default function HomeScreen() {
               </View>
 
               <View>
-                {(sessions ?? []).slice(0, 3).map((item, index) => (
-                  <SessionRow key={item.id} item={item} index={index} />
+                {(sessions ?? []).slice(0, 3).map((item) => (
+                  <SessionRow key={item.id} item={item} />
                 ))}
               </View>
             </View>

@@ -56,7 +56,8 @@
       [
         "@mykin-ai/expo-audio-stream",
         {}
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

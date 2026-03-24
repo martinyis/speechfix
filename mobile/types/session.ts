@@ -64,6 +64,16 @@ export interface SessionDetail {
   sessionInsights: SessionInsight[];
 }
 
+export type TopicCategory =
+  | 'work'
+  | 'daily_life'
+  | 'travel'
+  | 'social'
+  | 'education'
+  | 'technology'
+  | 'health'
+  | 'general';
+
 export interface SessionListItem {
   id: number;
   durationSeconds: number;
@@ -71,6 +81,33 @@ export interface SessionListItem {
   errorCount: number;
   improvementCount: number;
   polishCount: number;
-  transcriptSnippet?: string | null;
+  title?: string | null;
+  description?: string | null;
+  topicCategory?: TopicCategory | null;
+  clarityScore?: number | null;
   totalFillerCount?: number;
+  agentId?: number | null;
+  agentName?: string | null;
+}
+
+export interface Agent {
+  id: number;
+  name: string;
+  type: string;
+  voiceId: string | null;
+  createdAt: string;
+}
+
+export interface AgentDetail extends Agent {
+  systemPrompt: string;
+  behaviorPrompt: string | null;
+  settings: Record<string, unknown>;
+}
+
+export interface Voice {
+  id: string;
+  name: string;
+  gender: 'male' | 'female';
+  description: string;
+  sampleUrl?: string;
 }

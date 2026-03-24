@@ -1,0 +1,4 @@
+ALTER TABLE users ADD COLUMN display_name VARCHAR(255);
+ALTER TABLE users ADD COLUMN context TEXT;
+ALTER TABLE users ADD COLUMN goals JSONB;
+ALTER TABLE users ADD COLUMN onboarding_complete BOOLEAN NOT NULL DEFAULT false;

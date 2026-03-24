@@ -20,7 +20,7 @@ export default function AllSessionsScreen() {
         renderSectionHeader={({ section }) => (
           <Text style={styles.sectionTitle}>{section.title}</Text>
         )}
-        renderItem={({ item, index }) => <SessionRow item={item} index={index} />}
+        renderItem={({ item }) => <SessionRow item={item} />}
         showsVerticalScrollIndicator={false}
         stickySectionHeadersEnabled={false}
       />
