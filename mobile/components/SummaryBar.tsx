@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { colors, alpha } from '../theme';
 
 interface SummaryBarProps {
   totalSentences: number;
@@ -17,101 +18,261 @@ export function SummaryBar({
 }: SummaryBarProps) {
   const cleanSentences = Math.max(0, totalSentences - sentencesWithCorrections);
   const totalIssues = errorCount + improvementCount + polishCount;
+  const clarityScore =
+    totalSentences > 0
+      ? Math.round((cleanSentences / totalSentences) * 100)
+      : 100;
 
-  const counts: Array<{ count: number; label: string; dotStyle: object }> = [];
-  if (errorCount > 0) {
-    counts.push({
-      count: errorCount,
-      label: errorCount === 1 ? 'error' : 'errors',
-      dotStyle: styles.errorDot,
-    });
+  // Build improvement summary text
+  let summaryText = '';
+  if (totalIssues === 0) {
+    summaryText = 'Your speech was clean with no issues detected.';
+  } else {
+    const parts: string[] = [];
+    if (errorCount > 0) parts.push(`${errorCount} error${errorCount !== 1 ? 's' : ''}`);
+    if (improvementCount > 0)
+      parts.push(`${improvementCount} improvement${improvementCount !== 1 ? 's' : ''}`);
+    if (polishCount > 0) parts.push(`${polishCount} polish suggestion${polishCount !== 1 ? 's' : ''}`);
+    summaryText = `We identified ${parts.join(', ')} across ${sentencesWithCorrections} sentence${sentencesWithCorrections !== 1 ? 's' : ''}.`;
   }
-  if (improvementCount > 0) {
-    counts.push({
-      count: improvementCount,
-      label: improvementCount === 1 ? 'improvement' : 'improvements',
-      dotStyle: styles.improvementDot,
-    });
-  }
-  if (polishCount > 0) {
-    counts.push({
-      count: polishCount,
-      label: polishCount === 1 ? 'polish' : 'polish',
-      dotStyle: styles.polishDot,
-    });
-  }
+
+  // Circular progress dimensions
+  const size = 140;
+  const strokeWidth = 6;
+  const radius = (size - strokeWidth) / 2;
+  const progressRatio = clarityScore / 100;
+
+  // Build the arc segments for the progress ring
+  const segmentCount = 60;
+  const anglePerSegment = 360 / segmentCount;
+  const filledSegments = Math.round(progressRatio * segmentCount);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.headline}>
-        {cleanSentences} of {totalSentences} sentences clean
-      </Text>
-      <View style={styles.countsRow}>
-        {counts.map((item, index) => (
-          <View key={item.label} style={styles.countBadge}>
-            {index > 0 && <Text style={styles.separator}>{'\u00B7'}</Text>}
-            <View style={[styles.dot, item.dotStyle]} />
-            <Text style={styles.countText}>
-              {item.count} {item.label}
+      <View style={styles.row}>
+        {/* Left: text content */}
+        <View style={styles.textContent}>
+          {/* Date label line */}
+          <View style={styles.dateRow}>
+            <View style={styles.decorativeLine} />
+            <Text style={styles.dateLabel}>ANALYSIS</Text>
+          </View>
+
+          {/* Headline */}
+          <View style={styles.headlineRow}>
+            <Text style={styles.headlineWord}>
+              Session{'\n'}
+              <Text style={styles.headlineAccent}>Analysis.</Text>
             </Text>
           </View>
-        ))}
-        {totalIssues === 0 && (
-          <Text style={styles.cleanText}>No issues found</Text>
-        )}
+
+          {/* Summary subtitle */}
+          <Text style={styles.subtitle}>{summaryText}</Text>
+        </View>
+
+        {/* Right: Score circle */}
+        <View style={styles.scoreContainer}>
+          {/* Glow */}
+          <View style={styles.scoreGlow} />
+
+          {/* Background ring */}
+          <View style={styles.scoreRing}>
+            {/* Track */}
+            <View style={styles.ringTrack}>
+              {/* Filled arc segments */}
+              {Array.from({ length: segmentCount }).map((_, i) => {
+                const angle = (i * anglePerSegment - 90) * (Math.PI / 180);
+                const x = radius * Math.cos(angle);
+                const y = radius * Math.sin(angle);
+                const isFilled = i < filledSegments;
+
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      styles.arcDot,
+                      {
+                        left: size / 2 + x - 2.5,
+                        top: size / 2 + y - 2.5,
+                        backgroundColor: isFilled
+                          ? i < filledSegments * 0.5
+                            ? colors.primary
+                            : colors.secondary
+                          : alpha(colors.white, 0.06),
+                        opacity: isFilled ? 1 : 0.5,
+                      },
+                    ]}
+                  />
+                );
+              })}
+            </View>
+
+            {/* Center text */}
+            <View style={styles.scoreCenterContent}>
+              <Text style={styles.scoreValue}>{clarityScore}%</Text>
+              <Text style={styles.scoreLabel}>Clarity</Text>
+            </View>
+          </View>
+        </View>
       </View>
+
+      {/* Stats row */}
+      {totalIssues > 0 && (
+        <View style={styles.statsRow}>
+          {errorCount > 0 && (
+            <View style={styles.statItem}>
+              <View style={[styles.statDot, { backgroundColor: colors.severityError }]} />
+              <Text style={styles.statText}>
+                {errorCount} error{errorCount !== 1 ? 's' : ''}
+              </Text>
+            </View>
+          )}
+          {improvementCount > 0 && (
+            <View style={styles.statItem}>
+              <View style={[styles.statDot, { backgroundColor: colors.secondary }]} />
+              <Text style={styles.statText}>
+                {improvementCount} improvement{improvementCount !== 1 ? 's' : ''}
+              </Text>
+            </View>
+          )}
+          {polishCount > 0 && (
+            <View style={styles.statItem}>
+              <View style={[styles.statDot, { backgroundColor: colors.severityPolish }]} />
+              <Text style={styles.statText}>
+                {polishCount} polish
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e0e0e0',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
-  headline: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
-  countsRow: {
+  textContent: {
+    flex: 1,
+    paddingRight: 16,
+  },
+  dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
-    gap: 8,
+    gap: 10,
+    marginBottom: 12,
   },
-  countBadge: {
+  decorativeLine: {
+    width: 24,
+    height: 1,
+    backgroundColor: colors.primary,
+    opacity: 0.6,
+  },
+  dateLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.primary,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+  },
+  headlineRow: {
+    marginBottom: 12,
+  },
+  headlineWord: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: colors.onSurface,
+    letterSpacing: -1.5,
+    lineHeight: 40,
+  },
+  headlineAccent: {
+    color: colors.primary,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontWeight: '300',
+    color: alpha(colors.white, 0.55),
+    lineHeight: 24,
+  },
+  // Score circle
+  scoreContainer: {
+    width: 140,
+    height: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreGlow: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: alpha(colors.primary, 0.08),
+  },
+  scoreRing: {
+    width: 140,
+    height: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ringTrack: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+  },
+  arcDot: {
+    position: 'absolute',
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  scoreCenterContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreValue: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: colors.onSurface,
+    letterSpacing: -1,
+  },
+  scoreLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: alpha(colors.white, 0.4),
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: 2,
+  },
+  // Stats row
+  statsRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: alpha(colors.white, 0.06),
+  },
+  statItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  statDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  errorDot: {
-    backgroundColor: '#E53935',
-  },
-  improvementDot: {
-    backgroundColor: '#1E88E5',
-  },
-  polishDot: {
-    backgroundColor: '#26A69A',
-  },
-  countText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  separator: {
-    fontSize: 14,
-    color: '#999',
-  },
-  cleanText: {
-    fontSize: 14,
-    color: '#4CAF50',
+  statText: {
+    fontSize: 13,
+    color: alpha(colors.white, 0.45),
     fontWeight: '500',
   },
 });

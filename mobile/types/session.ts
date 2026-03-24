@@ -6,11 +6,19 @@ export interface TranscriptionResult {
   createdAt: string;
 }
 
+export interface SessionAnalysis {
+  sentences: string[];
+  corrections: Correction[];
+  fillerWords: FillerWord[];
+  fillerPositions: FillerWordPosition[];
+  sessionInsights: SessionInsight[];
+}
+
 export interface Session {
   id: number;
   transcription: string;
   durationSeconds: number;
-  analysis: unknown | null;
+  analysis: SessionAnalysis | null;
   createdAt: string;
 }
 
@@ -63,4 +71,6 @@ export interface SessionListItem {
   errorCount: number;
   improvementCount: number;
   polishCount: number;
+  transcriptSnippet?: string | null;
+  totalFillerCount?: number;
 }

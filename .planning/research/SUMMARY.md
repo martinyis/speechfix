@@ -1,13 +1,13 @@
 # Project Research Summary
 
-**Project:** Reframe (Speech Improvement App)
+**Project:** Reflexa (Speech Improvement App)
 **Domain:** Speech recording + AI analysis mobile app for non-native English speakers
 **Researched:** 2026-03-19
 **Confidence:** HIGH
 
 ## Executive Summary
 
-Reframe is a mobile app that records free-form speech, transcribes it via OpenAI Whisper, analyzes grammar and filler words via Claude, and tracks recurring mistakes over time. The recommended stack is Expo SDK 55 (React Native 0.83) for the mobile client, Fastify v5 for a local Node.js backend, PostgreSQL 17 with Drizzle ORM for storage, and OpenAI + Anthropic APIs for transcription and analysis. This is a well-understood architecture -- a mobile client talking to a REST API that orchestrates external AI services -- and every component has high-confidence documentation. The competitive landscape reveals a genuine gap: no existing tool combines free-form speech recording with structured grammar correction AND cross-session pattern tracking. The closest competitor (Pronounce) records calls but lacks the pattern analysis that is Reframe's core thesis.
+Reflexa is a mobile app that records free-form speech, transcribes it via OpenAI Whisper, analyzes grammar and filler words via Claude, and tracks recurring mistakes over time. The recommended stack is Expo SDK 55 (React Native 0.83) for the mobile client, Fastify v5 for a local Node.js backend, PostgreSQL 17 with Drizzle ORM for storage, and OpenAI + Anthropic APIs for transcription and analysis. This is a well-understood architecture -- a mobile client talking to a REST API that orchestrates external AI services -- and every component has high-confidence documentation. The competitive landscape reveals a genuine gap: no existing tool combines free-form speech recording with structured grammar correction AND cross-session pattern tracking. The closest competitor (Pronounce) records calls but lacks the pattern analysis that is Reflexa's core thesis.
 
 The most significant technical risk is not in the stack but in the AI pipeline. Whisper silently normalizes grammar errors (correcting "He don't like it" to "He doesn't like it") and strips filler words by default -- both behaviors that directly undermine the app's two core features. This is not a bug to fix but a fundamental constraint to design around. The Whisper `prompt` parameter can partially steer behavior (especially for filler word preservation), but grammar normalization cannot be fully disabled. The Claude analysis prompt must be calibrated for spoken English norms, not written standards, or it will flood users with false-positive corrections that destroy trust. These two issues -- Whisper normalization and Claude overcorrection -- are the highest-priority problems and must be validated with real test recordings before any UI work begins.
 
@@ -39,7 +39,7 @@ The stack is modern, well-documented, and chosen for solo-developer productivity
 - Session history list with date, duration, mistake summary
 - Fast feedback loop under 15 seconds for 3-minute recording, with progress states (not just a spinner)
 
-**Should have (differentiators -- where Reframe's thesis lives):**
+**Should have (differentiators -- where Reflexa's thesis lives):**
 - Cross-session pattern analysis ("you keep making the same article mistake") -- no competitor does this well
 - Recurring mistake identification with specific examples across sessions ("you've used 'depend of' instead of 'depend on' in 4 of your last 7 sessions")
 - Session-over-session progress visibility (issues per minute trending down over weeks)
@@ -54,7 +54,7 @@ The stack is modern, well-documented, and chosen for solo-developer productivity
 **Do not build (anti-features by design):**
 - Scores, ratings, gamification, streaks, badges -- shifts focus from learning to performing
 - Pronunciation coaching -- different problem, different technology (ELSA/Speechace own this)
-- Lesson-based curriculum -- Reframe is a mirror, not a teacher
+- Lesson-based curriculum -- Reflexa is a mirror, not a teacher
 - Social features or sharing -- speech mistakes are deeply personal
 - Real-time correction during speech -- interrupts flow, creates self-consciousness
 
@@ -106,7 +106,7 @@ Based on research, suggested phase structure:
 **Avoids:** Pipeline latency frustration (Pitfall 7) via showing transcription first, then corrections. Recording interruption data loss (Pitfall 10) via explicit audio session management.
 
 ### Phase 4: Pattern Analysis and Progress Tracking
-**Rationale:** This is Reframe's core differentiator but requires accumulated session data (~5+ sessions). Built last because it depends on structured data from all prior phases and because the SQL aggregation + Claude analysis pattern needs real data to validate. This phase validates the product hypothesis: does tracking patterns over time actually help?
+**Rationale:** This is Reflexa's core differentiator but requires accumulated session data (~5+ sessions). Built last because it depends on structured data from all prior phases and because the SQL aggregation + Claude analysis pattern needs real data to validate. This phase validates the product hypothesis: does tracking patterns over time actually help?
 **Delivers:** Cross-session pattern identification, recurring mistake tracking, progress metrics over time, recommendations.
 **Addresses:** Cross-session pattern analysis, recurring mistake identification, session-over-session progress visibility, mistake severity prioritization.
 **Avoids:** Context window limits (Pitfall 8) via SQL-first aggregation with condensed Claude summaries. Lost-in-the-middle degradation by never sending raw transcripts to pattern analysis.

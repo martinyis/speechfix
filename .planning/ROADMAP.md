@@ -1,8 +1,8 @@
-# Roadmap: Reframe
+# Roadmap: Reflexa
 
 ## Overview
 
-Reframe delivers a personal speech feedback tool in three phases. Phase 1 stands up the full infrastructure and validates the riskiest unknown: whether Whisper preserves enough grammar errors and filler words to make AI analysis useful. Phase 2 builds the complete daily-use experience -- record speech, see corrections, review past sessions. Phase 3 adds cross-session pattern analysis, the differentiating feature that requires accumulated data to validate.
+Reflexa delivers a personal speech feedback tool in three phases. Phase 1 stands up the full infrastructure and validates the riskiest unknown: whether Whisper preserves enough grammar errors and filler words to make AI analysis useful. Phase 2 builds the complete daily-use experience -- record speech, see corrections, review past sessions. Phase 3 adds cross-session pattern analysis, the differentiating feature that requires accumulated data to validate.
 
 ## Phases
 

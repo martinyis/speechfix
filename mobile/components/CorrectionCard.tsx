@@ -1,7 +1,11 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, alpha } from '../theme';
 
 interface CorrectionCardProps {
-  contextSnippet: string | null;
+  sentence: string;
   originalText: string;
   correctedText: string;
   explanation: string | null;
@@ -9,164 +13,291 @@ interface CorrectionCardProps {
   severity: 'error' | 'improvement' | 'polish';
 }
 
+const SEVERITY_COLOR: Record<string, string> = {
+  error: colors.severityError,
+  improvement: colors.severityImprovement,
+  polish: colors.severityPolish,
+};
+
+const SEVERITY_LABEL: Record<string, string> = {
+  error: 'Error',
+  improvement: 'Improvement',
+  polish: 'Polish',
+};
+
+const CARD_BG_OPACITY: Record<string, number> = {
+  error: 0.05,
+  improvement: 0.03,
+  polish: 0.02,
+};
+
+function trimContext(sentence: string, originalText: string, maxContext = 20) {
+  const idx = sentence.toLowerCase().indexOf(originalText.toLowerCase());
+  if (idx < 0) return { before: '', error: originalText, after: '' };
+
+  let before = sentence.slice(Math.max(0, idx - maxContext), idx);
+  let after = sentence.slice(
+    idx + originalText.length,
+    idx + originalText.length + maxContext,
+  );
+
+  if (idx > maxContext) before = '\u2026' + before;
+  if (idx + originalText.length + maxContext < sentence.length)
+    after = after + '\u2026';
+
+  return { before, error: sentence.slice(idx, idx + originalText.length), after };
+}
+
 export function CorrectionCard({
-  contextSnippet,
+  sentence,
   originalText,
   correctedText,
   explanation,
   correctionType,
   severity,
 }: CorrectionCardProps) {
-  const cardStyle =
-    severity === 'error'
-      ? styles.errorCard
-      : severity === 'improvement'
-        ? styles.improvementCard
-        : styles.polishCard;
+  const [showExplanation, setShowExplanation] = useState(false);
+  const severityColor = SEVERITY_COLOR[severity] ?? colors.severityError;
+  const bgOpacity = CARD_BG_OPACITY[severity] ?? 0.03;
 
-  const badgeStyle =
-    severity === 'error'
-      ? styles.errorBadge
-      : severity === 'improvement'
-        ? styles.improvementBadge
-        : styles.polishBadge;
-
-  const badgeTextStyle =
-    severity === 'error'
-      ? styles.errorBadgeText
-      : severity === 'improvement'
-        ? styles.improvementBadgeText
-        : styles.polishBadgeText;
-
-  const badgeLabel =
-    severity === 'error'
-      ? 'ERROR'
-      : severity === 'improvement'
-        ? 'IMPROVEMENT'
-        : 'POLISH';
+  const { before, error, after } = trimContext(sentence, originalText);
 
   return (
-    <View style={[styles.card, cardStyle]}>
-      {contextSnippet ? (
-        <Text style={styles.contextText} numberOfLines={2}>
-          ...{contextSnippet}...
-        </Text>
-      ) : null}
+    <View style={[styles.card, { backgroundColor: alpha(colors.white, bgOpacity) }]}>
+      {/* Severity-colored left border gradient */}
+      <LinearGradient
+        colors={[alpha(severityColor, 0.6), 'transparent']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.leftBorder}
+      />
 
-      <View style={styles.correctionRow}>
-        <Text style={styles.originalText}>{originalText}</Text>
-        <Text style={styles.arrow}>{' \u2192 '}</Text>
-        <Text style={styles.correctedText}>{correctedText}</Text>
-      </View>
+      <View style={styles.cardContent}>
+        {/* Severity badge + correction type */}
+        <View style={styles.topRow}>
+          <View style={[styles.severityBadge, { borderColor: alpha(severityColor, 0.25) }]}>
+            <View style={[styles.severityDot, { backgroundColor: severityColor }]} />
+            <Text style={[styles.severityText, { color: severityColor }]}>
+              {SEVERITY_LABEL[severity]}
+            </Text>
+          </View>
+          {correctionType && (
+            <Text style={styles.correctionType}>{correctionType}</Text>
+          )}
+        </View>
 
-      {explanation ? (
-        <Text style={styles.explanationText}>{explanation}</Text>
-      ) : null}
-
-      <View style={styles.footer}>
-        <Text style={styles.typeLabel}>{formatType(correctionType)}</Text>
-        <View style={[styles.badge, badgeStyle]}>
-          <Text style={[styles.badgeText, badgeTextStyle]}>
-            {badgeLabel}
+        {/* Context line with error highlighted */}
+        <Text style={styles.contextLine}>
+          {before ? <Text style={styles.contextDim}>{before}</Text> : null}
+          <Text
+            style={[
+              styles.errorPill,
+              { backgroundColor: alpha(severityColor, 0.15) },
+            ]}
+          >
+            {error}
           </Text>
+          {after ? <Text style={styles.contextDim}>{after}</Text> : null}
+        </Text>
+
+        {/* Arrow */}
+        <Text style={[styles.arrow, { color: alpha(severityColor, 0.5) }]}>
+          {'\u2193'}
+        </Text>
+
+        {/* Correction */}
+        <View style={styles.correctionRow}>
+          <Text style={styles.correctionPill}>{correctedText}</Text>
+        </View>
+
+        {/* Collapsible explanation + play hint */}
+        <View style={styles.bottomRow}>
+          {explanation ? (
+            showExplanation ? (
+              <Pressable
+                onPress={() => setShowExplanation(false)}
+                style={styles.explanationContainer}
+              >
+                <View style={styles.explanationRow}>
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={14}
+                    color={alpha(colors.white, 0.3)}
+                  />
+                  <Text style={styles.explanationText}>{explanation}</Text>
+                </View>
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() => setShowExplanation(true)}
+                style={styles.whyButton}
+              >
+                <Text style={styles.whyButtonText}>Why?</Text>
+              </Pressable>
+            )
+          ) : (
+            <View />
+          )}
+
+          <View style={styles.playRow}>
+            <View style={styles.playButton}>
+              <Ionicons name="play" size={12} color={alpha(colors.white, 0.5)} />
+            </View>
+            <Text style={styles.playHint}>Tap to hear</Text>
+          </View>
         </View>
       </View>
     </View>
   );
 }
 
-function formatType(type: string): string {
-  return type.replace(/_/g, ' ');
-}
-
 const styles = StyleSheet.create({
   card: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 14,
-    borderRadius: 10,
-    backgroundColor: '#FAFAFA',
-    borderLeftWidth: 3,
-  },
-  errorCard: {
-    borderLeftColor: '#E53935',
-  },
-  improvementCard: {
-    borderLeftColor: '#1E88E5',
-  },
-  polishCard: {
-    borderLeftColor: '#26A69A',
-  },
-  contextText: {
-    fontSize: 13,
-    color: '#999',
-    lineHeight: 18,
-    marginBottom: 8,
-    fontStyle: 'italic',
-  },
-  correctionRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    marginBottom: 8,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: alpha(colors.white, 0.05),
+    overflow: 'hidden',
   },
-  originalText: {
-    fontSize: 16,
-    color: '#E53935',
-    textDecorationLine: 'line-through',
+  leftBorder: {
+    width: 3,
   },
-  arrow: {
-    fontSize: 16,
-    color: '#999',
+  cardContent: {
+    flex: 1,
+    padding: 18,
   },
-  correctedText: {
-    fontSize: 16,
-    color: '#2E7D32',
-    fontWeight: '600',
-  },
-  explanationText: {
-    fontSize: 13,
-    color: '#666',
-    lineHeight: 18,
-    marginBottom: 8,
-  },
-  footer: {
+
+  // Top row
+  topRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 10,
+    marginBottom: 16,
   },
-  typeLabel: {
-    fontSize: 11,
-    color: '#BBB',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  severityBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 100,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
   },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
+  severityDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
-  errorBadge: {
-    backgroundColor: '#FFEBEE',
-  },
-  improvementBadge: {
-    backgroundColor: '#E3F2FD',
-  },
-  polishBadge: {
-    backgroundColor: '#E0F2F1',
-  },
-  badgeText: {
+  severityText: {
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
-  errorBadgeText: {
-    color: '#E53935',
+  correctionType: {
+    fontSize: 11,
+    color: alpha(colors.white, 0.25),
+    fontWeight: '500',
   },
-  improvementBadgeText: {
-    color: '#1E88E5',
+
+  // Context line with error
+  contextLine: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: alpha(colors.white, 0.4),
   },
-  polishBadgeText: {
-    color: '#26A69A',
+  contextDim: {
+    color: alpha(colors.white, 0.35),
+  },
+  errorPill: {
+    color: alpha(colors.white, 0.75),
+    fontWeight: '600',
+    textDecorationLine: 'line-through',
+    borderRadius: 4,
+    paddingHorizontal: 2,
+  },
+
+  // Arrow
+  arrow: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginVertical: 6,
+  },
+
+  // Correction
+  correctionRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  correctionPill: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: alpha(colors.white, 0.92),
+    backgroundColor: alpha(colors.secondary, 0.15),
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    overflow: 'hidden',
+    letterSpacing: -0.2,
+  },
+
+  // Bottom row
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  explanationContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  explanationRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: alpha(colors.white, 0.05),
+  },
+  explanationText: {
+    flex: 1,
+    fontSize: 13,
+    color: alpha(colors.white, 0.4),
+    lineHeight: 19,
+    fontWeight: '400',
+  },
+  whyButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 100,
+    backgroundColor: alpha(colors.white, 0.04),
+    borderWidth: 1,
+    borderColor: alpha(colors.white, 0.08),
+  },
+  whyButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: alpha(colors.white, 0.4),
+  },
+  playRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  playButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: alpha(colors.white, 0.06),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playHint: {
+    fontSize: 11,
+    color: alpha(colors.white, 0.25),
+    fontWeight: '500',
   },
 });

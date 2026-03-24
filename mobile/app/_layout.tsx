@@ -1,18 +1,19 @@
 import { Stack } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
+import { colors } from '../theme';
 
 const queryClient = new QueryClient();
 
 export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#fff' },
-          headerTintColor: '#000',
-          contentStyle: { backgroundColor: '#fff' },
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.onSurface,
+          contentStyle: { backgroundColor: colors.background },
         }}
       >
         <Stack.Screen
@@ -20,19 +21,17 @@ export default function RootLayout() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
-          name="results"
-          options={{ title: 'Results', presentation: 'card' }}
-        />
-        <Stack.Screen
-          name="history-detail"
-          options={{ title: 'Session', presentation: 'card' }}
-        />
-        <Stack.Screen
-          name="voice-session"
+          name="session-detail"
           options={{
-            headerShown: false,
-            presentation: 'fullScreenModal',
-            gestureEnabled: false,
+            title: 'Session',
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="all-sessions"
+          options={{
+            title: 'All Sessions',
+            presentation: 'card',
           }}
         />
       </Stack>

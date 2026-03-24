@@ -10,6 +10,12 @@ export const API_BASE_URL = __DEV__
     : 'http://10.0.2.2:3005'
   : 'https://api.example.com';
 
+export const WS_BASE_URL = __DEV__
+  ? Platform.OS === 'ios'
+    ? `ws://${DEV_MACHINE_IP}:3005`
+    : 'ws://10.0.2.2:3005'
+  : 'wss://api.example.com';
+
 export const api = {
   baseUrl: API_BASE_URL,
 };

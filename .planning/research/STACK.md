@@ -1,6 +1,6 @@
 # Technology Stack
 
-**Project:** Reframe (Speech Improvement App)
+**Project:** Reflexa (Speech Improvement App)
 **Researched:** 2026-03-19
 
 ## Recommended Stack

@@ -1,17 +1,17 @@
 {
   "expo": {
-    "name": "Reframe",
-    "slug": "reframe",
+    "name": "Reflexa",
+    "slug": "reflexa",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "reframe",
+    "scheme": "reflexa",
     "userInterfaceStyle": "dark",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.reframe.app",
+      "bundleIdentifier": "com.reflexa.app",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Reframe needs microphone access to record your speech for analysis"
+        "NSMicrophoneUsageDescription": "Reflexa needs microphone access to record your speech for analysis"
       },
       "appleTeamId": "UG565K24C7"
     },
@@ -33,7 +33,7 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ],
-      "package": "com.reframe.app"
+      "package": "com.reflexa.app"
     },
     "web": {
       "output": "static",

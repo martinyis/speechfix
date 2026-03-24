@@ -1,4 +1,4 @@
-# Requirements: Reframe
+# Requirements: Reflexa
 
 **Defined:** 2026-03-19
 **Core Value:** Show me exactly what I said wrong and how to say it right -- no scores, no gamification, just honest corrections.

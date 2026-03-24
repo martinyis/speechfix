@@ -5,13 +5,13 @@
 
 ## Competitive Context
 
-The speech improvement space splits into three categories, none of which do exactly what Reframe does:
+The speech improvement space splits into three categories, none of which do exactly what Reflexa does:
 
-1. **Pronunciation coaches** (ELSA Speak, Speechace) -- Focus on phoneme-level pronunciation, accent reduction. Heavily structured. Not relevant to Reframe.
+1. **Pronunciation coaches** (ELSA Speak, Speechace) -- Focus on phoneme-level pronunciation, accent reduction. Heavily structured. Not relevant to Reflexa.
 2. **Public speaking coaches** (Orai, Yoodli, Poised, Cadence) -- Focus on delivery mechanics: pacing, filler words, energy, confidence. Grammar correction is either absent or secondary.
 3. **Language learning platforms** (Speak, Talkio, Gliglish) -- Conversational AI partners with grammar feedback baked into structured lessons. Gamified. Not free-form.
 
-Reframe sits in a gap: **free-form speech recording with grammar/structure correction and long-term pattern tracking**. The closest competitor is Pronounce (getpronounce.com), which records calls and provides grammar/pronunciation feedback, but it lacks cross-session pattern analysis and is oriented toward call recording rather than deliberate practice.
+Reflexa sits in a gap: **free-form speech recording with grammar/structure correction and long-term pattern tracking**. The closest competitor is Pronounce (getpronounce.com), which records calls and provides grammar/pronunciation feedback, but it lacks cross-session pattern analysis and is oriented toward call recording rather than deliberate practice.
 
 This means most features below are informed by what competitors do well (and poorly), but the core value proposition -- "show me my recurring grammar mistakes over time" -- has no direct competitor doing it well.
 
@@ -33,14 +33,14 @@ Features users expect. Missing = product feels incomplete or broken.
 
 ## Differentiators
 
-Features that set Reframe apart. Not expected by users, but this is where the product thesis lives.
+Features that set Reflexa apart. Not expected by users, but this is where the product thesis lives.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Cross-session pattern analysis | No competitor does this well. Poised tracks meeting scores over time but doesn't surface "you keep making the same article mistake." This is Reframe's core hypothesis. | High | Requires accumulating session data and running aggregate analysis. Smart context management needed -- can't dump 50 sessions into one API call. Summarize-then-analyze pattern. |
+| Cross-session pattern analysis | No competitor does this well. Poised tracks meeting scores over time but doesn't surface "you keep making the same article mistake." This is Reflexa's core hypothesis. | High | Requires accumulating session data and running aggregate analysis. Smart context management needed -- can't dump 50 sessions into one API call. Summarize-then-analyze pattern. |
 | Recurring mistake identification | "You've used 'depend of' instead of 'depend on' in 4 of your last 7 sessions." Specific, actionable, personalized. | High | Depends on pattern analysis. Needs structured storage of individual mistakes (not just raw text) to compare across sessions. |
 | Mistake severity / prioritization | Not all mistakes matter equally. "I goed" is obvious and rare. "I am agree" is subtle and frequent. Surface the mistakes that actually matter. | Medium | AI prompt needs to distinguish between: critical (changes meaning), moderate (sounds unnatural), minor (technically wrong but understood). |
-| No-judgment, corrections-only philosophy | Competitors are full of scores, streaks, and badges. Reframe's deliberate absence of gamification is a differentiator for serious users who find that patronizing. | Low | Not a feature to build -- a feature to NOT build. But the UI tone matters: clinical and respectful, not celebratory. |
+| No-judgment, corrections-only philosophy | Competitors are full of scores, streaks, and badges. Reflexa's deliberate absence of gamification is a differentiator for serious users who find that patronizing. | Low | Not a feature to build -- a feature to NOT build. But the UI tone matters: clinical and respectful, not celebratory. |
 | Structural feedback beyond grammar | "Your sentence is grammatically correct but awkward. A native speaker would say..." This goes beyond error correction into naturalness coaching. | Medium | LLMs are uniquely good at this. Most competitors only flag outright errors. Suggesting more natural phrasing is high-value for advanced non-native speakers. |
 | Session-over-session progress visibility | "Last month you averaged 12 grammar issues per session. This month: 7." Simple but powerful. Validates the entire product hypothesis. | Medium | Requires consistent, comparable metrics across sessions. Normalize by session length (issues per minute). |
 | Vocabulary variety tracking | "You used 'good' 14 times. Consider: effective, solid, strong, appropriate." Tracks vocabulary breadth across sessions. | Medium | Useful for advanced speakers who are grammatically correct but repetitive. Not table stakes -- a later-phase differentiator. |
@@ -51,11 +51,11 @@ Features to explicitly NOT build. These are deliberate exclusions, not backlog i
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| Scores and ratings | Scores create anxiety, feel arbitrary, and shift focus from learning to performing. Every competitor does this (ELSA has an "overall speaking score"). Reframe's thesis is that honest corrections are more valuable than a number. | Show concrete metrics (mistake count, filler word count, types of errors) without synthesizing them into a single score. Let the user judge their own progress. |
+| Scores and ratings | Scores create anxiety, feel arbitrary, and shift focus from learning to performing. Every competitor does this (ELSA has an "overall speaking score"). Reflexa's thesis is that honest corrections are more valuable than a number. | Show concrete metrics (mistake count, filler word count, types of errors) without synthesizing them into a single score. Let the user judge their own progress. |
 | Gamification (streaks, badges, XP) | Attracts casual users, repels serious ones. Creates obligation instead of motivation. Explicitly excluded in PROJECT.md. | The "reward" is seeing your mistakes decrease over time. The pattern analysis IS the motivation. |
 | Pronunciation coaching | Different problem, different technology, different user need. ELSA and Speechace own this space. Mixing it in dilutes focus and massively increases complexity. | Stay focused on grammar, structure, filler words, naturalness. |
 | AI conversation mode | Structured back-and-forth conversation with AI. Different product entirely. Requires real-time streaming, TTS, turn-taking logic. Explicitly out of scope in PROJECT.md (v2). | Free-form recording is the input. User talks about whatever they want, whenever they want. |
-| Lesson-based curriculum | Structured lessons ("Today: prepositions") are the language-learning-app approach. Reframe is a mirror, not a teacher. | Feedback is always based on what the user actually said, not what a curriculum prescribed. |
+| Lesson-based curriculum | Structured lessons ("Today: prepositions") are the language-learning-app approach. Reflexa is a mirror, not a teacher. | Feedback is always based on what the user actually said, not what a curriculum prescribed. |
 | Social features / sharing | Sharing speech mistakes is deeply personal. Social pressure does not help here. | Single-user tool. No accounts, no sharing, no leaderboards. |
 | Real-time correction during speech | Poised does this for meetings. It interrupts flow and creates self-consciousness. The value is in post-speech reflection. | Always analyze after recording is complete. Never interrupt the user while speaking. |
 | Multi-language support | English-only per PROJECT.md. Supporting other languages multiplies complexity with no value for the target user (the builder). | Hard-code English. Don't even build the abstraction layer for multi-language. |
