@@ -1,21 +1,38 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView, LayoutChangeEvent } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import MicBloomOrb from '../../components/MicBloomOrb';
+import { WordRevealText } from '../../components/WordRevealText';
 import { useIntroAudio } from '../../hooks/useIntroAudio';
 import { colors, alpha } from '../../theme';
 
 export default function IntroAgentScreen() {
   const insets = useSafeAreaInsets();
-  const { isLoading, isPlaying, isComplete, error, visibleText, currentSegmentIndex, play, skip } = useIntroAudio();
+  const {
+    isLoading,
+    isPlaying,
+    isComplete,
+    error,
+    visibleText,
+    currentSegmentIndex,
+    revealedWords,
+    play,
+    skip,
+  } = useIntroAudio();
   const hasStartedRef = useRef(false);
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const segmentYPositions = useRef<Record<number, number>>({});
+  const scrollAreaHeight = useRef(0);
 
   // Auto-play when audio is loaded
   useEffect(() => {
+    console.log('[IntroScreen] State:', { isLoading, error, hasStarted: hasStartedRef.current, isPlaying, isComplete });
     if (!isLoading && !error && !hasStartedRef.current) {
+      console.log('[IntroScreen] Audio ready — triggering play()');
       hasStartedRef.current = true;
       play();
     }
@@ -32,6 +49,24 @@ export default function IntroAgentScreen() {
       if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
     };
   }, [isComplete]);
+
+  // Auto-scroll to center current segment
+  useEffect(() => {
+    if (currentSegmentIndex < 0) return;
+    const y = segmentYPositions.current[currentSegmentIndex];
+    if (y != null && scrollViewRef.current) {
+      const targetY = Math.max(0, y - scrollAreaHeight.current / 2 + 20);
+      scrollViewRef.current.scrollTo({ y: targetY, animated: true });
+    }
+  }, [currentSegmentIndex]);
+
+  const handleScrollAreaLayout = useCallback((e: LayoutChangeEvent) => {
+    scrollAreaHeight.current = e.nativeEvent.layout.height;
+  }, []);
+
+  const handleSegmentLayout = useCallback((index: number, e: LayoutChangeEvent) => {
+    segmentYPositions.current[index] = e.nativeEvent.layout.y;
+  }, []);
 
   const handleSkip = useCallback(() => {
     if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
@@ -77,25 +112,54 @@ export default function IntroAgentScreen() {
       </View>
 
       {/* Bottom: Text reveal area */}
-      <View style={styles.textArea}>
+      <View style={styles.textArea} onLayout={handleScrollAreaLayout}>
         <ScrollView
+          ref={scrollViewRef}
           style={styles.textScroll}
           contentContainerStyle={styles.textScrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {visibleText.map((text, index) => (
-            <Animated.Text
-              key={index}
-              entering={FadeInDown.duration(300)}
-              style={[
-                styles.segmentText,
-                index === currentSegmentIndex && styles.segmentTextActive,
-              ]}
-            >
-              {text}
-            </Animated.Text>
-          ))}
+          {visibleText.map((text, index) => {
+            const words = text.split(/\s+/);
+            const isPast = index < currentSegmentIndex;
+            const isCurrent = index === currentSegmentIndex;
+
+            return (
+              <Animated.View
+                key={index}
+                entering={FadeInDown.duration(300)}
+                onLayout={(e) => handleSegmentLayout(index, e)}
+                style={styles.segmentWrap}
+              >
+                <WordRevealText
+                  words={words}
+                  revealedCount={
+                    isPast
+                      ? words.length
+                      : isCurrent
+                        ? (revealedWords[index] ?? 0)
+                        : 0
+                  }
+                  activeStyle={isPast ? styles.dimmedWord : styles.activeWord}
+                />
+              </Animated.View>
+            );
+          })}
         </ScrollView>
+
+        {/* Top gradient fade */}
+        <LinearGradient
+          colors={[colors.background, 'transparent']}
+          style={styles.gradientTop}
+          pointerEvents="none"
+        />
+
+        {/* Bottom gradient fade */}
+        <LinearGradient
+          colors={['transparent', colors.background]}
+          style={styles.gradientBottom}
+          pointerEvents="none"
+        />
 
         {isLoading && (
           <Animated.Text entering={FadeIn.duration(400)} style={styles.loadingText}>
@@ -124,31 +188,51 @@ const styles = StyleSheet.create({
     color: alpha(colors.white, 0.5),
   },
   orbSection: {
-    flex: 1,
+    flex: 0.6,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'visible',
   },
   textArea: {
-    height: 180,
+    flex: 1,
+    maxHeight: 320,
     paddingHorizontal: 32,
   },
   textScroll: {
     flex: 1,
   },
   textScrollContent: {
-    paddingBottom: 16,
+    paddingTop: 48,
+    paddingBottom: 48,
   },
-  segmentText: {
-    fontSize: 18,
-    fontWeight: '400',
-    color: alpha(colors.white, 0.35),
-    lineHeight: 28,
-    textAlign: 'center',
+  segmentWrap: {
+    marginBottom: 12,
   },
-  segmentTextActive: {
-    color: colors.primary,
-    fontWeight: '500',
+  activeWord: {
+    color: colors.onSurface,
+    fontSize: 20,
+    lineHeight: 30,
+  },
+  dimmedWord: {
+    color: alpha(colors.white, 0.25),
+    fontSize: 20,
+    lineHeight: 30,
+  },
+  gradientTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 48,
+    zIndex: 2,
+  },
+  gradientBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 48,
+    zIndex: 2,
   },
   loadingText: {
     fontSize: 14,
