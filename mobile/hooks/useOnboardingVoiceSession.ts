@@ -39,10 +39,10 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
     appStateSubRef.current?.remove(); appStateSubRef.current = null;
 
     if (isRecordingRef.current) {
-      try { await ExpoPlayAudioStream.stopRecording(); } catch {}
+      try { await ExpoPlayAudioStream.stopRecording(); } catch (e) { console.warn('[onboarding-voice] stopRecording error:', e); }
       isRecordingRef.current = false;
     }
-    try { await ExpoPlayAudioStream.stopAudio(); } catch {}
+    try { await ExpoPlayAudioStream.stopAudio(); } catch (e) { console.warn('[onboarding-voice] stopAudio error:', e); }
 
     if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
     deactivateKeepAwake();
@@ -70,7 +70,8 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
       });
       isRecordingRef.current = true;
       if (subscription) subscriptionRef.current = subscription;
-    } catch {
+    } catch (e) {
+      console.error('[onboarding-voice] startRecording failed:', e);
       onError('Failed to start microphone');
       cleanup();
       store.getState().endVoiceSession();
@@ -82,6 +83,7 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
 
     switch (msg.type) {
       case 'ready':
+        console.log('[onboarding-voice] Received ready, starting mic');
         startMicAndTimer();
         s.setVoiceSessionState('listening');
         break;
@@ -92,7 +94,7 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
         const rawBytes = Math.ceil((msg.data?.length ?? 0) * 3 / 4);
         turnAudioBytesRef.current += rawBytes;
         const streamId = String(msg.turnId ?? turnIdRef.current);
-        try { ExpoPlayAudioStream.playSound(msg.data, streamId, 'pcm_s16le'); } catch {}
+        try { ExpoPlayAudioStream.playSound(msg.data, streamId, 'pcm_s16le'); } catch (e) { console.error('[onboarding-voice] playSound error:', e); }
         break;
       }
 
@@ -165,21 +167,24 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
     s.startVoiceSession();
     s.resetElapsedTime();
 
-    try { await activateKeepAwakeAsync(); } catch {}
+    try { await activateKeepAwakeAsync(); } catch (e) { console.warn('[onboarding-voice] keepAwake error:', e); }
 
     try {
       await ExpoPlayAudioStream.setSoundConfig({
         sampleRate: 24000,
         playbackMode: PlaybackModes.CONVERSATION,
       });
-    } catch {}
+    } catch (e) { console.error('[onboarding-voice] setSoundConfig failed:', e); }
+
+    // Allow iOS AVAudioSession to fully initialize before audio arrives
+    await new Promise(resolve => setTimeout(resolve, 400));
 
     const ws = new WebSocket(wsUrl('/voice-session') + '&mode=onboarding');
     wsRef.current = ws;
 
     ws.onopen = () => { ws.send(JSON.stringify({ type: 'start' })); };
     ws.onmessage = (event) => {
-      try { handleMessage(JSON.parse(event.data)); } catch {}
+      try { handleMessage(JSON.parse(event.data)); } catch (e) { console.error('[onboarding-voice] message parse error:', e); }
     };
     ws.onerror = () => {
       onError("Couldn't connect. Check your connection and try again.");
@@ -206,11 +211,11 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
     }
 
     if (isRecordingRef.current) {
-      try { await ExpoPlayAudioStream.stopRecording(); } catch {}
+      try { await ExpoPlayAudioStream.stopRecording(); } catch (e) { console.warn('[onboarding-voice] stopRecording error:', e); }
       isRecordingRef.current = false;
     }
     subscriptionRef.current?.remove(); subscriptionRef.current = null;
-    try { await ExpoPlayAudioStream.stopAudio(); } catch {}
+    try { await ExpoPlayAudioStream.stopAudio(); } catch (e) { console.warn('[onboarding-voice] stopAudio error:', e); }
 
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
 
