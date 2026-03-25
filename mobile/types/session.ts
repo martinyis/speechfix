@@ -88,6 +88,7 @@ export interface SessionListItem {
   totalFillerCount?: number;
   agentId?: number | null;
   agentName?: string | null;
+  agentAvatarSeed?: string | null;
 }
 
 export interface Agent {
@@ -95,6 +96,7 @@ export interface Agent {
   name: string;
   type: string;
   voiceId: string | null;
+  avatarSeed?: string | null;
   createdAt: string;
 }
 
@@ -111,3 +113,5 @@ export interface Voice {
   description: string;
   sampleUrl?: string;
 }
+
+export type CorrectionFilter = 'all' | 'error' | 'improvement' | 'polish';

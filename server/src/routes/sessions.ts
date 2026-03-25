@@ -3,7 +3,7 @@ import { transcribe } from '../services/transcription.js';
 import { analyzeSpeech } from '../services/analysis.js';
 import { generateSessionMetadata } from '../services/title-generator.js';
 import { db } from '../db/index.js';
-import { sessions, corrections, fillerWords } from '../db/schema.js';
+import { sessions, corrections, fillerWords, agents } from '../db/schema.js';
 import { eq, desc, sql, and } from 'drizzle-orm';
 import { writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
@@ -128,16 +128,25 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         description: sessions.description,
         topicCategory: sessions.topicCategory,
         clarityScore: sessions.clarityScore,
+        agentId: sessions.agentId,
+        agentName: agents.name,
+        agentSettings: agents.settings,
         errorCount: sql<number>`(SELECT count(*)::int FROM corrections WHERE corrections.session_id = "sessions"."id" AND corrections.severity = 'error')`.as('error_count'),
         improvementCount: sql<number>`(SELECT count(*)::int FROM corrections WHERE corrections.session_id = "sessions"."id" AND corrections.severity = 'improvement')`.as('improvement_count'),
         polishCount: sql<number>`(SELECT count(*)::int FROM corrections WHERE corrections.session_id = "sessions"."id" AND corrections.severity = 'polish')`.as('polish_count'),
         totalFillerCount: sql<number>`(SELECT COALESCE(sum(count), 0)::int FROM filler_words WHERE filler_words.session_id = "sessions"."id")`.as('total_filler_count'),
       })
       .from(sessions)
+      .leftJoin(agents, eq(sessions.agentId, agents.id))
       .where(eq(sessions.userId, request.user.userId))
       .orderBy(desc(sessions.createdAt));
 
-    return { sessions: rows };
+    return {
+      sessions: rows.map(({ agentSettings, ...rest }) => ({
+        ...rest,
+        agentAvatarSeed: (agentSettings as Record<string, unknown> | null)?.avatarSeed as string | null ?? null,
+      })),
+    };
   });
 
   // Get full session detail with corrections, filler words, and filler positions

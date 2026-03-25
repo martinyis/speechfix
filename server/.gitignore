@@ -1,5 +1,6 @@
 node_modules/
 dist/
 .env
+.cache/
 *.m4a
 *.wav

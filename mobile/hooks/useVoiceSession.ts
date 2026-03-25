@@ -25,6 +25,7 @@ type VoiceMessage =
       fillerPositions: FillerWordPosition[];
       sessionInsights: SessionInsight[];
     }}
+  | { type: 'session_ending' }
   | { type: 'agent_created'; agent: Agent }
   | { type: 'error'; message?: string };
 
@@ -182,6 +183,11 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId
         s.setMuted(msg.muted);
         break;
 
+      case 'session_ending':
+        doneRef.current = true;
+        s.setVoiceSessionState('analyzing');
+        break;
+
       case 'session_end': {
         if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
         const dbSessionId = msg.dbSessionId ?? msg.sessionId ?? 0;
@@ -246,11 +252,11 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId
 
     // Connect WebSocket — append agent ID if selected
     const selectedAgent = agentId ?? useAgentStore.getState().selectedAgentId;
-    let wsPath = '/voice-session';
+    let url = wsUrl('/voice-session');
     if (selectedAgent) {
-      wsPath += `&agent=${selectedAgent}`;
+      url += `&agent=${selectedAgent}`;
     }
-    const ws = new WebSocket(wsUrl(wsPath));
+    const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {

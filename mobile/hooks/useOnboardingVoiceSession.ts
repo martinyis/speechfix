@@ -11,7 +11,7 @@ import { wsUrl } from '../lib/api';
 const PCM_BYTES_PER_SEC = 32000;
 
 interface UseOnboardingVoiceSessionCallbacks {
-  onComplete: (displayName: string | null) => void;
+  onComplete: (displayName: string | null, speechObservation: string | null) => void;
   onError: (message: string) => void;
 }
 
@@ -28,7 +28,7 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
   const firstAudioTimeRef = useRef(0);
   const turnAudioBytesRef = useRef(0);
   const playbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingCompleteRef = useRef<{ displayName: string | null } | null>(null);
+  const pendingCompleteRef = useRef<{ displayName: string | null; speechObservation: string | null } | null>(null);
 
   const store = useSessionStore;
 
@@ -107,11 +107,11 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
         playbackTimerRef.current = setTimeout(() => {
           playbackTimerRef.current = null;
           if (pendingCompleteRef.current) {
-            const { displayName } = pendingCompleteRef.current;
+            const { displayName, speechObservation } = pendingCompleteRef.current;
             pendingCompleteRef.current = null;
             store.getState().endVoiceSession();
             cleanup();
-            onComplete(displayName);
+            onComplete(displayName, speechObservation);
           } else {
             store.getState().setVoiceSessionState('listening');
           }
@@ -137,13 +137,15 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
       }
 
       case 'onboarding_complete': {
+        const displayName = msg.displayName ?? null;
+        const speechObservation = msg.speechObservation ?? null;
         if (playbackTimerRef.current) {
           // Audio still playing — defer navigation until playback finishes
-          pendingCompleteRef.current = { displayName: msg.displayName ?? null };
+          pendingCompleteRef.current = { displayName, speechObservation };
         } else {
           s.endVoiceSession();
           cleanup();
-          onComplete(msg.displayName ?? null);
+          onComplete(displayName, speechObservation);
         }
         break;
       }
@@ -164,13 +166,6 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
     s.resetElapsedTime();
 
     try { await activateKeepAwakeAsync(); } catch {}
-
-    const { granted } = await ExpoPlayAudioStream.requestPermissionsAsync();
-    if (!granted) {
-      onError('Microphone permission is required');
-      s.endVoiceSession();
-      return;
-    }
 
     try {
       await ExpoPlayAudioStream.setSoundConfig({

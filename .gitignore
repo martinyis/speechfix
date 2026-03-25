@@ -28,6 +28,9 @@ yarn-error.*
 
 # macOS
 .DS_Store
+
+# planning/tasks
+tasks/
 *.pem
 
 # local env files

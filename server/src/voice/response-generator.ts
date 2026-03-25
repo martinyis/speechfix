@@ -11,12 +11,18 @@ export interface UserContext {
   goals?: string[] | null;
 }
 
+export interface ResponseMeta {
+  toolCalls: string[];
+}
+
 const anthropic = new Anthropic();
 
 export async function* generateResponse(
   conversationHistory: ConversationMessage[],
   abortSignal: AbortSignal | undefined,
   systemPrompt: string,
+  tools?: Anthropic.Messages.Tool[],
+  meta?: ResponseMeta,
 ): AsyncGenerator<string> {
   // Keep last 10 exchanges to limit context
   const recentHistory = conversationHistory.slice(-20);
@@ -29,6 +35,9 @@ export async function* generateResponse(
       role: m.role,
       content: m.content,
     })),
+    ...(tools && tools.length > 0
+      ? { tools, tool_choice: { type: 'auto' as const } }
+      : {}),
   }, {
     signal: abortSignal,
   });
@@ -64,5 +73,17 @@ export async function* generateResponse(
   // Yield remaining buffer
   if (buffer.trim()) {
     yield buffer.trim();
+  }
+
+  // Extract tool calls from the completed stream
+  if (meta) {
+    try {
+      const finalMessage = await stream.finalMessage();
+      meta.toolCalls = finalMessage.content
+        .filter((block): block is Anthropic.Messages.ToolUseBlock => block.type === 'tool_use')
+        .map(block => block.name);
+    } catch {
+      // Stream may have been aborted
+    }
   }
 }

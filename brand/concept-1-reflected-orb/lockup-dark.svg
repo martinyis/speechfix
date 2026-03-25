@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="320" height="80">
+  <defs>
+    <linearGradient id="orb-fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cc97ff"/>
+      <stop offset="100%" stop-color="#699cff"/>
+    </linearGradient>
+    <clipPath id="top">
+      <rect x="0" y="0" width="80" height="40"/>
+    </clipPath>
+    <clipPath id="bottom">
+      <rect x="0" y="40" width="80" height="40"/>
+    </clipPath>
+  </defs>
+  <rect width="320" height="80" fill="#0e0e0e"/>
+  <!-- Icon -->
+  <g transform="translate(10, 0)">
+    <circle cx="40" cy="40" r="28" fill="#cc97ff" clip-path="url(#top)"/>
+    <circle cx="40" cy="40" r="28" fill="url(#orb-fill)" clip-path="url(#bottom)" opacity="0.72"/>
+    <line x1="12" y1="40" x2="68" y2="40" stroke="rgba(255,255,255,0.18)" stroke-width="0.8"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="90" y="48" font-family="'Manrope', 'Inter', -apple-system, system-ui, sans-serif" font-weight="500" font-size="30" letter-spacing="-0.5" fill="#ffffff">Reflexa</text>
+</svg>

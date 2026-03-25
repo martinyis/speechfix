@@ -8,6 +8,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Image,
+  ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,13 +22,11 @@ import Animated, {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { GradientText } from '../../components/GradientText';
 import {
   colors,
   alpha,
   spacing,
   borderRadius,
-  glass,
   shadows,
   typography,
 } from '../../theme';
@@ -42,6 +42,8 @@ export default function SignupScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const buttonScale = useSharedValue(1);
 
   const buttonAnimStyle = useAnimatedStyle(() => ({
@@ -97,90 +99,122 @@ export default function SignupScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Ambient gradient glow */}
+      {/* Purple bloom: diagonal from top-right */}
       <LinearGradient
-        colors={[alpha(colors.primary, 0.20), alpha(colors.secondary, 0.08), 'transparent']}
-        style={styles.ambientGlow}
+        colors={[alpha(colors.primary, 0.30), alpha(colors.primaryDim, 0.12), 'transparent']}
+        style={styles.bloomDiagonal}
+        start={{ x: 1, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      />
+      {/* Purple bloom: top fade */}
+      <LinearGradient
+        colors={[alpha(colors.primary, 0.15), 'transparent']}
+        style={styles.bloomTop}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
       />
 
       <KeyboardAvoidingView
-        style={[styles.container, { paddingTop: insets.top + 60 }]}
+        style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.content}>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 24 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* App icon + name */}
           <Animated.View
-            entering={FadeInDown.delay(100).duration(500)}
-            style={styles.header}
+            entering={FadeInDown.delay(50).duration(500)}
+            style={styles.iconWrap}
           >
-            <GradientText
-              text="Reflexa"
-              style={styles.title}
-              colors={[colors.primary, colors.secondary]}
+            <Image
+              source={require('../../assets/images/app-icon.png')}
+              style={styles.appIcon}
             />
-            <Text style={styles.subtitle}>Create your account</Text>
+            <Text style={styles.appName}>Reflexa</Text>
           </Animated.View>
 
+          {/* Title + subtitle */}
+          <Animated.View
+            entering={FadeInDown.delay(150).duration(500)}
+            style={styles.header}
+          >
+            <Text style={styles.title}>Sign Up To Your Account.</Text>
+            <Text style={styles.subtitle}>
+              Precision speech coaching powered by AI.
+            </Text>
+          </Animated.View>
+
+          {/* Form */}
           <Animated.View
             entering={FadeInDown.delay(250).duration(500)}
-            style={[styles.card, glass.cardElevated]}
+            style={styles.form}
           >
-            <View style={styles.inputRow}>
-              <Ionicons
-                name="person-outline"
-                size={20}
-                color={alpha(colors.white, 0.35)}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Name (optional)"
-                placeholderTextColor={alpha(colors.white, 0.15)}
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-              />
+            {/* Name */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Name</Text>
+              <View style={styles.inputWrap}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Alma Lawson"
+                  placeholderTextColor={alpha(colors.white, 0.2)}
+                  value={name}
+                  onChangeText={setName}
+                  autoCapitalize="words"
+                />
+              </View>
             </View>
 
-            <View style={styles.inputRow}>
-              <Ionicons
-                name="mail-outline"
-                size={20}
-                color={alpha(colors.white, 0.35)}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Email"
-                placeholderTextColor={alpha(colors.white, 0.15)}
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoCorrect={false}
-              />
+            {/* Email */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Email</Text>
+              <View style={styles.inputWrap}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="alma.lawson@example.com"
+                  placeholderTextColor={alpha(colors.white, 0.2)}
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoCorrect={false}
+                />
+              </View>
             </View>
 
-            <View style={styles.inputRow}>
-              <Ionicons
-                name="lock-closed-outline"
-                size={20}
-                color={alpha(colors.white, 0.35)}
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Password"
-                placeholderTextColor={alpha(colors.white, 0.15)}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-              />
+            {/* Password */}
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Password</Text>
+              <View style={styles.inputWrap}>
+                <TextInput
+                  style={[styles.input, styles.passwordInput]}
+                  placeholder="••••••••"
+                  placeholderTextColor={alpha(colors.white, 0.2)}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                />
+                <Pressable
+                  onPress={() => setShowPassword((v) => !v)}
+                  style={styles.eyeButton}
+                  hitSlop={12}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={alpha(colors.white, 0.4)}
+                  />
+                </Pressable>
+              </View>
             </View>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
+            {/* Get Started button */}
             <AnimatedPressable
               style={[styles.button, buttonAnimStyle, loading && styles.buttonDisabled]}
               onPress={() => {
@@ -194,20 +228,80 @@ export default function SignupScreen() {
               {loading ? (
                 <ActivityIndicator color={colors.black} />
               ) : (
-                <Text style={styles.buttonText}>Create Account</Text>
+                <Text style={styles.buttonText}>Get Started</Text>
               )}
             </AnimatedPressable>
-          </Animated.View>
-        </View>
 
-        <Animated.View entering={FadeInDown.delay(400).duration(500)}>
-          <Pressable onPress={() => router.back()} style={styles.switchRow}>
-            <Text style={styles.switchText}>
-              Already have an account?{' '}
-              <Text style={styles.switchLink}>Log In</Text>
-            </Text>
-          </Pressable>
-        </Animated.View>
+            {/* Remember me + Forgot password */}
+            <View style={styles.optionsRow}>
+              <Pressable
+                onPress={() => setRememberMe((v) => !v)}
+                style={styles.rememberRow}
+                hitSlop={8}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    rememberMe && styles.checkboxActive,
+                  ]}
+                >
+                  {rememberMe && (
+                    <Ionicons name="checkmark" size={12} color={colors.black} />
+                  )}
+                </View>
+                <Text style={styles.rememberText}>Remember me</Text>
+              </Pressable>
+              <Pressable hitSlop={8}>
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </Pressable>
+            </View>
+          </Animated.View>
+
+          {/* Or divider — glowing gradient lines */}
+          <Animated.View
+            entering={FadeInDown.delay(350).duration(500)}
+            style={styles.dividerRow}
+          >
+            <LinearGradient
+              colors={['transparent', alpha(colors.primary, 0.35)]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.dividerLine}
+            />
+            <Text style={styles.dividerText}>Or</Text>
+            <LinearGradient
+              colors={[alpha(colors.primary, 0.35), 'transparent']}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.dividerLine}
+            />
+          </Animated.View>
+
+          {/* Social buttons */}
+          <Animated.View
+            entering={FadeInDown.delay(450).duration(500)}
+            style={styles.socialSection}
+          >
+            <Pressable style={styles.socialButton}>
+              <Ionicons name="logo-google" size={18} color={colors.white} />
+              <Text style={styles.socialButtonText}>Sign up with Google</Text>
+            </Pressable>
+            <Pressable style={styles.socialButton}>
+              <Ionicons name="logo-apple" size={18} color={colors.white} />
+              <Text style={styles.socialButtonText}>Continue with Apple</Text>
+            </Pressable>
+          </Animated.View>
+
+          {/* Bottom switch */}
+          <Animated.View entering={FadeInDown.delay(550).duration(500)}>
+            <Pressable onPress={() => router.back()} style={styles.switchRow}>
+              <Text style={styles.switchText}>
+                Already have an account?{' '}
+                <Text style={styles.switchLink}>Sign In</Text>
+              </Text>
+            </Pressable>
+          </Animated.View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -218,49 +312,81 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  ambientGlow: {
+  flex: {
+    flex: 1,
+  },
+  bloomDiagonal: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: '100%',
+    height: '60%',
+  },
+  bloomTop: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 360,
+    height: 300,
   },
-  container: {
-    flex: 1,
+  scrollContent: {
     paddingHorizontal: spacing.xl,
   },
-  content: {
-    flex: 1,
+
+  // Icon
+  iconWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: spacing.xl,
+    gap: spacing.md,
   },
+  appIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+  },
+  appName: {
+    ...typography.headlineSm,
+    color: colors.onSurface,
+  },
+
+  // Header
   header: {
     alignItems: 'center',
     marginBottom: spacing.xxl,
   },
   title: {
-    ...typography.displayMd,
+    ...typography.headlineMd,
     color: colors.onSurface,
+    textAlign: 'center',
   },
   subtitle: {
-    ...typography.bodyMd,
+    ...typography.bodySm,
     color: alpha(colors.white, 0.5),
     marginTop: spacing.sm,
+    textAlign: 'center',
   },
-  card: {
-    padding: spacing.xl,
+
+  // Form
+  form: {
     gap: spacing.lg,
   },
-  inputRow: {
+  fieldGroup: {
+    gap: spacing.sm,
+  },
+  label: {
+    ...typography.bodySm,
+    color: alpha(colors.white, 0.6),
+  },
+  inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: alpha(colors.white, 0.05),
-    borderRadius: borderRadius.lg,
+    borderRadius: borderRadius.default,
     borderWidth: 1,
     borderColor: alpha(colors.white, 0.08),
     paddingHorizontal: spacing.lg,
-  },
-  inputIcon: {
-    marginRight: spacing.sm,
   },
   input: {
     flex: 1,
@@ -268,18 +394,24 @@ const styles = StyleSheet.create({
     ...typography.bodyMd,
     color: colors.onSurface,
   },
+  passwordInput: {
+    paddingRight: spacing.xl,
+  },
+  eyeButton: {
+    padding: spacing.xs,
+  },
   error: {
     ...typography.bodySm,
     color: colors.error,
     textAlign: 'center',
   },
+
+  // CTA button
   button: {
     backgroundColor: colors.primary,
     borderRadius: borderRadius.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
+    paddingVertical: 14,
     alignItems: 'center',
-    marginTop: spacing.sm,
     ...shadows.glow,
   },
   buttonDisabled: {
@@ -288,9 +420,81 @@ const styles = StyleSheet.create({
   buttonText: {
     ...typography.bodyMdMedium,
     color: colors.black,
+    fontWeight: '600',
   },
+
+  // Options row
+  optionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: alpha(colors.white, 0.2),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  rememberText: {
+    ...typography.bodySm,
+    color: alpha(colors.white, 0.5),
+  },
+  forgotText: {
+    ...typography.bodySm,
+    color: colors.primary,
+  },
+
+  // Divider
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.xl,
+    gap: spacing.md,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    ...typography.bodySm,
+    color: alpha(colors.white, 0.3),
+  },
+
+  // Social buttons
+  socialSection: {
+    gap: spacing.md,
+  },
+  socialButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: alpha(colors.white, 0.05),
+    borderRadius: borderRadius.default,
+    borderWidth: 1,
+    borderColor: alpha(colors.white, 0.08),
+    paddingVertical: 14,
+    gap: spacing.sm,
+  },
+  socialButtonText: {
+    ...typography.bodyMd,
+    color: colors.onSurface,
+  },
+
+  // Bottom switch
   switchRow: {
-    paddingBottom: spacing.xxl,
+    paddingTop: spacing.xxl,
     alignItems: 'center',
   },
   switchText: {

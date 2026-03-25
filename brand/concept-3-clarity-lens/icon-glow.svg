@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="lens-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#cc97ff"/>
+      <stop offset="100%" stop-color="#699cff"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="inner-glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="120" height="120" fill="#0e0e0e"/>
+  <g transform="translate(10,10)">
+    <!-- Outer ring with glow -->
+    <circle cx="50" cy="50" r="36" fill="none" stroke="#cc97ff" stroke-width="2.5" filter="url(#glow)"/>
+    <!-- Inner ring -->
+    <circle cx="50" cy="50" r="22" fill="none" stroke="url(#lens-grad)" stroke-width="1.8" filter="url(#glow)"/>
+    <!-- Focal point with stronger glow -->
+    <circle cx="50" cy="50" r="5" fill="url(#lens-grad)" filter="url(#inner-glow)"/>
+  </g>
+</svg>

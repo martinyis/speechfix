@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Simplified for small size — single spiral loop with thicker stroke -->
+  <path
+    d="M 26,16 A 10,10 0 1,1 16,6 C 13,6 10,9 10,16 A 6,6 0 1,0 16,22 C 21,22 26,19 26,16 Z"
+    fill="none"
+    stroke="#cc97ff"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+</svg>

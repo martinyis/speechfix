@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,9 +18,13 @@ import Animated, {
   interpolateColor,
 } from 'react-native-reanimated';
 import MicBloomOrb from '../../components/MicBloomOrb';
+import { AgentSelector } from '../../components/AgentSelector';
 import { VoiceSessionOverlay } from '../../components/VoiceSessionOverlay';
 import { SessionRow } from '../../components/SessionRow';
+import { SectionHeader } from '../../components/ui';
 import { useSessionStore } from '../../stores/sessionStore';
+import { useAgentStore, getSelectedAgentDisplay } from '../../stores/agentStore';
+import { useAgents } from '../../hooks/useAgents';
 import { useSessions } from '../../hooks/useSessions';
 import { useVoiceSession } from '../../hooks/useVoiceSession';
 import { colors, alpha } from '../../theme';
@@ -30,10 +34,28 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { data: sessions, refetch } = useSessions();
+  const { data: agents = [] } = useAgents();
+  const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
+  const selectAgent = useAgentStore((s) => s.selectAgent);
+
   const isActive = useSessionStore((s) => s.isVoiceSessionActive);
   const voiceState = useSessionStore((s) => s.voiceSessionState);
   const elapsedTime = useSessionStore((s) => s.elapsedTime);
   const isMuted = useSessionStore((s) => s.isMuted);
+
+  // Derive display info for selected agent
+  const agentDisplay = useMemo(
+    () => getSelectedAgentDisplay(selectedAgentId, agents),
+    [selectedAgentId, agents],
+  );
+
+  // Edge case: if selected agent was deleted, reset to Reflexa
+  useEffect(() => {
+    const currentId = useAgentStore.getState().selectedAgentId;
+    if (currentId !== null && agents && !agents.find((a) => a.id === currentId)) {
+      useAgentStore.getState().selectAgent(null);
+    }
+  }, [agents]);
 
   // Refetch sessions when screen focuses
   useFocusEffect(
@@ -115,9 +137,29 @@ export default function HomeScreen() {
     stop();
   }, [stop]);
 
+  const handleSelectAgent = useCallback(
+    (id: number | null) => {
+      selectAgent(id);
+    },
+    [selectAgent],
+  );
+
+  const handleCreateAgent = useCallback(() => {
+    router.push('/agent-creation-choice');
+  }, []);
+
   // -- Data --
 
   const hasSessions = (sessions?.length ?? 0) > 0;
+
+  // Dynamic hint text
+  const hintText =
+    selectedAgentId !== null && agentDisplay.name !== 'Reflexa'
+      ? `TAP TO PRACTICE WITH ${agentDisplay.name.toUpperCase()}`
+      : 'TAP TO BEGIN PRACTICE';
+
+  // Bloom hue: purple for Reflexa, blue for custom agents
+  const orbAccent = selectedAgentId !== null ? 'blue' : 'purple';
 
   return (
     <Animated.View style={[styles.container, containerStyle]}>
@@ -139,6 +181,19 @@ export default function HomeScreen() {
         </Animated.View>
       )}
 
+      {/* ===== AGENT SELECTOR (top-right avatar) ===== */}
+      {!isActive && (
+        <View style={[styles.agentSelectorWrap, { top: insets.top + 8 }]}>
+          <AgentSelector
+            agents={agents}
+            selectedAgentId={selectedAgentId}
+            onSelectAgent={handleSelectAgent}
+            onCreateAgent={handleCreateAgent}
+            topOffset={insets.top + 8}
+          />
+        </View>
+      )}
+
       {/* ===== HOME CONTENT ===== */}
       <Animated.View style={[styles.homeContent, listAnimStyle]} pointerEvents={isActive ? 'none' : 'auto'}>
         <ScrollView
@@ -147,7 +202,7 @@ export default function HomeScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Mic Orb Section */}
-          <View style={styles.micSection}>
+          <View style={[styles.micSection, { paddingTop: insets.top + 56 }]}>
             <AnimatedPressable
               onPress={handleMicPress}
               onPressIn={handleMicPressIn}
@@ -156,32 +211,25 @@ export default function HomeScreen() {
               accessibilityRole="button"
             >
               <Animated.View style={micAnimStyle}>
-                <MicBloomOrb />
+                <MicBloomOrb accentColor={orbAccent} />
               </Animated.View>
             </AnimatedPressable>
 
-            {/* Hint text */}
+            {/* Dynamic hint text */}
             <View style={styles.hintContainer}>
-              <Text style={styles.hintText}>TAP TO BEGIN PRACTICE</Text>
-              <View style={styles.hintDots}>
-                <View style={[styles.hintDot, styles.hintDotActive]} />
-                <View style={styles.hintDot} />
-                <View style={styles.hintDot} />
-              </View>
+              <Text style={styles.hintText}>{hintText}</Text>
             </View>
           </View>
 
           {/* History Section */}
           {hasSessions && (
             <View style={styles.historySection}>
-              <View style={styles.historyHeader}>
-                <View>
-                  <Text style={styles.historyTitle}>History</Text>
-                  <Text style={styles.historySubtitle}>Your recent vocal breakthroughs</Text>
-                </View>
-                <Pressable hitSlop={8} onPress={() => router.push('/all-sessions')}>
-                  <Text style={styles.viewAllText}>VIEW ALL</Text>
-                </Pressable>
+              <View style={styles.historyHeaderWrap}>
+                <SectionHeader
+                  label="History"
+                  subtitle="Your recent vocal breakthroughs"
+                  action={{ label: 'VIEW ALL', onPress: () => router.push('/all-sessions') }}
+                />
               </View>
 
               <View>
@@ -210,17 +258,20 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
   },
+  agentSelectorWrap: {
+    position: 'absolute',
+    right: 24,
+    zIndex: 100,
+  },
   micSection: {
     alignItems: 'center',
     marginHorizontal: -24,
-    paddingTop: 72,
     paddingBottom: 8,
     overflow: 'visible',
   },
   hintContainer: {
     alignItems: 'center',
     marginTop: 16,
-    gap: 8,
   },
   hintText: {
     fontSize: 11,
@@ -229,47 +280,11 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     textTransform: 'uppercase',
   },
-  hintDots: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  hintDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: alpha(colors.primary, 0.4),
-  },
-  hintDotActive: {
-    backgroundColor: colors.primary,
-  },
   historySection: {
     marginTop: 20,
   },
-  historyHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
+  historyHeaderWrap: {
     paddingHorizontal: 4,
     marginBottom: 12,
-  },
-  historyTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.onSurface,
-    letterSpacing: -0.3,
-    marginBottom: 2,
-  },
-  historySubtitle: {
-    fontSize: 12,
-    color: alpha(colors.white, 0.5),
-    marginTop: 0,
-  },
-  viewAllText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.primary,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
   },
 });

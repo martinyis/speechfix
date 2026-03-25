@@ -1,5 +1,7 @@
+import type Anthropic from '@anthropic-ai/sdk';
 import type { ConversationMessage } from '../response-generator.js';
 import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from './types.js';
+import { END_SESSION_TOOL } from '../tools.js';
 import { IDENTITY_PROMPT } from '../prompts/identity.js';
 import { BEHAVIOR_PROMPT } from '../prompts/behavior.js';
 import { CONVERSATION_SESSION_PROMPT } from '../prompts/session-types/conversation.js';
@@ -14,7 +16,7 @@ import { eq } from 'drizzle-orm';
 export class ConversationHandler implements AgentTypeHandler {
   readonly needsUserContext = true;
 
-  buildSystemPrompt(agentConfig: AgentConfig | null, userContext?: FullUserContext): string {
+  buildSystemPrompt(agentConfig: AgentConfig | null, userContext?: FullUserContext, _formContext?: Record<string, unknown> | null): string {
     const layers: string[] = [];
 
     // Identity layer: custom agent prompt or default
@@ -44,6 +46,10 @@ export class ConversationHandler implements AgentTypeHandler {
     return layers.join('\n\n');
   }
 
+  getTools(): Anthropic.Messages.Tool[] {
+    return [END_SESSION_TOOL];
+  }
+
   shouldAutoEnd(_turnCount: number, _conversationHistory: ConversationMessage[]): boolean {
     return false;
   }
@@ -54,6 +60,7 @@ export class ConversationHandler implements AgentTypeHandler {
     transcriptBuffer: string[],
     conversationHistory: ConversationMessage[],
     durationSeconds: number,
+    _formContext?: Record<string, unknown> | null,
   ): Promise<SessionEndResult> {
     const fullTranscription = transcriptBuffer.join(' ');
 

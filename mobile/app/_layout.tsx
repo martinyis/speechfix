@@ -58,15 +58,36 @@ export default function RootLayout() {
         <Stack.Screen
           name="session-detail"
           options={{
-            title: 'Session',
+            headerShown: false,
             presentation: 'card',
           }}
         />
         <Stack.Screen
           name="all-sessions"
           options={{
-            title: 'All Sessions',
+            headerShown: false,
             presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="agent-detail"
+          options={{
+            headerShown: false,
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="agent-create"
+          options={{
+            headerShown: false,
+            presentation: 'card',
+          }}
+        />
+        <Stack.Screen
+          name="agent-creation-choice"
+          options={{
+            headerShown: false,
+            presentation: 'modal',
           }}
         />
       </Stack>

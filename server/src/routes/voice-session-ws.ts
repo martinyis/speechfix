@@ -41,8 +41,18 @@ export async function voiceSessionRoute(fastify: FastifyInstance) {
       mode = null;
     }
 
+    const formContextParam = url.searchParams.get('formContext');
+    let formContext: Record<string, unknown> | null = null;
+    if (formContextParam) {
+      try {
+        formContext = JSON.parse(formContextParam);
+      } catch {
+        // ignore invalid JSON
+      }
+    }
+
     const handler = resolveHandler(mode, agentConfig);
-    const session = new VoiceSession(socket, req.user.userId, handler, agentConfig);
+    const session = new VoiceSession(socket, req.user.userId, handler, agentConfig, formContext);
 
     fastify.log.info(`[voice-ws] New connection, session ${session.sessionId}, agent=${agentConfig?.name ?? 'system'}, mode=${mode ?? 'default'}`);
 

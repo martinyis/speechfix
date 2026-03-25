@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" width="680" height="160">
+  <rect width="340" height="80" fill="#0e0e0e"/>
+
+  <!-- Icon scaled to fit ~60×60 area -->
+  <g transform="translate(10, 6) scale(0.68)">
+    <!-- Behind ribbon -->
+    <path
+      d="M 29,60 A 28,28 0 0,0 40,16 L 44,24 A 19,19 0 0,1 35,54 Z"
+      fill="#6450a5"
+    />
+    <!-- Main ring + tail -->
+    <path
+      d="M 36,18 A 28,28 0 1,1 26,56 Q 21,64 20,70 Q 28,60 34,52 A 19,19 0 1,0 40,26 Z"
+      fill="#8a6ab8"
+    />
+    <!-- Outer highlight -->
+    <path
+      d="M 36,18 A 28,28 0 1,1 26,56 Q 21,64 20,70 L 29,54 A 24,24 0 1,0 38,21 Z"
+      fill="#b88ce5"
+    />
+  </g>
+
+  <!-- Wordmark -->
+  <text
+    x="88" y="49"
+    font-family="'Manrope', 'Inter', -apple-system, system-ui, sans-serif"
+    font-weight="600"
+    font-size="32"
+    letter-spacing="-0.5"
+    fill="#ffffff"
+  >Reflexa</text>
+</svg>

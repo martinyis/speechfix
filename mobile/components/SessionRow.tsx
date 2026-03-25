@@ -3,61 +3,34 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { colors, alpha, spacing, glass, typography } from '../theme';
 import { formatTimeOfDay, formatDurationLong } from '../lib/formatters';
-import type { SessionListItem } from '../types/session';
+import { AgentAvatar } from './AgentAvatar';
+import type { SessionListItem, TopicCategory } from '../types/session';
 
-// -- Score badge color by range --
+// -- Score color by range --
 
-function getScoreBadgeStyle(score: number) {
-  if (score >= 90) {
-    return {
-      backgroundColor: 'rgba(52, 211, 153, 0.15)',
-      borderColor: 'rgba(52, 211, 153, 0.25)',
-      textColor: colors.severityPolish,
-    };
-  }
-  if (score >= 70) {
-    return {
-      backgroundColor: 'rgba(204, 151, 255, 0.15)',
-      borderColor: 'rgba(204, 151, 255, 0.25)',
-      textColor: colors.primary,
-    };
-  }
-  if (score >= 50) {
-    return {
-      backgroundColor: 'rgba(105, 156, 255, 0.15)',
-      borderColor: 'rgba(105, 156, 255, 0.25)',
-      textColor: colors.secondary,
-    };
-  }
-  return {
-    backgroundColor: 'rgba(255, 110, 132, 0.15)',
-    borderColor: 'rgba(255, 110, 132, 0.25)',
-    textColor: colors.error,
-  };
+function getScoreColor(score: number): string {
+  if (score >= 90) return colors.severityPolish;
+  if (score >= 70) return colors.primary;
+  if (score >= 50) return colors.secondary;
+  return colors.error;
 }
 
-function ScoreBadge({ score }: { score: number }) {
-  const badgeStyle = getScoreBadgeStyle(score);
-  return (
-    <View
-      style={[
-        styles.scoreBadge,
-        {
-          backgroundColor: badgeStyle.backgroundColor,
-          borderColor: badgeStyle.borderColor,
-        },
-      ]}
-    >
-      <Text style={[styles.scoreText, { color: badgeStyle.textColor }]}>
-        {score}%
-      </Text>
-    </View>
-  );
-}
+// -- Topic label mapping --
 
-// -- Severity dots --
+const TOPIC_LABELS: Record<TopicCategory, string> = {
+  work: 'Work',
+  daily_life: 'Daily Life',
+  travel: 'Travel',
+  social: 'Social',
+  education: 'Education',
+  technology: 'Tech',
+  health: 'Health',
+  general: 'General',
+};
 
-function SeverityDots({
+// -- Severity bar (thin stacked horizontal bar) --
+
+function SeverityBar({
   errors,
   improvements,
   polish,
@@ -67,47 +40,67 @@ function SeverityDots({
   polish: number;
 }) {
   const total = errors + improvements + polish;
-  if (total === 0) return null;
+  if (total === 0) return <View style={styles.barEmpty} />;
 
   return (
-    <View style={styles.dotsRow}>
+    <View style={styles.barContainer}>
       {errors > 0 && (
-        <View style={styles.dotItem}>
-          <View style={[styles.dot, { backgroundColor: colors.severityError }]} />
-          <Text style={[styles.dotCount, { color: colors.severityError }]}>{errors}</Text>
-        </View>
+        <View
+          style={[
+            styles.barSegment,
+            {
+              flex: errors,
+              backgroundColor: colors.severityError,
+              borderTopLeftRadius: 2,
+              borderBottomLeftRadius: 2,
+            },
+          ]}
+        />
       )}
       {improvements > 0 && (
-        <View style={styles.dotItem}>
-          <View style={[styles.dot, { backgroundColor: colors.severityImprovement }]} />
-          <Text style={[styles.dotCount, { color: colors.severityImprovement }]}>{improvements}</Text>
-        </View>
+        <View
+          style={[
+            styles.barSegment,
+            {
+              flex: improvements,
+              backgroundColor: colors.severityImprovement,
+              ...(errors === 0 && { borderTopLeftRadius: 2, borderBottomLeftRadius: 2 }),
+            },
+          ]}
+        />
       )}
       {polish > 0 && (
-        <View style={styles.dotItem}>
-          <View style={[styles.dot, { backgroundColor: colors.severityPolish }]} />
-          <Text style={[styles.dotCount, { color: colors.severityPolish }]}>{polish}</Text>
-        </View>
+        <View
+          style={[
+            styles.barSegment,
+            {
+              flex: polish,
+              backgroundColor: colors.severityPolish,
+              borderTopRightRadius: 2,
+              borderBottomRightRadius: 2,
+            },
+          ]}
+        />
       )}
     </View>
   );
 }
 
-// -- Session row --
+// -- Session row (Variant D — Conversation Personality Card) --
 
 export function SessionRow({ item }: { item: SessionListItem }) {
   const fillerCount = item.totalFillerCount ?? 0;
   const score = item.clarityScore ?? null;
+  const agentName = item.agentName ?? 'Reflexa';
+  const avatarSeed = item.agentAvatarSeed ?? null;
 
-  // Fallback title: time of day for old sessions without AI title
   const title = item.title || formatTimeOfDay(item.createdAt);
 
-  // Build meta line: fillers + duration
-  const metaParts: string[] = [];
-  if (fillerCount > 0) {
-    metaParts.push(`${fillerCount} filler${fillerCount !== 1 ? 's' : ''}`);
+  // Meta line: duration · topic
+  const metaParts: string[] = [formatDurationLong(item.durationSeconds)];
+  if (item.topicCategory) {
+    metaParts.push(TOPIC_LABELS[item.topicCategory] ?? item.topicCategory);
   }
-  metaParts.push(formatDurationLong(item.durationSeconds));
 
   return (
     <Pressable
@@ -119,38 +112,41 @@ export function SessionRow({ item }: { item: SessionListItem }) {
         })
       }
     >
-      {score !== null ? (
-        <ScoreBadge score={score} />
-      ) : (
-        <View style={styles.scoreBadgePlaceholder} />
-      )}
-
-      <View style={styles.content}>
-        {/* Row 1: Title + Time */}
-        <View style={styles.titleRow}>
+      {/* Top section: Avatar + text */}
+      <View style={styles.topSection}>
+        <AgentAvatar seed={avatarSeed} size={40} />
+        <View style={styles.textWrap}>
+          <View style={styles.nameRow}>
+            <Text style={styles.agentName} numberOfLines={1}>{agentName}</Text>
+            <Text style={styles.time}>{formatTimeOfDay(item.createdAt)}</Text>
+          </View>
           <Text style={styles.title} numberOfLines={1}>{title}</Text>
-          <Text style={styles.time}>{formatTimeOfDay(item.createdAt)}</Text>
+          <Text style={styles.meta}>{metaParts.join('  \u00B7  ')}</Text>
         </View>
+      </View>
 
-        {/* Row 2: Description */}
-        {item.description ? (
-          <Text style={styles.description} numberOfLines={2}>
-            {item.description}
-          </Text>
-        ) : null}
-
-        {/* Row 3: Severity dots + meta */}
-        <View style={styles.statsRow}>
-          <View style={styles.statsLeft}>
-            <SeverityDots
+      {/* Bottom section: score + severity bar + fillers + chevron */}
+      <View style={styles.bottomSection}>
+        <View style={styles.bottomLeft}>
+          {score !== null && (
+            <Text style={[styles.scoreInline, { color: getScoreColor(score) }]}>
+              {score}%
+            </Text>
+          )}
+          <View style={styles.barWrap}>
+            <SeverityBar
               errors={item.errorCount}
               improvements={item.improvementCount}
               polish={item.polishCount}
             />
-            <Text style={styles.meta}>{metaParts.join('  \u00B7  ')}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={alpha(colors.white, 0.15)} />
+          {fillerCount > 0 && (
+            <Text style={styles.fillerCount}>
+              {fillerCount} filler{fillerCount !== 1 ? 's' : ''}
+            </Text>
+          )}
         </View>
+        <Ionicons name="chevron-forward" size={16} color={alpha(colors.white, 0.15)} />
       </View>
     </Pressable>
   );
@@ -158,47 +154,26 @@ export function SessionRow({ item }: { item: SessionListItem }) {
 
 const styles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
     ...glass.card,
     padding: spacing.lg,
     marginBottom: spacing.sm,
   },
-  scoreBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-    borderWidth: 1,
-  },
-  scoreBadgePlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    marginRight: spacing.md,
-    backgroundColor: alpha(colors.white, 0.05),
-    borderWidth: 1,
-    borderColor: alpha(colors.white, 0.08),
-  },
-  scoreText: {
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-  content: {
-    flex: 1,
-    gap: 4,
-  },
 
-  // Row 1
-  titleRow: {
+  // -- Top section --
+  topSection: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  textWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  title: {
+  agentName: {
     ...typography.bodyMdMedium,
     color: colors.onSurface,
     flex: 1,
@@ -206,49 +181,62 @@ const styles = StyleSheet.create({
   },
   time: {
     ...typography.bodySm,
-    color: alpha(colors.white, 0.5),
+    color: alpha(colors.white, 0.4),
   },
-
-  // Row 2
-  description: {
+  title: {
     ...typography.bodySm,
     color: alpha(colors.white, 0.6),
-    lineHeight: 18,
-  },
-
-  // Row 3
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  statsLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  dotsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dotItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  dotCount: {
-    fontSize: 12,
-    fontWeight: '600',
   },
   meta: {
     ...typography.bodySm,
+    color: alpha(colors.white, 0.35),
+    fontSize: 12,
+  },
+
+  // -- Bottom section --
+  bottomSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: alpha(colors.white, 0.08),
+  },
+  bottomLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.sm,
+  },
+  scoreInline: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+  },
+  barWrap: {
+    flex: 1,
+    maxWidth: 120,
+  },
+  fillerCount: {
+    ...typography.bodySm,
     color: alpha(colors.white, 0.4),
+    fontSize: 12,
+  },
+
+  // -- Severity bar --
+  barContainer: {
+    flexDirection: 'row',
+    height: 3,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  barSegment: {
+    height: 3,
+  },
+  barEmpty: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: alpha(colors.white, 0.06),
   },
 });

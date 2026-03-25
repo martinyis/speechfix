@@ -1,9 +1,10 @@
-import { View, Text, StyleSheet, SectionList } from 'react-native';
+import { View, StyleSheet, SectionList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSessions } from '../hooks/useSessions';
 import { SessionRow } from '../components/SessionRow';
+import { ScreenHeader, SectionHeader } from '../components/ui';
 import { groupSessionsByDate } from '../lib/sessionHelpers';
-import { colors, alpha } from '../theme';
+import { colors } from '../theme';
 import type { SessionListItem } from '../types/session';
 
 export default function AllSessionsScreen() {
@@ -13,12 +14,15 @@ export default function AllSessionsScreen() {
 
   return (
     <View style={styles.container}>
+      <ScreenHeader variant="back" title="All Sessions" />
       <SectionList<SessionListItem>
         sections={sections}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: insets.bottom + 24 }}
         renderSectionHeader={({ section }) => (
-          <Text style={styles.sectionTitle}>{section.title}</Text>
+          <View style={styles.sectionHeaderWrap}>
+            <SectionHeader label={section.title} size="sm" />
+          </View>
         )}
         renderItem={({ item }) => <SessionRow item={item} />}
         showsVerticalScrollIndicator={false}
@@ -33,12 +37,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: alpha(colors.white, 0.5),
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
+  sectionHeaderWrap: {
     marginTop: 20,
     marginBottom: 10,
     paddingHorizontal: 4,

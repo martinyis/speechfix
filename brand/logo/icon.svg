@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+  <!--
+    Reflexa Logo — Speech Bubble Loop
+    3-layer ribbon construction:
+      1. Behind ribbon (darkest) — the returning loop behind the main ring
+      2. Main body (medium) — the ring + tail
+      3. Highlight (lightest) — outer edge of ribbon, gives 3D depth
+    Circle center: (50, 42), Outer R=28, Inner R=19
+  -->
+
+  <!-- Layer 1: Behind ribbon — visible through the gap on the left side (8→11 o'clock) -->
+  <path
+    d="M 29,60 A 28,28 0 0,0 40,16 L 44,24 A 19,19 0 0,1 35,54 Z"
+    fill="#6450a5"
+  />
+
+  <!-- Layer 2: Main ring body + speech bubble tail -->
+  <path
+    d="M 36,18 A 28,28 0 1,1 26,56 Q 21,64 20,70 Q 28,60 34,52 A 19,19 0 1,0 40,26 Z"
+    fill="#8a6ab8"
+  />
+
+  <!-- Layer 3: Outer edge highlight — ribbon front face + tail outer edge -->
+  <path
+    d="M 36,18 A 28,28 0 1,1 26,56 Q 21,64 20,70 L 29,54 A 24,24 0 1,0 38,21 Z"
+    fill="#b88ce5"
+  />
+</svg>

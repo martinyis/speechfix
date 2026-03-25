@@ -308,30 +308,27 @@ export function VoiceSessionOverlay({
         </View>
       </View>
 
-      {/* Bottom controls */}
+      {/* Bottom controls — edge-pinned with glow */}
       {voiceState !== 'analyzing' && (
         <View style={styles.controlsRow}>
-          {/* Mute card */}
-          <Pressable
-            style={[styles.controlCard, isMuted && styles.controlCardMuted]}
-            onPress={onToggleMute}
-          >
-            <View style={[styles.controlIconCircle, isMuted && styles.controlIconMuted]}>
+          <Pressable style={styles.controlWrap} onPress={onToggleMute}>
+            <View style={[styles.muteGlow, isMuted && styles.muteGlowActive]}>
               <Ionicons
                 name={isMuted ? 'mic-off' : 'mic-off-outline'}
-                size={24}
+                size={22}
                 color={isMuted ? colors.primary : alpha(colors.white, 0.7)}
               />
             </View>
-            <Text style={[styles.controlLabelText, isMuted && { color: colors.primary }]}>MUTE</Text>
+            <Text style={[styles.controlLabel, isMuted && { color: colors.primary }]}>
+              {isMuted ? 'Unmute' : 'Mute'}
+            </Text>
           </Pressable>
 
-          {/* End Session card */}
-          <Pressable style={styles.controlCardEnd} onPress={onStop}>
-            <View style={styles.endIconCircle}>
-              <MaterialCommunityIcons name="phone-hangup" size={24} color={colors.onSurface} />
+          <Pressable style={styles.controlWrap} onPress={onStop}>
+            <View style={styles.endGlow}>
+              <MaterialCommunityIcons name="phone-hangup" size={22} color={colors.onSurface} />
             </View>
-            <Text style={styles.endLabelText}>END{'\n'}SESSION</Text>
+            <Text style={styles.endLabel}>End</Text>
           </Pressable>
         </View>
       )}
@@ -515,74 +512,56 @@ const styles = StyleSheet.create({
   },
   controlsRow: {
     flexDirection: 'row',
-    gap: 16,
-    paddingHorizontal: 24,
-    marginBottom: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 32,
+    marginBottom: 12,
   },
-  controlCard: {
-    flex: 1,
-    backgroundColor: alpha(colors.white, 0.06),
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: alpha(colors.white, 0.08),
-    paddingVertical: 20,
+  controlWrap: {
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
+    gap: 8,
   },
-  controlCardMuted: {
-    backgroundColor: alpha(colors.primary, 0.08),
-    borderColor: alpha(colors.primary, 0.2),
-  },
-  controlIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: alpha(colors.white, 0.06),
+  muteGlow: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: alpha(colors.white, 0.15),
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
   },
-  controlIconMuted: {
-    borderColor: alpha(colors.primary, 0.3),
+  muteGlowActive: {
+    borderColor: alpha(colors.primary, 0.4),
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
   },
-  controlLabelText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 2,
+  controlLabel: {
+    fontSize: 12,
+    fontWeight: '600',
     color: alpha(colors.white, 0.45),
   },
-  controlCardEnd: {
-    flex: 1,
-    backgroundColor: alpha(colors.error, 0.08),
-    borderRadius: 20,
+  endGlow: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: alpha(colors.error, 0.15),
-    paddingVertical: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  endIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: alpha(colors.error, 0.7),
+    borderColor: alpha(colors.error, 0.4),
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: colors.error,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
   },
-  endLabelText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 2,
-    color: colors.error,
-    textAlign: 'center',
-    lineHeight: 14,
+  endLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: alpha(colors.error, 0.7),
   },
   analyzingHint: {
     alignItems: 'center',

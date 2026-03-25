@@ -1,40 +1,39 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   StyleSheet,
   ActivityIndicator,
   Pressable,
 } from 'react-native';
-import { useLocalSearchParams, router, useNavigation } from 'expo-router';
+import { useLocalSearchParams, router } from 'expo-router';
 import Animated, {
   FadeIn,
   FadeInDown,
+  useSharedValue,
+  useAnimatedScrollHandler,
 } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSessionStore } from '../stores/sessionStore';
 import { useSession } from '../hooks/useSession';
-import { ScoreRingHero } from '../components/ScoreRingHero';
-import { SeverityPills, type CorrectionFilter } from '../components/SeverityPills';
+import { SessionSummaryCard } from '../components/SessionSummaryCard';
+import { StickySessionBar } from '../components/StickySessionBar';
 import { CorrectionFilterChips } from '../components/CorrectionFilterChips';
-import { FillerChips } from '../components/FillerChips';
 import { CorrectionCard } from '../components/CorrectionCard';
 import { AnalyzingBanner } from '../components/AnalyzingBanner';
-import { formatDate, formatDuration } from '../lib/formatters';
+import { ScreenHeader, EmptyState } from '../components/ui';
+import { formatDuration } from '../lib/formatters';
 import { colors, alpha } from '../theme';
-import type { SessionDetail } from '../types/session';
+import type { SessionDetail, CorrectionFilter } from '../types/session';
 
-const INITIAL_CORRECTION_LIMIT = 8;
+const INITIAL_CORRECTION_LIMIT = 5;
 
 export default function SessionDetailScreen() {
   const { sessionId, fresh } = useLocalSearchParams<{
     sessionId: string;
     fresh?: string;
   }>();
-  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const isFresh = fresh === 'true';
 
@@ -42,9 +41,15 @@ export default function SessionDetailScreen() {
   const [correctionFilter, setCorrectionFilter] = useState<CorrectionFilter>('all');
   const [showAllCorrections, setShowAllCorrections] = useState(false);
 
-  // Refs for scroll-to-corrections
-  const scrollRef = useRef<ScrollView>(null);
-  const correctionsY = useRef(0);
+  // Scroll tracking for sticky bar
+  const scrollY = useSharedValue(0);
+  const [summaryCardBottom, setSummaryCardBottom] = useState(0);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
 
   // Data sources
   const storeData = useSessionStore((s) => s.currentSessionData);
@@ -57,13 +62,6 @@ export default function SessionDetailScreen() {
   const session: SessionDetail | null | undefined = isFresh
     ? storeData
     : fetchedData;
-
-  // Override back button for fresh mode
-  useEffect(() => {
-    navigation.setOptions({
-      headerShown: false,
-    });
-  }, [isFresh, navigation]);
 
   // Compute summary counts
   const counts = useMemo(() => {
@@ -101,20 +99,19 @@ export default function SessionDetailScreen() {
 
   const hiddenCount = filteredCorrections.length - visibleCorrections.length;
 
-  // Severity pill tap -> scroll to corrections + set filter
-  const handleSeverityPillPress = useCallback((filter: CorrectionFilter) => {
-    setCorrectionFilter(filter);
-    setShowAllCorrections(false);
-    setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: correctionsY.current - 20, animated: true });
-    }, 50);
-  }, []);
-
   // Filter chip tap -> set filter + reset "show all"
   const handleFilterChipPress = useCallback((filter: CorrectionFilter) => {
     setCorrectionFilter(filter);
     setShowAllCorrections(false);
   }, []);
+
+  const handleBack = useCallback(() => {
+    if (isFresh) {
+      router.replace('/(tabs)');
+    } else {
+      router.back();
+    }
+  }, [isFresh]);
 
   // -- Loading / error states for historical mode --
   if (!isFresh && isLoading) {
@@ -127,10 +124,12 @@ export default function SessionDetailScreen() {
 
   if (!isFresh && isError) {
     return (
-      <View style={styles.center}>
-        <Ionicons name="alert-circle-outline" size={48} color={alpha(colors.white, 0.2)} />
-        <Text style={styles.errorText}>Session not found</Text>
-      </View>
+      <EmptyState
+        fullScreen
+        icon="alert-circle-outline"
+        iconColor={alpha(colors.white, 0.2)}
+        title="Session not found"
+      />
     );
   }
 
@@ -138,25 +137,10 @@ export default function SessionDetailScreen() {
   if (isFresh && !session) {
     return (
       <View style={styles.container}>
-        {/* Sticky top bar */}
-        <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
-          <Pressable
-            onPress={() => router.replace('/(tabs)')}
-            hitSlop={12}
-            style={styles.backPressable}
-            accessibilityRole="button"
-            accessibilityLabel="Back to home"
-          >
-            <Ionicons name="chevron-back" size={22} color={alpha(colors.white, 0.7)} />
-            <Text style={styles.backText}>Back</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.analyzingHeaderBlock}>
-          <Text style={styles.analyzingDateText}>
-            {formatDate(new Date().toISOString())}
-          </Text>
-        </View>
+        <ScreenHeader
+          variant="back"
+          onBack={() => router.replace('/(tabs)')}
+        />
 
         <AnalyzingBanner visible />
       </View>
@@ -174,7 +158,6 @@ export default function SessionDetailScreen() {
       : 100;
 
   const hasCorrections = session.corrections.length > 0;
-  const hasFillers = session.fillerWords.length > 0;
 
   // Animation wrapper helper
   const maybeAnimate = (
@@ -192,99 +175,75 @@ export default function SessionDetailScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Sticky top bar */}
-      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
-        <Pressable
-          onPress={() =>
-            isFresh ? router.replace('/(tabs)') : router.back()
-          }
-          hitSlop={12}
-          style={styles.backPressable}
-          accessibilityRole="button"
-          accessibilityLabel="Back to home"
-        >
-          <Ionicons name="chevron-back" size={22} color={alpha(colors.white, 0.7)} />
-          <Text style={styles.backText}>Back</Text>
-        </Pressable>
-        <Text style={styles.topBarDuration}>
-          {formatDuration(session.durationSeconds)}
-        </Text>
-      </View>
+      {/* Sticky top bar (normal header) */}
+      <ScreenHeader
+        variant="back"
+        onBack={handleBack}
+        rightAction={
+          <Text style={styles.topBarDuration}>
+            {formatDuration(session.durationSeconds)}
+          </Text>
+        }
+      />
 
-      <ScrollView
-        ref={scrollRef}
+      {/* Sticky session bar (appears on scroll) */}
+      <StickySessionBar
+        scrollY={scrollY}
+        threshold={summaryCardBottom}
+        clarityScore={clarityScore}
+        errorCount={counts.errorCount}
+        improvementCount={counts.improvementCount}
+        polishCount={counts.polishCount}
+        durationSeconds={session.durationSeconds}
+        onBack={handleBack}
+        activeFilter={correctionFilter}
+        onFilterChange={handleFilterChipPress}
+        totalCorrections={session.corrections.length}
+      />
+
+      <Animated.ScrollView
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Date header */}
-        <View style={styles.headerBlock}>
-          <Text style={styles.dateText}>{formatDate(session.createdAt)}</Text>
-        </View>
-
-        {/* ===== TIER 1: THE VERDICT ===== */}
-        {maybeAnimate(
-          <ScoreRingHero
-            clarityScore={clarityScore}
-            totalSentences={totalSentences}
-            cleanSentences={cleanSentences}
-          />,
-          FadeIn.duration(300),
-        )}
-
-        {maybeAnimate(
-          <SeverityPills
-            errorCount={counts.errorCount}
-            improvementCount={counts.improvementCount}
-            polishCount={counts.polishCount}
-            activeFilter={correctionFilter}
-            onFilterChange={handleSeverityPillPress}
-          />,
-          FadeIn.duration(300).delay(150),
-        )}
-
-        <View style={styles.sectionSpacer} />
-
-        {/* ===== TIER 2: FILLERS ===== */}
-        {hasFillers && (
-          <>
-            {maybeAnimate(
-              <FillerChips
-                fillerWords={session.fillerWords}
-                durationSeconds={session.durationSeconds}
-              />,
-              FadeIn.duration(300).delay(300),
-            )}
-            <View style={styles.sectionSpacer} />
-          </>
-        )}
-
-        {/* ===== TIER 3: CORRECTIONS ===== */}
+        {/* Summary strip */}
         <View
           onLayout={(e) => {
-            correctionsY.current = e.nativeEvent.layout.y;
+            const { y, height } = e.nativeEvent.layout;
+            setSummaryCardBottom(y + height);
           }}
-          style={styles.refinementsSection}
         >
-          <Text style={styles.sectionTitle}>Refinements</Text>
-          <Text style={styles.sectionSubtitle}>
-            Tap phrases to hear the AI-optimized version
-          </Text>
+          {maybeAnimate(
+            <SessionSummaryCard
+              clarityScore={clarityScore}
+              errorCount={counts.errorCount}
+              improvementCount={counts.improvementCount}
+              polishCount={counts.polishCount}
+              fillerWords={session.fillerWords}
+              durationSeconds={session.durationSeconds}
+            />,
+            FadeIn.duration(300),
+          )}
+        </View>
 
-          <View style={styles.refinementsGap} />
+        {/* Refinements section */}
+        <View style={styles.refinementsSection}>
+          <Text style={styles.refinementsLabel}>REFINEMENTS</Text>
 
-          <CorrectionFilterChips
-            activeFilter={correctionFilter}
-            onFilterChange={handleFilterChipPress}
-            counts={{
-              all: session.corrections.length,
-              error: counts.errorCount,
-              improvement: counts.improvementCount,
-              polish: counts.polishCount,
-            }}
-          />
-
-          {session.corrections.length > 1 && <View style={styles.refinementsGap} />}
+          <View style={styles.filterChipsWrap}>
+            <CorrectionFilterChips
+              activeFilter={correctionFilter}
+              onFilterChange={handleFilterChipPress}
+              counts={{
+                all: session.corrections.length,
+                error: counts.errorCount,
+                improvement: counts.improvementCount,
+                polish: counts.polishCount,
+              }}
+            />
+          </View>
 
           {visibleCorrections.length > 0 ? (
             <>
@@ -304,7 +263,7 @@ export default function SessionDetailScreen() {
                   />
                 );
                 if (isFresh) {
-                  const baseDelay = hasFillers ? 450 : 300;
+                  const baseDelay = 200;
                   return (
                     <Animated.View
                       key={key}
@@ -317,43 +276,36 @@ export default function SessionDetailScreen() {
                 return card;
               })}
 
-              {/* Show N more */}
+              {/* Show remaining strip */}
               {hiddenCount > 0 && (
                 <Pressable
-                  style={styles.showMoreButton}
+                  style={styles.showRemainingStrip}
                   onPress={() => setShowAllCorrections(true)}
                 >
-                  <Text style={styles.showMoreText}>
-                    Show {hiddenCount} more
+                  <Text style={styles.showRemainingText}>
+                    Showing {visibleCorrections.length} of {filteredCorrections.length}
                   </Text>
+                  <Text style={styles.showRemainingAction}> Show remaining</Text>
                 </Pressable>
               )}
             </>
           ) : hasCorrections ? (
-            // Filter resulted in 0 visible
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                No {correctionFilter === 'error' ? 'errors' : correctionFilter === 'improvement' ? 'improvements' : 'polish suggestions'} found
-              </Text>
-            </View>
+            <EmptyState
+              title={`No ${correctionFilter === 'error' ? 'errors' : correctionFilter === 'improvement' ? 'improvements' : 'polish suggestions'} found`}
+            />
           ) : (
-            <View style={styles.emptyContainer}>
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={32}
-                color={alpha(colors.severityPolish, 0.5)}
-              />
-              <Text style={styles.emptyText}>No issues found</Text>
-              <Text style={styles.emptySubtext}>
-                Your speech was grammatically clean
-              </Text>
-            </View>
+            <EmptyState
+              icon="checkmark-circle-outline"
+              iconColor={alpha(colors.severityPolish, 0.5)}
+              title="No issues found"
+              subtitle="Your speech was grammatically clean"
+            />
           )}
         </View>
 
         {/* Bottom padding */}
         <View style={{ height: insets.bottom + 60 }} />
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }
@@ -377,28 +329,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  // Sticky top bar
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: alpha(colors.white, 0.05),
-    zIndex: 10,
-  },
-  backPressable: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  backText: {
-    fontSize: 16,
-    color: alpha(colors.white, 0.7),
-    fontWeight: '500',
-  },
+  // Header
   topBarDuration: {
     fontSize: 13,
     color: alpha(colors.white, 0.3),
@@ -406,97 +337,43 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // Header
-  headerBlock: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 8,
-  },
-  dateText: {
-    fontSize: 13,
-    color: alpha(colors.white, 0.35),
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
-  analyzingHeaderBlock: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  analyzingDateText: {
-    fontSize: 13,
-    color: alpha(colors.white, 0.35),
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
-
-  // Section spacing
-  sectionSpacer: {
-    height: 48,
-  },
-
-  // Refinements & Insights sections
+  // Refinements
   refinementsSection: {
-    paddingHorizontal: 0,
+    marginTop: 28,
   },
-  sectionTitle: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: colors.onSurface,
-    letterSpacing: -1,
+  refinementsLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: alpha(colors.white, 0.25),
+    letterSpacing: 1.2,
     paddingHorizontal: 20,
-    marginBottom: 6,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    fontWeight: '400',
-    color: alpha(colors.white, 0.35),
-    paddingHorizontal: 20,
-  },
-  refinementsGap: {
-    height: 20,
-  },
-
-  // Empty state
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-    gap: 8,
-  },
-  emptyText: {
-    fontSize: 17,
-    color: alpha(colors.severityPolish, 0.7),
-    fontWeight: '600',
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: alpha(colors.white, 0.3),
-    fontWeight: '400',
-  },
-
-  // Show more
-  showMoreButton: {
-    alignSelf: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 100,
-    backgroundColor: alpha(colors.white, 0.05),
-    borderWidth: 1,
-    borderColor: alpha(colors.white, 0.08),
-    marginTop: 4,
     marginBottom: 16,
   },
-  showMoreText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: alpha(colors.white, 0.5),
+  filterChipsWrap: {
+    marginBottom: 16,
   },
 
-  // Error state
-  errorText: {
-    fontSize: 16,
-    color: alpha(colors.white, 0.4),
+  // Show remaining
+  showRemainingStrip: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginHorizontal: 20,
+    marginTop: 4,
+    borderRadius: 12,
+    backgroundColor: alpha(colors.white, 0.03),
+    borderWidth: 1,
+    borderColor: alpha(colors.white, 0.06),
+  },
+  showRemainingText: {
+    fontSize: 13,
     fontWeight: '500',
+    color: alpha(colors.white, 0.35),
+  },
+  showRemainingAction: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
   },
 });

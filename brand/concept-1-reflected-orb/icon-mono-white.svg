@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <clipPath id="top">
+      <rect x="0" y="0" width="100" height="50"/>
+    </clipPath>
+    <clipPath id="bottom">
+      <rect x="0" y="50" width="100" height="50"/>
+    </clipPath>
+  </defs>
+  <!-- Top half — solid white -->
+  <circle cx="50" cy="50" r="36" fill="#ffffff" clip-path="url(#top)"/>
+  <!-- Bottom half — dimmer white (reflection) -->
+  <circle cx="50" cy="50" r="36" fill="#ffffff" clip-path="url(#bottom)" opacity="0.55"/>
+  <!-- Horizon -->
+  <line x1="14" y1="50" x2="86" y2="50" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
+</svg>

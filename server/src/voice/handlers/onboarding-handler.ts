@@ -11,7 +11,7 @@ import { eq } from 'drizzle-orm';
 export class OnboardingHandler implements AgentTypeHandler {
   readonly needsUserContext = false;
 
-  buildSystemPrompt(_agentConfig: AgentConfig | null, _userContext?: FullUserContext): string {
+  buildSystemPrompt(_agentConfig: AgentConfig | null, _userContext?: FullUserContext, _formContext?: Record<string, unknown> | null): string {
     return [IDENTITY_PROMPT, BEHAVIOR_PROMPT, ONBOARDING_SESSION_PROMPT].join('\n\n');
   }
 
@@ -25,6 +25,7 @@ export class OnboardingHandler implements AgentTypeHandler {
     _transcriptBuffer: string[],
     conversationHistory: ConversationMessage[],
     _durationSeconds: number,
+    _formContext?: Record<string, unknown> | null,
   ): Promise<SessionEndResult> {
     try {
       const profile = await extractUserProfile(conversationHistory);
@@ -38,10 +39,17 @@ export class OnboardingHandler implements AgentTypeHandler {
 
       console.log(`[onboarding-handler] Profile saved for user ${userId}: ${profile.displayName}`);
 
+      // Extract the last assistant message as a speech observation for the analysis reveal
+      const lastAssistantMsg = [...conversationHistory]
+        .reverse()
+        .find((m) => m.role === 'assistant');
+      const speechObservation = lastAssistantMsg?.content ?? null;
+
       return {
         type: 'onboarding',
         success: true,
         displayName: profile.displayName,
+        speechObservation,
       };
     } catch (err) {
       console.error(`[onboarding-handler] Profile extraction error:`, err);

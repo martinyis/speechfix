@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { colors, alpha } from '../theme';
-import type { CorrectionFilter } from './SeverityPills';
+import type { CorrectionFilter } from '../types/session';
 
 interface CorrectionFilterChipsProps {
   activeFilter: CorrectionFilter;

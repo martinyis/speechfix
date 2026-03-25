@@ -1,139 +1,107 @@
-import { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-} from 'react-native';
+import { useEffect, useRef, useCallback } from 'react';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import MicBloomOrb from '../../components/MicBloomOrb';
-import { VoiceSessionOverlay } from '../../components/VoiceSessionOverlay';
-import { useOnboardingVoiceSession } from '../../hooks/useOnboardingVoiceSession';
-import { useSessionStore } from '../../stores/sessionStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useIntroAudio } from '../../hooks/useIntroAudio';
 import { colors, alpha } from '../../theme';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-type OnboardingMode = 'intro' | 'voice';
-
-export default function OnboardingScreen() {
+export default function IntroAgentScreen() {
   const insets = useSafeAreaInsets();
-  const [mode, setMode] = useState<OnboardingMode>('intro');
-  const [error, setError] = useState('');
+  const { isLoading, isPlaying, isComplete, error, visibleText, currentSegmentIndex, play, skip } = useIntroAudio();
+  const hasStartedRef = useRef(false);
+  const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const voiceState = useSessionStore((s) => s.voiceSessionState);
-  const elapsedTime = useSessionStore((s) => s.elapsedTime);
-  const isMuted = useSessionStore((s) => s.isMuted);
-  const isActive = useSessionStore((s) => s.isVoiceSessionActive);
+  // Auto-play when audio is loaded
+  useEffect(() => {
+    if (!isLoading && !error && !hasStartedRef.current) {
+      hasStartedRef.current = true;
+      play();
+    }
+  }, [isLoading, error, play]);
 
-  const micScale = useSharedValue(1);
+  // Auto-advance after completion
+  useEffect(() => {
+    if (isComplete) {
+      autoAdvanceRef.current = setTimeout(() => {
+        router.push('/(onboarding)/mic-permission');
+      }, 1200);
+    }
+    return () => {
+      if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+    };
+  }, [isComplete]);
 
-  const completeOnboarding = useCallback(() => {
-    useAuthStore.getState().setOnboardingComplete();
-    useAuthStore.getState().setSigningUp(false);
-    router.replace('/(tabs)');
+  const handleSkip = useCallback(() => {
+    if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+    skip();
+    router.push('/(onboarding)/mic-permission');
+  }, [skip]);
+
+  const handleRetry = useCallback(() => {
+    hasStartedRef.current = false;
   }, []);
 
-  const { start, stop, toggleMute } = useOnboardingVoiceSession({
-    onComplete: () => {
-      completeOnboarding();
-    },
-    onError: (message) => {
-      console.warn('Onboarding voice error:', message);
-      setError(message);
-      setMode('intro');
-    },
-  });
-
-  const handleStartVoice = useCallback(() => {
-    setError('');
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setMode('voice');
-    start();
-  }, [start]);
-
-  const handleMicPressIn = useCallback(() => {
-    micScale.value = withSpring(0.93, { damping: 15, stiffness: 300 });
-  }, []);
-
-  const handleMicPressOut = useCallback(() => {
-    micScale.value = withSpring(1, { damping: 15, stiffness: 300 });
-  }, []);
-
-  const handleStop = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    stop();
-  }, [stop]);
-
-  const handleToggleMute = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    toggleMute();
-  }, [toggleMute]);
-
-  const micAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: micScale.value }],
-  }));
-
-  // Voice active: show full-screen VoiceSessionOverlay (same as home screen)
-  if (mode === 'voice' && isActive) {
+  if (error) {
     return (
-      <View style={styles.container}>
-        <VoiceSessionOverlay
-          voiceState={voiceState}
-          elapsedTime={elapsedTime}
-          isMuted={isMuted}
-          onToggleMute={handleToggleMute}
-          onStop={handleStop}
-          mode="onboarding"
-        />
+      <View style={[styles.container, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 20 }]}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Couldn't load intro</Text>
+          <Text style={styles.errorSubtext}>{error}</Text>
+          <Pressable style={styles.retryButton} onPress={handleRetry}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
+          <Pressable style={styles.skipLink} onPress={handleSkip}>
+            <Text style={styles.skipLinkText}>Skip intro</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
 
-  // Intro mode
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 20 }]}>
-      <View style={styles.introContent}>
-        <Text style={styles.welcomeTitle}>Welcome to Reflexa</Text>
-        <Text style={styles.welcomeSubtitle}>
-          Let's get to know you with a quick{'\n'}voice chat with your speaking coach
-        </Text>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + 20 }]}>
+      {/* Skip button */}
+      {(isPlaying || isLoading) && (
+        <Animated.View entering={FadeIn.delay(2000).duration(400)} style={styles.skipButtonWrap}>
+          <Pressable onPress={handleSkip} hitSlop={12}>
+            <Text style={styles.skipButtonText}>Skip</Text>
+          </Pressable>
+        </Animated.View>
+      )}
 
-        {error ? (
-          <Text style={styles.errorText}>{error}</Text>
-        ) : null}
+      {/* Center: Orb */}
+      <View style={styles.orbSection}>
+        <MicBloomOrb />
+      </View>
 
-        {/* MicBloomOrb — same Skia component as home screen */}
-        <View style={styles.orbSection}>
-          <AnimatedPressable
-            onPress={handleStartVoice}
-            onPressIn={handleMicPressIn}
-            onPressOut={handleMicPressOut}
-            accessibilityLabel="Start voice onboarding"
-            accessibilityRole="button"
-          >
-            <Animated.View style={micAnimStyle}>
-              <MicBloomOrb />
-            </Animated.View>
-          </AnimatedPressable>
+      {/* Bottom: Text reveal area */}
+      <View style={styles.textArea}>
+        <ScrollView
+          style={styles.textScroll}
+          contentContainerStyle={styles.textScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {visibleText.map((text, index) => (
+            <Animated.Text
+              key={index}
+              entering={FadeInDown.duration(300)}
+              style={[
+                styles.segmentText,
+                index === currentSegmentIndex && styles.segmentTextActive,
+              ]}
+            >
+              {text}
+            </Animated.Text>
+          ))}
+        </ScrollView>
 
-          <View style={styles.hintContainer}>
-            <Text style={styles.hintText}>{error ? 'TAP TO RETRY' : 'TAP TO BEGIN'}</Text>
-            <View style={styles.hintDots}>
-              <View style={[styles.hintDot, styles.hintDotActive]} />
-              <View style={styles.hintDot} />
-              <View style={styles.hintDot} />
-            </View>
-          </View>
-        </View>
+        {isLoading && (
+          <Animated.Text entering={FadeIn.duration(400)} style={styles.loadingText}>
+            Preparing your introduction...
+          </Animated.Text>
+        )}
       </View>
     </View>
   );
@@ -144,63 +112,84 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-
-  // -- Intro --
-  introContent: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 24,
+  skipButtonWrap: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    zIndex: 10,
   },
-  welcomeTitle: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: colors.onSurface,
-    letterSpacing: -1,
-    textAlign: 'center',
-  },
-  welcomeSubtitle: {
+  skipButtonText: {
     fontSize: 15,
-    color: alpha(colors.white, 0.50),
-    textAlign: 'center',
-    marginTop: 10,
-    lineHeight: 22,
-  },
-  errorText: {
-    fontSize: 14,
-    color: colors.error,
-    textAlign: 'center',
-    marginTop: 16,
+    fontWeight: '600',
+    color: alpha(colors.white, 0.5),
   },
   orbSection: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: -24,
     overflow: 'visible',
   },
-  hintContainer: {
-    alignItems: 'center',
-    marginTop: 16,
-    gap: 8,
+  textArea: {
+    height: 180,
+    paddingHorizontal: 32,
   },
-  hintText: {
-    fontSize: 11,
+  textScroll: {
+    flex: 1,
+  },
+  textScrollContent: {
+    paddingBottom: 16,
+  },
+  segmentText: {
+    fontSize: 18,
+    fontWeight: '400',
+    color: alpha(colors.white, 0.35),
+    lineHeight: 28,
+    textAlign: 'center',
+  },
+  segmentTextActive: {
+    color: colors.primary,
     fontWeight: '500',
-    color: alpha(colors.white, 0.6),
-    letterSpacing: 2.5,
   },
-  hintDots: {
-    flexDirection: 'row',
+  loadingText: {
+    fontSize: 14,
+    color: alpha(colors.white, 0.4),
+    textAlign: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
+    paddingHorizontal: 32,
   },
-  hintDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: alpha(colors.primary, 0.4),
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.onSurface,
+    marginBottom: 8,
   },
-  hintDotActive: {
+  errorSubtext: {
+    fontSize: 14,
+    color: alpha(colors.white, 0.5),
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  retryButton: {
     backgroundColor: colors.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  retryButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.background,
+  },
+  skipLink: {
+    padding: 8,
+  },
+  skipLinkText: {
+    fontSize: 14,
+    color: alpha(colors.white, 0.4),
   },
 });

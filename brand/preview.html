@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reflexa Logo Concepts — Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0a;
+      color: #e0e0e0;
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
+      padding: 40px;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #cc97ff, #699cff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 48px;
+    }
+    .concept {
+      margin-bottom: 64px;
+    }
+    .concept h2 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #cc97ff;
+      margin-bottom: 6px;
+    }
+    .concept p {
+      color: #777;
+      font-size: 13px;
+      margin-bottom: 24px;
+      max-width: 600px;
+      line-height: 1.5;
+    }
+    .variants {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      align-items: flex-end;
+    }
+    .variant {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .variant-label {
+      font-size: 11px;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .icon-frame {
+      border: 1px solid #1a1a1a;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon-frame.large {
+      width: 120px;
+      height: 120px;
+    }
+    .icon-frame.medium {
+      width: 80px;
+      height: 80px;
+    }
+    .icon-frame.small {
+      width: 48px;
+      height: 48px;
+    }
+    .icon-frame.tiny {
+      width: 32px;
+      height: 32px;
+    }
+    .icon-frame.wide {
+      width: 320px;
+      height: 80px;
+      border-radius: 8px;
+    }
+    .icon-frame.light-bg {
+      background: #f5f5f5;
+      border-color: #e0e0e0;
+    }
+    .icon-frame img, .icon-frame object {
+      width: 100%;
+      height: 100%;
+    }
+    .size-row {
+      display: flex;
+      gap: 16px;
+      align-items: flex-end;
+    }
+    .divider {
+      height: 1px;
+      background: #1a1a1a;
+      margin: 48px 0;
+    }
+    .colors {
+      display: flex;
+      gap: 12px;
+      margin-top: 48px;
+    }
+    .swatch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .swatch-circle {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid #333;
+    }
+    .swatch-label {
+      font-size: 10px;
+      color: #555;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>Reflexa</h1>
+  <p class="subtitle">Logo concept exploration + final selected logo</p>
+
+  <!-- FINAL LOGO -->
+  <div class="concept" style="border: 1px solid #cc97ff22; border-radius: 16px; padding: 32px; background: #0e0e0e;">
+    <h2 style="font-size: 24px;">Final Logo — Speech Bubble Loop</h2>
+    <p>3D ribbon speech bubble that loops back on itself. Three purple layers create depth: dark behind, medium body, bright highlight on the outer edge. Based on the AI-generated concept.</p>
+    <div class="variants">
+      <div class="variant">
+        <div class="icon-frame large" style="background: #17141e;">
+          <img src="logo/icon-app.svg" alt="App icon">
+        </div>
+        <span class="variant-label">App Icon</span>
+      </div>
+      <div class="variant">
+        <div class="icon-frame large">
+          <img src="logo/icon-glow.svg" alt="Glow">
+        </div>
+        <span class="variant-label">Glow</span>
+      </div>
+      <div class="variant">
+        <div class="icon-frame large" style="background: #0e0e0e;">
+          <img src="logo/icon.svg" alt="Icon only">
+        </div>
+        <span class="variant-label">Transparent</span>
+      </div>
+      <div class="variant">
+        <div class="icon-frame large light-bg">
+          <img src="logo/icon-mono-white.svg" alt="Mono" style="filter: invert(1);">
+        </div>
+        <span class="variant-label">Mono (dark)</span>
+      </div>
+      <div class="variant">
+        <div class="icon-frame large" style="background: #17141e;">
+          <img src="logo/icon-mono-white.svg" alt="Mono white">
+        </div>
+        <span class="variant-label">Mono (white)</span>
+      </div>
+    </div>
+    <div class="variants" style="margin-top: 20px;">
+      <div class="variant">
+        <div class="icon-frame wide">
+          <img src="logo/lockup-dark.svg" alt="Lockup">
+        </div>
+        <span class="variant-label">Lockup</span>
+      </div>
+    </div>
+    <div class="variants" style="margin-top: 16px;">
+      <div class="size-row">
+        <div class="variant">
+          <div class="icon-frame medium" style="background: #17141e;">
+            <img src="logo/icon-app.svg" alt="64px">
+          </div>
+          <span class="variant-label">64px</span>
+        </div>
+        <div class="variant">
+          <div class="icon-frame small" style="background: #17141e;">
+            <img src="logo/icon-app.svg" alt="48px">
+          </div>
+          <span class="variant-label">48px</span>
+        </div>
+        <div class="variant">
+          <div class="icon-frame tiny">
+            <img src="logo/favicon.svg" alt="Favicon">
+          </div>
+          <span class="variant-label">Favicon</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Concept 1 -->
+  <div class="concept">
+    <h2>1. The Reflected Orb</h2>
+    <p>A circle with mirrored symmetry — the top half is solid and defined, the bottom half is a softer reflection. References the app's glowing orb and the concept of seeing yourself clearly through practice.</p>
+    <div class="variants">
+      <div class="variant">
+        <div class="icon-frame large">
+          <img src="concept-1-reflected-orb/icon-dark.svg" alt="Icon on dark">
+        </div>
+        <span class="variant-label">Dark</span>
+      </div>
+      <div class="variant">
+        <div class="icon-frame large">
+          <img src="concept-1-reflected-orb/icon-glow.svg" alt="Icon with glow">
+        </div>
+        <span class="variant-label">Glow</span>
+      </div>
+      <div class="variant">
+        <div class="icon-frame large">
+          <img src="concept-1-reflected-orb/icon-gradient-bg.svg" alt="Gradient background">
+        </div>
+        <span class="variant-label">Gradient BG</span>
+      </div>
+      <div class="variant">
+        <div class="icon-frame large light-bg">
+          <img src="concept-1-reflected-orb/icon-mono-white.svg" alt="Mono white">
+        </div>
+        <span class="variant-label">Mono (light bg)</span>
+      </div>
+    </div>
+    <div class="variants" style="margin-top: 20px;">
+      <div class="variant">
+        <div class="icon-frame wide">
+          <img src="concept-1-reflected-orb/lockup-dark.svg" alt="Lockup">
+        </div>
+        <span class="variant-label">Lockup</span>
+      </div>
+    </div>
+    <div class="variants" style="margin-top: 16px;">
+      <div class="size-row">
+        <div class="variant">
+          <div class="icon-frame medium">
+            <img src="concept-1-reflected-orb/icon-dark.svg" alt="64px">
+          </div>
+          <span class="variant-label">64px</span>
+        </div>
+        <div class="variant">
+          <div class="icon-frame small">
+            <img src="concept-1-reflected-orb/icon-dark.svg" alt="48px">
+          </div>
+          <span class="variant-label">48px</span>
+        </div>
+        <div class="variant">
+          <div class="icon-frame tiny">
+            <img src="concept-1-reflected-orb/favicon.svg" alt="Favicon">
+          </div>
+          <span class="variant-label">Favicon</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Concept 2 -->
+  <div class="concept">
+    <h2>2. The Echo Loop</h2>
+    <p>A single continuous stroke that spirals from an outer circle into an inner echo — like sound reflecting back on itself. The path forms a natural loop, suggesting the reflection-and-refinement cycle of speech practice.</p>
+    <div class="variants">
+      <div class="variant">
+        <div class="icon-frame large">
+          <img src="concept-2-echo-loop/icon-dark.svg" alt="Icon on dark">
+        </div>
+        <span class="variant-label">Dark</span>
+      </div>
+      <div class="variant">
+        <div class="icon-frame large">
+          <img src="concept-2-echo-loop/icon-glow.svg" alt="Icon with glow">
+        </div>
+        <span class="variant-label">Glow</span>
+      </div>
+      <div class="variant">
+        <div class="icon-frame large">
+          <img src="concept-2-echo-loop/icon-inverted.svg" alt="Inverted">
+        </div>
+        <span class="variant-label">Inverted</span>
+      </div>
+      <div class="variant">
+        <div class="icon-frame large light-bg">
+          <img src="concept-2-echo-loop/icon-mono-white.svg" alt="Mono white">
+        </div>
+        <span class="variant-label">Mono (light bg)</span>
+      </div>
+    </div>
+    <div class="variants" style="margin-top: 20px;">
+      <div class="variant">
+        <div class="icon-frame wide">
+          <img src="concept-2-echo-loop/lockup-dark.svg" alt="Lockup">
+        </div>
+        <span class="variant-label">Lockup</span>
+      </div>
+    </div>
+    <div class="variants" style="margin-top: 16px;">
+      <div class="size-row">
+        <div class="variant">
+          <div class="icon-frame medium">
+            <img src="concept-2-echo-loop/icon-dark.svg" alt="64px">
+          </div>
+          <span class="variant-label">64px</span>
+        </div>
+        <div class="variant">
+          <div class="icon-frame small">
+            <img src="concept-2-echo-loop/icon-dark.svg" alt="48px">
+          </div>
+          <span class="variant-label">48px</span>
+        </div>
+        <div class="variant">
+          <div class="icon-frame tiny">
+            <img src="concept-2-echo-loop/favicon.svg" alt="Favicon">
+          </div>
+          <span class="variant-label">Favicon</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Concept 3 -->
+  <div class="concept">
+    <h2>3. The Clarity Lens</h2>
+    <p>Concentric circles with a focal point at center — like a precision instrument or camera lens. Suggests clarity, focus, and the analytical nature of the app. Feels like a developer tool or scientific brand.</p>
+    <div class="variants">
+      <div class="variant">
+        <div class="icon-frame large">
+          <img src="concept-3-clarity-lens/icon-dark.svg" alt="Icon on dark">
+        </div>
+        <span class="variant-label">Dark</span>
+      </div>
+      <div class="variant">
+        <div class="icon-frame large">
+          <img src="concept-3-clarity-lens/icon-glow.svg" alt="Icon with glow">
+        </div>
+        <span class="variant-label">Glow</span>
+      </div>
+      <div class="variant">
+        <div class="icon-frame large light-bg">
+          <img src="concept-3-clarity-lens/icon-mono-white.svg" alt="Mono white">
+        </div>
+        <span class="variant-label">Mono (light bg)</span>
+      </div>
+    </div>
+    <div class="variants" style="margin-top: 20px;">
+      <div class="variant">
+        <div class="icon-frame wide">
+          <img src="concept-3-clarity-lens/lockup-dark.svg" alt="Lockup">
+        </div>
+        <span class="variant-label">Lockup</span>
+      </div>
+    </div>
+    <div class="variants" style="margin-top: 16px;">
+      <div class="size-row">
+        <div class="variant">
+          <div class="icon-frame medium">
+            <img src="concept-3-clarity-lens/icon-dark.svg" alt="64px">
+          </div>
+          <span class="variant-label">64px</span>
+        </div>
+        <div class="variant">
+          <div class="icon-frame small">
+            <img src="concept-3-clarity-lens/icon-dark.svg" alt="48px">
+          </div>
+          <span class="variant-label">48px</span>
+        </div>
+        <div class="variant">
+          <div class="icon-frame tiny">
+            <img src="concept-3-clarity-lens/icon-favicon.svg" alt="Favicon">
+          </div>
+          <span class="variant-label">Favicon</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Brand Colors -->
+  <h2 style="font-size: 16px; color: #888; font-weight: 500; margin-bottom: 16px;">Brand Palette</h2>
+  <div class="colors">
+    <div class="swatch">
+      <div class="swatch-circle" style="background: #cc97ff;"></div>
+      <span class="swatch-label">#cc97ff</span>
+    </div>
+    <div class="swatch">
+      <div class="swatch-circle" style="background: #699cff;"></div>
+      <span class="swatch-label">#699cff</span>
+    </div>
+    <div class="swatch">
+      <div class="swatch-circle" style="background: #ff6daf;"></div>
+      <span class="swatch-label">#ff6daf</span>
+    </div>
+    <div class="swatch">
+      <div class="swatch-circle" style="background: #0e0e0e; border-color: #333;"></div>
+      <span class="swatch-label">#0e0e0e</span>
+    </div>
+  </div>
+</body>
+</html>

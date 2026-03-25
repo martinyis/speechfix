@@ -1,11 +1,10 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { colors, alpha, spacing, borderRadius, glass } from '../../theme';
+import { colors, alpha, spacing } from '../../theme';
 import { useAuthStore } from '../../stores/authStore';
+import { ScreenHeader, GlassCard, Button } from '../../components/ui';
 
 export default function ProfileScreen() {
-  const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const queryClient = useQueryClient();
@@ -16,24 +15,31 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 24 }]}>
-      <Text style={styles.title}>Profile</Text>
+    <View style={styles.container}>
+      <ScreenHeader variant="large" title="Profile" />
 
-      <View style={[styles.card, glass.card]}>
-        <Text style={styles.label}>Email</Text>
-        <Text style={styles.value}>{user?.email ?? '—'}</Text>
+      <View style={styles.content}>
+        <GlassCard style={{ padding: spacing.xl }}>
+          <Text style={styles.label}>Email</Text>
+          <Text style={styles.value}>{user?.email ?? '—'}</Text>
 
-        {user?.name ? (
-          <>
-            <Text style={[styles.label, { marginTop: spacing.lg }]}>Name</Text>
-            <Text style={styles.value}>{user.name}</Text>
-          </>
-        ) : null}
+          {user?.name ? (
+            <>
+              <Text style={[styles.label, { marginTop: spacing.lg }]}>Name</Text>
+              <Text style={styles.value}>{user.name}</Text>
+            </>
+          ) : null}
+        </GlassCard>
+
+        <View style={styles.logoutWrap}>
+          <Button
+            variant="danger"
+            label="Log Out"
+            onPress={handleLogout}
+            fullWidth
+          />
+        </View>
       </View>
-
-      <Pressable style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutText}>Log Out</Text>
-      </Pressable>
     </View>
   );
 }
@@ -42,17 +48,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  content: {
     paddingHorizontal: 24,
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: colors.onSurface,
-    letterSpacing: -0.5,
-    marginBottom: spacing.xl,
-  },
-  card: {
-    padding: spacing.xl,
+    flex: 1,
   },
   label: {
     fontSize: 12,
@@ -67,17 +66,7 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
     fontWeight: '500',
   },
-  logoutButton: {
+  logoutWrap: {
     marginTop: spacing.xl,
-    borderRadius: borderRadius.sm,
-    borderWidth: 1,
-    borderColor: colors.error,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  logoutText: {
-    color: colors.error,
-    fontSize: 16,
-    fontWeight: '600',
   },
 });

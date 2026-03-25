@@ -1,3 +1,4 @@
+import type Anthropic from '@anthropic-ai/sdk';
 import type { ConversationMessage, UserContext } from '../response-generator.js';
 
 export interface AgentConfig {
@@ -26,13 +27,16 @@ export interface SessionEndResult {
   };
   success?: boolean;
   displayName?: string | null;
+  speechObservation?: string | null;
   agentId?: number;
   agentName?: string;
+  agent?: { id: number; name: string; type: string; voiceId: string | null; avatarSeed?: string | null; createdAt: string };
 }
 
 export interface AgentTypeHandler {
   readonly needsUserContext: boolean;
-  buildSystemPrompt(agentConfig: AgentConfig | null, userContext?: FullUserContext): string;
+  buildSystemPrompt(agentConfig: AgentConfig | null, userContext?: FullUserContext, formContext?: Record<string, unknown> | null): string;
+  getTools?(): Anthropic.Messages.Tool[];
   shouldAutoEnd(turnCount: number, conversationHistory: ConversationMessage[]): boolean;
   onSessionEnd(
     userId: number,
@@ -40,5 +44,6 @@ export interface AgentTypeHandler {
     transcriptBuffer: string[],
     conversationHistory: ConversationMessage[],
     durationSeconds: number,
+    formContext?: Record<string, unknown> | null,
   ): Promise<SessionEndResult>;
 }

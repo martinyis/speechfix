@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="orb-fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cc97ff"/>
+      <stop offset="100%" stop-color="#699cff"/>
+    </linearGradient>
+    <clipPath id="top">
+      <rect x="0" y="0" width="120" height="60"/>
+    </clipPath>
+    <clipPath id="bottom">
+      <rect x="0" y="60" width="120" height="60"/>
+    </clipPath>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="120" height="120" fill="#0e0e0e"/>
+  <g filter="url(#glow)">
+    <circle cx="60" cy="60" r="36" fill="#cc97ff" clip-path="url(#top)"/>
+    <circle cx="60" cy="60" r="36" fill="url(#orb-fill)" clip-path="url(#bottom)" opacity="0.72"/>
+    <line x1="24" y1="60" x2="96" y2="60" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+  </g>
+</svg>

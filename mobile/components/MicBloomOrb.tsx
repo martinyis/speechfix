@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import {
   Canvas,
@@ -12,8 +12,82 @@ import { Ionicons } from '@expo/vector-icons';
 const ORB_RADIUS = 100;
 const LAYOUT_HEIGHT = 240;
 
-export default function MicBloomOrb() {
+// -- Color palettes for bloom hue --
+
+type BloomPalette = {
+  bloom: string[];
+  mid: string[];
+  halo: string[];
+  ring: string;
+  orb: string[];
+};
+
+/** Default purple palette (Reflexa) */
+const PURPLE_PALETTE: BloomPalette = {
+  bloom: [
+    'rgba(90, 30, 160, 0.35)',
+    'rgba(80, 25, 145, 0.22)',
+    'rgba(65, 18, 120, 0.12)',
+    'rgba(50, 10, 100, 0.05)',
+    'transparent',
+  ],
+  mid: [
+    'rgba(130, 60, 230, 0.28)',
+    'rgba(110, 45, 200, 0.12)',
+    'transparent',
+  ],
+  halo: [
+    'rgba(160, 110, 250, 0.25)',
+    'rgba(140, 90, 220, 0.10)',
+    'transparent',
+  ],
+  ring: 'rgba(200, 180, 255, 0.22)',
+  orb: [
+    'rgba(190, 160, 240, 0.65)',
+    'rgba(150, 120, 210, 0.50)',
+    'rgba(110, 85, 180, 0.38)',
+  ],
+};
+
+/** Blue palette (custom agents) */
+const BLUE_PALETTE: BloomPalette = {
+  bloom: [
+    'rgba(30, 80, 180, 0.35)',
+    'rgba(25, 70, 165, 0.22)',
+    'rgba(18, 55, 140, 0.12)',
+    'rgba(10, 40, 120, 0.05)',
+    'transparent',
+  ],
+  mid: [
+    'rgba(60, 120, 240, 0.28)',
+    'rgba(45, 100, 220, 0.12)',
+    'transparent',
+  ],
+  halo: [
+    'rgba(110, 160, 255, 0.25)',
+    'rgba(90, 140, 240, 0.10)',
+    'transparent',
+  ],
+  ring: 'rgba(180, 200, 255, 0.22)',
+  orb: [
+    'rgba(160, 190, 250, 0.65)',
+    'rgba(120, 160, 230, 0.50)',
+    'rgba(85, 130, 200, 0.38)',
+  ],
+};
+
+interface MicBloomOrbProps {
+  /** Accent color hint: 'purple' for Reflexa (default), 'blue' for custom agents */
+  accentColor?: 'purple' | 'blue';
+}
+
+export default function MicBloomOrb({ accentColor = 'purple' }: MicBloomOrbProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+
+  const palette = useMemo(
+    () => (accentColor === 'blue' ? BLUE_PALETTE : PURPLE_PALETTE),
+    [accentColor],
+  );
 
   const CANVAS_W = screenWidth;
   const CANVAS_H = screenHeight * 0.85;
@@ -43,13 +117,7 @@ export default function MicBloomOrb() {
             <RadialGradient
               c={vec(cx, cy)}
               r={bloomRadius}
-              colors={[
-                'rgba(90, 30, 160, 0.35)',
-                'rgba(80, 25, 145, 0.22)',
-                'rgba(65, 18, 120, 0.12)',
-                'rgba(50, 10, 100, 0.05)',
-                'transparent',
-              ]}
+              colors={palette.bloom}
               positions={[0, 0.18, 0.38, 0.65, 1]}
             />
           </Rect>
@@ -59,11 +127,7 @@ export default function MicBloomOrb() {
             <RadialGradient
               c={vec(cx, cy)}
               r={bloomRadius * 0.5}
-              colors={[
-                'rgba(130, 60, 230, 0.28)',
-                'rgba(110, 45, 200, 0.12)',
-                'transparent',
-              ]}
+              colors={palette.mid}
               positions={[0, 0.5, 1]}
             />
           </Rect>
@@ -73,11 +137,7 @@ export default function MicBloomOrb() {
             <RadialGradient
               c={vec(cx, cy)}
               r={190}
-              colors={[
-                'rgba(160, 110, 250, 0.25)',
-                'rgba(140, 90, 220, 0.10)',
-                'transparent',
-              ]}
+              colors={palette.halo}
               positions={[0.4, 0.75, 1]}
             />
           </Circle>
@@ -89,7 +149,7 @@ export default function MicBloomOrb() {
             r={ORB_RADIUS + 8}
             style="stroke"
             strokeWidth={1.5}
-            color="rgba(200, 180, 255, 0.22)"
+            color={palette.ring}
           />
 
           {/* Main orb body */}
@@ -97,11 +157,7 @@ export default function MicBloomOrb() {
             <RadialGradient
               c={vec(cx - 20, cy - 30)}
               r={ORB_RADIUS * 1.4}
-              colors={[
-                'rgba(190, 160, 240, 0.65)',
-                'rgba(150, 120, 210, 0.50)',
-                'rgba(110, 85, 180, 0.38)',
-              ]}
+              colors={palette.orb}
               positions={[0, 0.5, 1]}
             />
           </Circle>

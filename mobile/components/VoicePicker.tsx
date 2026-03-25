@@ -7,9 +7,34 @@ interface VoicePickerProps {
   voices: Voice[];
   selectedVoiceId: string | null;
   onSelect: (voiceId: string) => void;
+  compact?: boolean;
 }
 
-export function VoicePicker({ voices, selectedVoiceId, onSelect }: VoicePickerProps) {
+export function VoicePicker({ voices, selectedVoiceId, onSelect, compact }: VoicePickerProps) {
+  if (compact) {
+    return (
+      <View style={styles.chipRow}>
+        {voices.map((voice) => {
+          const selected = voice.id === selectedVoiceId;
+          return (
+            <Pressable
+              key={voice.id}
+              style={[styles.chip, selected && styles.chipSelected]}
+              onPress={() => onSelect(voice.id)}
+            >
+              <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                {voice.name}
+              </Text>
+              {selected && (
+                <Ionicons name="checkmark" size={14} color={colors.background} />
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       {voices.map((voice) => {
@@ -88,5 +113,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.md,
+  },
+
+  // ── Compact chip variant ──────────────────────────────────────────────
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: alpha(colors.white, 0.1),
+    backgroundColor: alpha(colors.white, 0.04),
+  },
+  chipSelected: {
+    borderColor: alpha(colors.primary, 0.5),
+    backgroundColor: alpha(colors.primary, 0.12),
+  },
+  chipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: alpha(colors.white, 0.6),
+  },
+  chipTextSelected: {
+    color: colors.primary,
+    fontWeight: '600',
   },
 });

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+  <!--
+    Reflexa Logo — White monochrome silhouette
+    Full ring (even-odd donut) + tail
+  -->
+
+  <!-- Complete ring (outer circle minus inner circle) -->
+  <path
+    d="M 78,42 A 28,28 0 1,0 22,42 A 28,28 0 1,0 78,42 Z
+       M 69,42 A 19,19 0 1,1 31,42 A 19,19 0 1,1 69,42 Z"
+    fill="#ffffff"
+    fill-rule="evenodd"
+  />
+
+  <!-- Speech bubble tail -->
+  <path
+    d="M 26,56 Q 21,64 20,70 Q 28,60 34,52 Z"
+    fill="#ffffff"
+  />
+</svg>

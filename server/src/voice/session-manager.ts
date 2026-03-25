@@ -1,7 +1,7 @@
 import { WebSocket } from 'ws';
 import { DeepgramClient, TranscriptResult } from './deepgram.js';
 import { generateResponse } from './response-generator.js';
-import type { ConversationMessage } from './response-generator.js';
+import type { ConversationMessage, ResponseMeta } from './response-generator.js';
 import { ElevenLabsTTS } from './tts.js';
 import type { AgentTypeHandler, AgentConfig, FullUserContext } from './handlers/types.js';
 import { db } from '../db/index.js';
@@ -34,15 +34,17 @@ export class VoiceSession {
   private userId: number;
   private handler: AgentTypeHandler;
   private agentConfig: AgentConfig | null;
+  private formContext: Record<string, unknown> | null;
   private systemPrompt: string = '';
   private sessionEnding = false;
 
-  constructor(ws: WebSocket, userId: number, handler: AgentTypeHandler, agentConfig: AgentConfig | null) {
+  constructor(ws: WebSocket, userId: number, handler: AgentTypeHandler, agentConfig: AgentConfig | null, formContext?: Record<string, unknown> | null) {
     this.sessionId = crypto.randomUUID();
     this.ws = ws;
     this.userId = userId;
     this.handler = handler;
     this.agentConfig = agentConfig;
+    this.formContext = formContext ?? null;
   }
 
   async start() {
@@ -73,7 +75,7 @@ export class VoiceSession {
     }
 
     // Build system prompt via handler
-    this.systemPrompt = this.handler.buildSystemPrompt(this.agentConfig, userContext);
+    this.systemPrompt = this.handler.buildSystemPrompt(this.agentConfig, userContext, this.formContext);
 
     // Connect to Deepgram for streaming STT
     const deepgramKey = process.env.DEEPGRAM_API_KEY;
@@ -194,6 +196,7 @@ export class VoiceSession {
   }
 
   private async onSpeechFinal() {
+    if (this.sessionEnding) return;
     const utterance = this.currentUtteranceBuffer.trim();
     if (!utterance) return;
 
@@ -243,6 +246,7 @@ export class VoiceSession {
   }
 
   private async generateAndSendResponse() {
+    if (this.sessionEnding) return;
     console.log(`[DEBUG] generateAndSendResponse() called, state=${this.state}, isSpeaking=${this.isSpeaking}`);
     const abortController = new AbortController();
     this.activeAbortController = abortController;
@@ -259,12 +263,16 @@ export class VoiceSession {
     this.tts?.startTurn();
 
     let fullResponse = '';
+    const tools = this.handler.getTools?.() ?? [];
+    const meta: ResponseMeta = { toolCalls: [] };
 
     try {
       const responseGen = generateResponse(
         this.conversationHistory,
         abortController.signal,
         this.systemPrompt,
+        tools.length > 0 ? tools : undefined,
+        meta,
       );
 
       for await (const chunk of responseGen) {
@@ -324,6 +332,13 @@ export class VoiceSession {
       // Single state message instead of duplicate agent_speaking + turn_state
       this.sendToClient({ type: 'turn_state', state: 'listening', turnId: this.currentTurnId });
       console.log(`[DEBUG] generateAndSendResponse done, state=listening, audioBytes=${this.turnAudioBytes}`);
+    }
+
+    // Voice-initiated session end: farewell audio already fully streamed
+    if (meta.toolCalls.includes('end_session')) {
+      console.log(`[voice-session] end_session tool called, ending session`);
+      this.sendToClient({ type: 'session_ending' });
+      await this.handleDone();
     }
   }
 
@@ -436,6 +451,7 @@ export class VoiceSession {
         this.transcriptBuffer,
         this.conversationHistory,
         durationSeconds,
+        this.formContext,
       );
 
       // Send result to client based on type
@@ -455,13 +471,13 @@ export class VoiceSession {
             type: 'onboarding_complete',
             success: result.success,
             displayName: result.displayName,
+            speechObservation: result.speechObservation ?? null,
           });
           break;
         case 'agent-created':
           this.sendToClient({
             type: 'agent_created',
-            agentId: result.agentId,
-            agentName: result.agentName,
+            agent: result.agent,
           });
           break;
       }
