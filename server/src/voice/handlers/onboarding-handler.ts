@@ -39,17 +39,22 @@ export class OnboardingHandler implements AgentTypeHandler {
 
       console.log(`[onboarding-handler] Profile saved for user ${userId}: ${profile.displayName}`);
 
-      // Extract the last assistant message as a speech observation for the analysis reveal
+      // Extract the last assistant message as a speech observation
       const lastAssistantMsg = [...conversationHistory]
         .reverse()
         .find((m) => m.role === 'assistant');
       const speechObservation = lastAssistantMsg?.content ?? null;
+
+      const farewellMessage = profile.displayName
+        ? `You're all set, ${profile.displayName}. Explore the app, talk to different agents, and start improving your speech.`
+        : `You're all set! Explore the app, talk to different agents, and start improving your speech.`;
 
       return {
         type: 'onboarding',
         success: true,
         displayName: profile.displayName,
         speechObservation,
+        farewellMessage,
       };
     } catch (err) {
       console.error(`[onboarding-handler] Profile extraction error:`, err);

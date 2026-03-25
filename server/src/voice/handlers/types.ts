@@ -31,6 +31,7 @@ export interface SessionEndResult {
   agentId?: number;
   agentName?: string;
   agent?: { id: number; name: string; type: string; voiceId: string | null; avatarSeed?: string | null; createdAt: string };
+  farewellMessage?: string | null;
 }
 
 export interface AgentTypeHandler {

@@ -472,6 +472,7 @@ export class VoiceSession {
             success: result.success,
             displayName: result.displayName,
             speechObservation: result.speechObservation ?? null,
+            farewellMessage: result.farewellMessage ?? null,
           });
           break;
         case 'agent-created':

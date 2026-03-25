@@ -11,7 +11,7 @@ import { wsUrl } from '../lib/api';
 const PCM_BYTES_PER_SEC = 32000;
 
 interface UseOnboardingVoiceSessionCallbacks {
-  onComplete: (displayName: string | null, speechObservation: string | null) => void;
+  onComplete: (displayName: string | null, speechObservation: string | null, farewellMessage: string | null) => void;
   onError: (message: string) => void;
 }
 
@@ -28,7 +28,7 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
   const firstAudioTimeRef = useRef(0);
   const turnAudioBytesRef = useRef(0);
   const playbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingCompleteRef = useRef<{ displayName: string | null; speechObservation: string | null } | null>(null);
+  const pendingCompleteRef = useRef<{ displayName: string | null; speechObservation: string | null; farewellMessage: string | null } | null>(null);
 
   const store = useSessionStore;
 
@@ -109,11 +109,11 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
         playbackTimerRef.current = setTimeout(() => {
           playbackTimerRef.current = null;
           if (pendingCompleteRef.current) {
-            const { displayName, speechObservation } = pendingCompleteRef.current;
+            const { displayName, speechObservation, farewellMessage } = pendingCompleteRef.current;
             pendingCompleteRef.current = null;
             store.getState().endVoiceSession();
             cleanup();
-            onComplete(displayName, speechObservation);
+            onComplete(displayName, speechObservation, farewellMessage);
           } else {
             store.getState().setVoiceSessionState('listening');
           }
@@ -141,13 +141,14 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
       case 'onboarding_complete': {
         const displayName = msg.displayName ?? null;
         const speechObservation = msg.speechObservation ?? null;
+        const farewellMessage = msg.farewellMessage ?? null;
         if (playbackTimerRef.current) {
           // Audio still playing — defer navigation until playback finishes
-          pendingCompleteRef.current = { displayName, speechObservation };
+          pendingCompleteRef.current = { displayName, speechObservation, farewellMessage };
         } else {
           s.endVoiceSession();
           cleanup();
-          onComplete(displayName, speechObservation);
+          onComplete(displayName, speechObservation, farewellMessage);
         }
         break;
       }
