@@ -18,6 +18,7 @@ export interface FullUserContext extends UserContext {
 export interface SessionEndResult {
   type: 'analysis' | 'onboarding' | 'agent-created';
   dbSessionId?: number;
+  clarityScore?: number;
   analysisResults?: {
     sentences: string[];
     corrections: any[];
@@ -45,6 +46,16 @@ export interface AgentTypeHandler {
     transcriptBuffer: string[],
     conversationHistory: ConversationMessage[],
     durationSeconds: number,
+    formContext?: Record<string, unknown> | null,
+  ): Promise<SessionEndResult>;
+
+  onSessionEndStreaming?(
+    userId: number,
+    agentConfig: AgentConfig | null,
+    transcriptBuffer: string[],
+    conversationHistory: ConversationMessage[],
+    durationSeconds: number,
+    onCorrection: (correction: any) => void,
     formContext?: Record<string, unknown> | null,
   ): Promise<SessionEndResult>;
 }
