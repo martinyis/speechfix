@@ -445,42 +445,50 @@ export class VoiceSession {
     const durationSeconds = Math.round((Date.now() - this.startTime) / 1000);
 
     try {
-      const result = await this.handler.onSessionEnd(
-        this.userId,
-        this.agentConfig,
-        this.transcriptBuffer,
-        this.conversationHistory,
-        durationSeconds,
-        this.formContext,
-      );
-
-      // Send result to client based on type
-      switch (result.type) {
-        case 'analysis':
+      // Prefer streaming path when handler supports it
+      if (this.handler.onSessionEndStreaming) {
+        let correctionIndex = 0;
+        const onCorrection = (correction: any) => {
           this.sendToClient({
-            type: 'session_end',
+            type: 'correction',
+            index: correctionIndex++,
+            data: correction,
+          });
+        };
+
+        try {
+          const result = await this.handler.onSessionEndStreaming(
+            this.userId,
+            this.agentConfig,
+            this.transcriptBuffer,
+            this.conversationHistory,
+            durationSeconds,
+            onCorrection,
+            this.formContext,
+          );
+
+          // Send analysis_complete with remaining data (fillers, insights, etc.)
+          this.sendToClient({
+            type: 'analysis_complete',
             sessionId: this.sessionId,
             dbSessionId: result.dbSessionId ?? null,
             agentId: this.agentConfig?.id ?? null,
             agentName: this.agentConfig?.name ?? null,
-            results: result.analysisResults,
+            data: {
+              sentences: result.analysisResults?.sentences ?? [],
+              fillerWords: result.analysisResults?.fillerWords ?? [],
+              fillerPositions: result.analysisResults?.fillerPositions ?? [],
+              sessionInsights: result.analysisResults?.sessionInsights ?? [],
+              clarityScore: result.clarityScore,
+            },
           });
-          break;
-        case 'onboarding':
-          this.sendToClient({
-            type: 'onboarding_complete',
-            success: result.success,
-            displayName: result.displayName,
-            speechObservation: result.speechObservation ?? null,
-            farewellMessage: result.farewellMessage ?? null,
-          });
-          break;
-        case 'agent-created':
-          this.sendToClient({
-            type: 'agent_created',
-            agent: result.agent,
-          });
-          break;
+        } catch (streamErr) {
+          console.warn(`[voice-session] Streaming analysis failed, falling back to non-streaming:`, streamErr);
+          // Fall through to non-streaming path below
+          await this.handleSessionEndFallback(durationSeconds);
+        }
+      } else {
+        await this.handleSessionEndFallback(durationSeconds);
       }
     } catch (err) {
       console.error(`[voice-session] Session end error:`, err);
@@ -493,6 +501,46 @@ export class VoiceSession {
     }
 
     this.cleanup();
+  }
+
+  /** Non-streaming session end — original path extracted for fallback use. */
+  private async handleSessionEndFallback(durationSeconds: number) {
+    const result = await this.handler.onSessionEnd(
+      this.userId,
+      this.agentConfig,
+      this.transcriptBuffer,
+      this.conversationHistory,
+      durationSeconds,
+      this.formContext,
+    );
+
+    switch (result.type) {
+      case 'analysis':
+        this.sendToClient({
+          type: 'session_end',
+          sessionId: this.sessionId,
+          dbSessionId: result.dbSessionId ?? null,
+          agentId: this.agentConfig?.id ?? null,
+          agentName: this.agentConfig?.name ?? null,
+          results: result.analysisResults,
+        });
+        break;
+      case 'onboarding':
+        this.sendToClient({
+          type: 'onboarding_complete',
+          success: result.success,
+          displayName: result.displayName,
+          speechObservation: result.speechObservation ?? null,
+          farewellMessage: result.farewellMessage ?? null,
+        });
+        break;
+      case 'agent-created':
+        this.sendToClient({
+          type: 'agent_created',
+          agent: result.agent,
+        });
+        break;
+    }
   }
 
   cleanup() {
