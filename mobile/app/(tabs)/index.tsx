@@ -67,13 +67,29 @@ export default function HomeScreen() {
     }, [isActive]),
   );
 
+  // Track whether we've already navigated to session-detail (prevent double nav)
+  const navigatedToDetailRef = useRef(false);
+
   // Voice session hook
   const { start, stop, toggleMute } = useVoiceSession({
+    onFirstCorrection: () => {
+      if (!navigatedToDetailRef.current) {
+        navigatedToDetailRef.current = true;
+        router.push({
+          pathname: '/session-detail',
+          params: { sessionId: '0', fresh: 'true' },
+        });
+      }
+    },
     onSessionEnd: (_results, dbSessionId) => {
-      router.push({
-        pathname: '/session-detail',
-        params: { sessionId: String(dbSessionId), fresh: 'true' },
-      });
+      // Only navigate if streaming didn't already take us there
+      if (!navigatedToDetailRef.current) {
+        navigatedToDetailRef.current = true;
+        router.push({
+          pathname: '/session-detail',
+          params: { sessionId: String(dbSessionId), fresh: 'true' },
+        });
+      }
     },
     onError: (message) => {
       console.warn('Voice session error:', message);
@@ -109,6 +125,7 @@ export default function HomeScreen() {
 
   const handleMicPress = useCallback(() => {
     if (!isActive) {
+      navigatedToDetailRef.current = false;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       start();
     }
