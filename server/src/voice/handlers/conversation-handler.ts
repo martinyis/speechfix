@@ -6,7 +6,7 @@ import { IDENTITY_PROMPT } from '../prompts/identity.js';
 import { BEHAVIOR_PROMPT } from '../prompts/behavior.js';
 import { CONVERSATION_SESSION_PROMPT } from '../prompts/session-types/conversation.js';
 import { buildUserContextPrompt } from '../prompts/context.js';
-import { analyzeSpeech } from '../../services/analysis.js';
+import { analyzeSpeech, analyzeSpeechStreaming } from '../../services/analysis.js';
 import { generateSessionMetadata } from '../../services/title-generator.js';
 import { extractConversationNotes } from '../../services/context-extractor.js';
 import { db } from '../../db/index.js';
@@ -154,6 +154,118 @@ export class ConversationHandler implements AgentTypeHandler {
     return {
       type: 'analysis',
       dbSessionId: session.id,
+      clarityScore,
+      analysisResults: {
+        sentences: userUtterances,
+        corrections: analysisResult.corrections,
+        fillerWords: analysisResult.fillerWords,
+        fillerPositions: analysisResult.fillerPositions,
+        sessionInsights: analysisResult.sessionInsights,
+      },
+    };
+  }
+
+  async onSessionEndStreaming(
+    userId: number,
+    agentConfig: AgentConfig | null,
+    transcriptBuffer: string[],
+    conversationHistory: ConversationMessage[],
+    durationSeconds: number,
+    onCorrection: (correction: any) => void,
+    _formContext?: Record<string, unknown> | null,
+  ): Promise<SessionEndResult> {
+    const fullTranscription = transcriptBuffer.join(' ');
+
+    if (!fullTranscription.trim()) {
+      return { type: 'analysis' };
+    }
+
+    const userUtterances = transcriptBuffer;
+
+    // Run streaming analysis, title generation, and context extraction in parallel
+    const [analysisResult, metadata, contextNotes] = await Promise.all([
+      analyzeSpeechStreaming(userUtterances, 'conversation', conversationHistory, onCorrection),
+      generateSessionMetadata(fullTranscription, conversationHistory),
+      extractConversationNotes(conversationHistory),
+    ]);
+
+    // Compute clarity score
+    const sentencesWithCorrections = new Set(
+      analysisResult.corrections.map((c) => c.sentenceIndex),
+    ).size;
+    const totalSentences = userUtterances.length;
+    const clarityScore = totalSentences > 0
+      ? Math.round((Math.max(0, totalSentences - sentencesWithCorrections) / totalSentences) * 100)
+      : 100;
+
+    // Create session in DB
+    const [session] = await db
+      .insert(sessions)
+      .values({
+        userId,
+        agentId: agentConfig?.id ?? null,
+        type: 'voice',
+        status: 'completed',
+        transcription: fullTranscription,
+        durationSeconds,
+        conversationTranscript: conversationHistory,
+        title: metadata.title,
+        description: metadata.description,
+        topicCategory: metadata.topicCategory,
+        clarityScore,
+      })
+      .returning();
+
+    console.log(`[conversation-handler] Streaming session stored in DB: ${session.id}`);
+
+    // Store analysis JSON
+    await db.update(sessions).set({
+      analysis: {
+        sentences: userUtterances,
+        fillerPositions: analysisResult.fillerPositions,
+        sessionInsights: analysisResult.sessionInsights,
+        conversationContext: conversationHistory,
+      },
+    }).where(eq(sessions.id, session.id));
+
+    // Store corrections
+    if (analysisResult.corrections.length > 0) {
+      await db.insert(corrections).values(
+        analysisResult.corrections.map(c => ({
+          sessionId: session.id,
+          originalText: c.originalText,
+          correctedText: c.correctedText,
+          explanation: c.explanation || null,
+          correctionType: c.correctionType || 'other',
+          sentenceIndex: c.sentenceIndex,
+          severity: c.severity,
+          contextSnippet: c.contextSnippet || null,
+        }))
+      );
+    }
+
+    // Store filler words
+    if (analysisResult.fillerWords.length > 0) {
+      await db.insert(fillerWords).values(
+        analysisResult.fillerWords.map(f => ({
+          sessionId: session.id,
+          word: f.word,
+          count: f.count,
+        }))
+      );
+    }
+
+    console.log(`[conversation-handler] Streaming analysis complete: ${analysisResult.corrections.length} corrections, ${analysisResult.fillerWords.length} filler types`);
+
+    // Write context notes back to user
+    if (contextNotes.length > 0) {
+      await appendContextNotes(userId, contextNotes);
+    }
+
+    return {
+      type: 'analysis',
+      dbSessionId: session.id,
+      clarityScore,
       analysisResults: {
         sentences: userUtterances,
         corrections: analysisResult.corrections,
