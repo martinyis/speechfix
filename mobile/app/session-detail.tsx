@@ -53,11 +53,16 @@ export default function SessionDetailScreen() {
 
   // Data sources
   const storeData = useSessionStore((s) => s.currentSessionData);
+  const isStreaming = useSessionStore((s) => s.isStreamingAnalysis);
+  const storeSessionId = useSessionStore((s) => s.currentSessionId);
   const {
     data: fetchedData,
     isLoading,
     isError,
   } = useSession(isFresh ? null : Number(sessionId));
+
+  // Use real dbSessionId once available (replaces placeholder '0')
+  const resolvedSessionId = isFresh && storeSessionId ? storeSessionId : Number(sessionId);
 
   const session: SessionDetail | null | undefined = isFresh
     ? storeData
@@ -133,8 +138,8 @@ export default function SessionDetailScreen() {
     );
   }
 
-  // -- Fresh mode: still analyzing --
-  if (isFresh && !session) {
+  // -- Fresh mode: still analyzing (no corrections yet) --
+  if (isFresh && !session && !isStreaming) {
     return (
       <View style={styles.container}>
         <ScreenHeader
@@ -147,7 +152,7 @@ export default function SessionDetailScreen() {
     );
   }
 
-  // -- Session data available --
+  // -- Session data available (or streaming with corrections) --
   if (!session || !counts) return null;
 
   const totalSentences = session.sentences.length;
@@ -186,20 +191,22 @@ export default function SessionDetailScreen() {
         }
       />
 
-      {/* Sticky session bar (appears on scroll) */}
-      <StickySessionBar
-        scrollY={scrollY}
-        threshold={summaryCardBottom}
-        clarityScore={clarityScore}
-        errorCount={counts.errorCount}
-        improvementCount={counts.improvementCount}
-        polishCount={counts.polishCount}
-        durationSeconds={session.durationSeconds}
-        onBack={handleBack}
-        activeFilter={correctionFilter}
-        onFilterChange={handleFilterChipPress}
-        totalCorrections={session.corrections.length}
-      />
+      {/* Sticky session bar (appears on scroll — hidden while streaming) */}
+      {!isStreaming && (
+        <StickySessionBar
+          scrollY={scrollY}
+          threshold={summaryCardBottom}
+          clarityScore={clarityScore}
+          errorCount={counts.errorCount}
+          improvementCount={counts.improvementCount}
+          polishCount={counts.polishCount}
+          durationSeconds={session.durationSeconds}
+          onBack={handleBack}
+          activeFilter={correctionFilter}
+          onFilterChange={handleFilterChipPress}
+          totalCorrections={session.corrections.length}
+        />
+      )}
 
       <Animated.ScrollView
         onScroll={scrollHandler}
@@ -208,25 +215,30 @@ export default function SessionDetailScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Summary strip */}
-        <View
-          onLayout={(e) => {
-            const { y, height } = e.nativeEvent.layout;
-            setSummaryCardBottom(y + height);
-          }}
-        >
-          {maybeAnimate(
-            <SessionSummaryCard
-              clarityScore={clarityScore}
-              errorCount={counts.errorCount}
-              improvementCount={counts.improvementCount}
-              polishCount={counts.polishCount}
-              fillerWords={session.fillerWords}
-              durationSeconds={session.durationSeconds}
-            />,
-            FadeIn.duration(300),
-          )}
-        </View>
+        {/* Analyzing banner during streaming */}
+        {isStreaming && <AnalyzingBanner visible />}
+
+        {/* Summary strip — hidden while streaming (needs clarityScore) */}
+        {!isStreaming && (
+          <View
+            onLayout={(e) => {
+              const { y, height } = e.nativeEvent.layout;
+              setSummaryCardBottom(y + height);
+            }}
+          >
+            {maybeAnimate(
+              <SessionSummaryCard
+                clarityScore={clarityScore}
+                errorCount={counts.errorCount}
+                improvementCount={counts.improvementCount}
+                polishCount={counts.polishCount}
+                fillerWords={session.fillerWords}
+                durationSeconds={session.durationSeconds}
+              />,
+              FadeIn.duration(300),
+            )}
+          </View>
+        )}
 
         {/* Refinements section */}
         <View style={styles.refinementsSection}>
