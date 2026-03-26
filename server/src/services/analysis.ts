@@ -290,3 +290,265 @@ export async function analyzeSpeech(
     return { corrections: [], fillerWords: [], fillerPositions: [], sessionInsights: [] };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Streaming analysis — progressive correction delivery
+// ---------------------------------------------------------------------------
+
+export interface StreamedAnalysisResult extends AnalysisResult {
+  // Same shape as AnalysisResult; all corrections were already streamed via callback
+}
+
+/**
+ * State-machine parser that extracts individual Correction objects from a
+ * partial JSON stream.  It watches for the "corrections" array and yields
+ * each complete object as soon as the closing brace is seen.
+ */
+export class CorrectionStreamParser {
+  private buffer = '';
+  private inCorrectionsArray = false;
+  private braceDepth = 0;
+  private currentObjectStart = -1;
+  private inString = false;
+  private escapeNext = false;
+  private correctionsDone = false;
+
+  /** Feed a new chunk of text; returns any fully-parsed corrections. */
+  feed(chunk: string): Correction[] {
+    this.buffer += chunk;
+    const results: Correction[] = [];
+
+    if (this.correctionsDone) return results;
+
+    // Strip leading markdown fences that Claude sometimes emits
+    if (!this.inCorrectionsArray && this.buffer.length < 200) {
+      this.buffer = this.buffer.replace(/^```(?:json)?\s*/, '');
+    }
+
+    // Scan character-by-character from the current position
+    let i = 0;
+    while (i < this.buffer.length) {
+      const ch = this.buffer[i];
+
+      // Handle string context (ignore braces inside JSON strings)
+      if (this.escapeNext) {
+        this.escapeNext = false;
+        i++;
+        continue;
+      }
+      if (ch === '\\' && this.inString) {
+        this.escapeNext = true;
+        i++;
+        continue;
+      }
+      if (ch === '"') {
+        this.inString = !this.inString;
+        i++;
+        continue;
+      }
+      if (this.inString) {
+        i++;
+        continue;
+      }
+
+      // Detect the start of the corrections array
+      if (!this.inCorrectionsArray) {
+        // Look for "corrections" key followed by [
+        const corrIdx = this.buffer.indexOf('"corrections"', i);
+        if (corrIdx === -1) {
+          // Haven't seen the key yet — keep only the tail in buffer
+          // (preserve enough to match a split key)
+          if (this.buffer.length > 20) {
+            this.buffer = this.buffer.slice(-20);
+            i = 0;
+          } else {
+            i = this.buffer.length;
+          }
+          continue;
+        }
+        // Find the [ after the key
+        const bracketIdx = this.buffer.indexOf('[', corrIdx + '"corrections"'.length);
+        if (bracketIdx === -1) {
+          i = this.buffer.length;
+          continue;
+        }
+        this.inCorrectionsArray = true;
+        // Trim buffer to start at the opening bracket
+        this.buffer = this.buffer.slice(bracketIdx + 1);
+        i = 0;
+        continue;
+      }
+
+      // Inside the corrections array
+      if (ch === '{' && this.braceDepth === 0) {
+        this.currentObjectStart = i;
+        this.braceDepth = 1;
+        i++;
+        continue;
+      }
+
+      if (this.braceDepth > 0) {
+        if (ch === '{') this.braceDepth++;
+        if (ch === '}') this.braceDepth--;
+
+        if (this.braceDepth === 0) {
+          // Complete object
+          const objStr = this.buffer.slice(this.currentObjectStart, i + 1);
+          try {
+            const raw = JSON.parse(objStr);
+            const normalized: Correction = {
+              sentenceIndex: raw.sentenceIndex ?? 0,
+              originalText: raw.originalText ?? '',
+              correctedText: raw.correctedText ?? '',
+              explanation: raw.explanation ?? '',
+              correctionType: raw.correctionType || raw.type || 'other',
+              severity: ['error', 'improvement', 'polish'].includes(raw.severity) ? raw.severity : 'error',
+              contextSnippet: raw.contextSnippet ?? '',
+            };
+            results.push(normalized);
+          } catch {
+            console.warn('[stream-parser] Failed to parse correction object:', objStr.slice(0, 80));
+          }
+          // Advance buffer past this object
+          this.buffer = this.buffer.slice(i + 1);
+          i = 0;
+          this.currentObjectStart = -1;
+          continue;
+        }
+      }
+
+      if (ch === ']' && this.braceDepth === 0 && this.inCorrectionsArray) {
+        this.correctionsDone = true;
+        // Keep remaining buffer for post-stream parsing of other fields
+        this.buffer = this.buffer.slice(i + 1);
+        break;
+      }
+
+      i++;
+    }
+
+    return results;
+  }
+
+  isDone(): boolean {
+    return this.correctionsDone;
+  }
+}
+
+/**
+ * Streaming variant of analyzeSpeech.  Calls `onCorrection` for each
+ * correction as soon as it is parsed from the stream.  Returns the
+ * full AnalysisResult once the stream completes.
+ */
+export async function analyzeSpeechStreaming(
+  sentences: string[],
+  mode: 'recording' | 'conversation' = 'recording',
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>,
+  onCorrection?: (correction: Correction) => void,
+): Promise<StreamedAnalysisResult> {
+  if (sentences.length === 0) {
+    return { corrections: [], fillerWords: [], fillerPositions: [], sessionInsights: [] };
+  }
+
+  // Build userMessage — identical to analyzeSpeech
+  let conversationContext = '';
+  if (mode === 'conversation' && conversationHistory && conversationHistory.length > 0) {
+    conversationContext = 'CONVERSATION CONTEXT (for reference only — only analyze the USER sentences below):\n\n';
+    conversationHistory.forEach((msg) => {
+      const label = msg.role === 'assistant' ? 'AI' : 'USER';
+      conversationContext += `[${label}]: ${msg.content}\n`;
+    });
+    conversationContext += '\n---\n\n';
+  }
+
+  const numberedSentences = sentences
+    .map((s, i) => `${i}. ${s}`)
+    .join('\n');
+
+  const userMessage = `${conversationContext}Analyze these speech sentences for grammar errors, naturalness issues, filler words, and patterns:\n\n${numberedSentences}`;
+
+  console.log(`[streaming-analysis] Starting streaming analysis for ${sentences.length} sentences`);
+
+  const streamedCorrections: Correction[] = [];
+  const parser = new CorrectionStreamParser();
+  let fullText = '';
+
+  try {
+    const stream = anthropic.messages.stream({
+      model: 'claude-opus-4-6',
+      max_tokens: 4096,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userMessage }],
+    });
+
+    stream.on('text', (textDelta: string) => {
+      fullText += textDelta;
+      const newCorrections = parser.feed(textDelta);
+      for (const correction of newCorrections) {
+        streamedCorrections.push(correction);
+        onCorrection?.(correction);
+      }
+    });
+
+    // Wait for stream to finish
+    await stream.finalMessage();
+
+    console.log(`[streaming-analysis] Stream complete, ${streamedCorrections.length} corrections streamed`);
+
+    // Parse remaining fields from full text
+    let jsonText = fullText.trim();
+    if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+    }
+
+    let fillerWords: FillerWordCount[] = [];
+    let fillerPositions: FillerWordPosition[] = [];
+    let sessionInsights: SessionInsight[] = [];
+
+    try {
+      const parsed = JSON.parse(jsonText);
+
+      // Normalize fillerWords
+      const rawFillers = parsed.fillerWords ?? [];
+      if (Array.isArray(rawFillers)) {
+        fillerWords = rawFillers.map((f: any) => ({
+          word: f.word ?? f.name ?? f.filler ?? '',
+          count: f.count ?? f.frequency ?? f.total ?? 1,
+        })).filter((f: FillerWordCount) => f.word !== '');
+      } else if (typeof rawFillers === 'object') {
+        fillerWords = Object.entries(rawFillers).map(([word, count]) => ({
+          word,
+          count: typeof count === 'number' ? count : 1,
+        }));
+      }
+
+      fillerPositions = parsed.fillerPositions ?? [];
+      sessionInsights = (parsed.sessionInsights ?? []).map((si: any) => ({
+        type: si.type ?? 'discourse_pattern',
+        description: si.description ?? '',
+      }));
+    } catch (parseErr) {
+      console.warn('[streaming-analysis] Failed to parse full response for non-correction fields:', parseErr);
+    }
+
+    return {
+      corrections: streamedCorrections,
+      fillerWords,
+      fillerPositions,
+      sessionInsights,
+    };
+  } catch (err) {
+    console.error('[streaming-analysis] Stream error:', err);
+    // If we got some corrections, return partial result
+    if (streamedCorrections.length > 0) {
+      console.warn(`[streaming-analysis] Returning partial result with ${streamedCorrections.length} corrections`);
+      return {
+        corrections: streamedCorrections,
+        fillerWords: [],
+        fillerPositions: [],
+        sessionInsights: [],
+      };
+    }
+    throw err;
+  }
+}
