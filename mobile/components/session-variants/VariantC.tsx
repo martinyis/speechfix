@@ -1,5 +1,6 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { colors, alpha, spacing, typography, borderRadius } from '../../theme';
 import { formatTimeOfDay, formatDurationLong } from '../../lib/formatters';
 import { AgentAvatar } from '../AgentAvatar';
@@ -28,7 +29,7 @@ const TOPIC_LABELS: Record<TopicCategory, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Correction Dot Badges — small colored circles with counts
+// Correction Dot Badges
 // ---------------------------------------------------------------------------
 
 function CorrectionDots({
@@ -83,15 +84,23 @@ export function SessionRowVariantC({ item }: { item: SessionListItem }) {
   const totalCorrections = item.errorCount + item.improvementCount + item.polishCount;
 
   return (
-    <View style={styles.threadRow}>
+    <Pressable
+      style={styles.threadRow}
+      onPress={() =>
+        router.push({
+          pathname: '/session-detail',
+          params: { sessionId: String(item.id) },
+        })
+      }
+    >
       {/* ---- Left column: Avatar + thread line ---- */}
       <View style={styles.avatarColumn}>
-        <AgentAvatar seed={avatarSeed} size={38} />
+        <AgentAvatar seed={avatarSeed} size={36} />
         <View style={styles.threadLine} />
       </View>
 
-      {/* ---- Right column: Chat bubble area ---- */}
-      <View style={styles.bubbleColumn}>
+      {/* ---- Right column ---- */}
+      <View style={styles.contentColumn}>
         {/* Sender name + timestamp */}
         <View style={styles.senderRow}>
           <Text style={styles.senderName} numberOfLines={1}>
@@ -104,20 +113,17 @@ export function SessionRowVariantC({ item }: { item: SessionListItem }) {
 
         {/* Chat bubble */}
         <View style={styles.bubble}>
-          {/* Bubble tail / notch */}
-          <View style={styles.bubbleTail} />
-
-          {/* Title as the "message" text */}
+          {/* Title */}
           <Text style={styles.bubbleTitle} numberOfLines={2}>
             {title}
           </Text>
 
-          {/* Meta line inside the bubble */}
+          {/* Meta */}
           <Text style={styles.bubbleMeta}>
             {metaParts.join('  \u00B7  ')}
           </Text>
 
-          {/* Bottom row: correction dots + score tag */}
+          {/* Footer: correction dots + score */}
           {(totalCorrections > 0 || score !== null) && (
             <View style={styles.bubbleFooter}>
               <CorrectionDots
@@ -139,10 +145,7 @@ export function SessionRowVariantC({ item }: { item: SessionListItem }) {
                     color={alpha(getScoreColor(score), 0.8)}
                   />
                   <Text
-                    style={[
-                      styles.scoreText,
-                      { color: getScoreColor(score) },
-                    ]}
+                    style={[styles.scoreText, { color: getScoreColor(score) }]}
                   >
                     {score}%
                   </Text>
@@ -152,7 +155,7 @@ export function SessionRowVariantC({ item }: { item: SessionListItem }) {
           )}
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -160,21 +163,16 @@ export function SessionRowVariantC({ item }: { item: SessionListItem }) {
 // Styles
 // ---------------------------------------------------------------------------
 
-const BUBBLE_RADIUS = 14;
-const TAIL_SIZE = 8;
-
 const styles = StyleSheet.create({
-  // -- Thread layout --
   threadRow: {
     flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    marginBottom: spacing.xs,
   },
 
   // -- Avatar column --
   avatarColumn: {
     alignItems: 'center',
-    width: 38,
+    width: 36,
     marginRight: spacing.md,
   },
   threadLine: {
@@ -183,10 +181,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     backgroundColor: alpha(colors.white, 0.06),
     borderRadius: 1,
+    minHeight: 8,
   },
 
-  // -- Bubble column --
-  bubbleColumn: {
+  // -- Content column --
+  contentColumn: {
     flex: 1,
     paddingBottom: spacing.xs,
   },
@@ -195,18 +194,18 @@ const styles = StyleSheet.create({
   senderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.xs,
+    marginBottom: 4,
     gap: spacing.sm,
   },
   senderName: {
     ...typography.bodySmMedium,
-    color: colors.onSurface,
+    color: alpha(colors.white, 0.7),
     flex: 1,
   },
   timestamp: {
-    ...typography.bodySm,
     fontSize: 11,
-    color: alpha(colors.white, 0.3),
+    fontWeight: '400',
+    color: alpha(colors.white, 0.25),
   },
 
   // -- Chat bubble --
@@ -214,37 +213,25 @@ const styles = StyleSheet.create({
     backgroundColor: alpha(colors.white, 0.05),
     borderWidth: 1,
     borderColor: alpha(colors.white, 0.08),
-    borderRadius: BUBBLE_RADIUS,
-    borderTopLeftRadius: 4, // flattened corner near the "tail" for chat feel
+    borderRadius: 14,
+    borderTopLeftRadius: 4,
     padding: spacing.md,
-    gap: spacing.xs,
+    gap: 4,
   },
-  bubbleTail: {
-    position: 'absolute',
-    top: 6,
-    left: -TAIL_SIZE + 1,
-    width: 0,
-    height: 0,
-    borderTopWidth: TAIL_SIZE / 2,
-    borderBottomWidth: TAIL_SIZE / 2,
-    borderRightWidth: TAIL_SIZE,
-    borderTopColor: 'transparent',
-    borderBottomColor: 'transparent',
-    borderRightColor: alpha(colors.white, 0.08),
-  },
+
   bubbleTitle: {
     ...typography.bodyMdMedium,
     color: alpha(colors.white, 0.88),
     lineHeight: 20,
   },
   bubbleMeta: {
-    ...typography.bodySm,
     fontSize: 11,
-    color: alpha(colors.white, 0.35),
+    fontWeight: '400',
+    color: alpha(colors.white, 0.3),
     marginTop: 2,
   },
 
-  // -- Bubble footer (corrections + score) --
+  // -- Bubble footer --
   bubbleFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -255,7 +242,7 @@ const styles = StyleSheet.create({
     borderTopColor: alpha(colors.white, 0.06),
   },
 
-  // -- Correction dot badges --
+  // -- Correction dots --
   dotsRow: {
     flexDirection: 'row',
     alignItems: 'center',

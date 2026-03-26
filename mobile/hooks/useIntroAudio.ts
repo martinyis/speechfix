@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { authFetch, API_BASE_URL } from '../lib/api';
 
@@ -18,7 +18,7 @@ export function useIntroAudio() {
   const [error, setError] = useState<string | null>(null);
   const [visibleText, setVisibleText] = useState<string[]>([]);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(-1);
-  const [revealedWords, setRevealedWords] = useState<number[]>([]);
+  const [currentBatchIndices, setCurrentBatchIndices] = useState<number[]>([]);
 
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const mountedRef = useRef(true);
@@ -113,13 +113,27 @@ export function useIntroAudio() {
     }
   }, [status.didJustFinish]);
 
+  // Each segment is its own batch — finest possible granularity
+  const batches = useMemo(() => {
+    return segments.map((_, i) => [i]);
+  }, [segments]);
+
+  // Map: segment index → position within its batch (for stagger delay)
+  const segmentBatchPosition = useMemo(() => {
+    const map: Record<number, number> = {};
+    batches.forEach(b => {
+      b.forEach((segIdx, pos) => { map[segIdx] = pos; });
+    });
+    return map;
+  }, [batches]);
+
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
   }, []);
 
   const play = useCallback(() => {
-    console.log(TAG, 'play() called', { segments: segments.length, isLoaded: status.isLoaded });
+    console.log(TAG, 'play() called', { segments: segments.length, batches: batches.length, isLoaded: status.isLoaded });
     if (segments.length === 0 || !status.isLoaded) {
       console.warn(TAG, 'play() aborted — not ready');
       return;
@@ -129,7 +143,7 @@ export function useIntroAudio() {
     setIsComplete(false);
     setVisibleText([]);
     setCurrentSegmentIndex(-1);
-    setRevealedWords([]);
+    setCurrentBatchIndices([]);
 
     player.volume = 1;
     player.muted = false;
@@ -137,38 +151,25 @@ export function useIntroAudio() {
     console.log(TAG, 'Calling player.play()');
     player.play();
 
-    // Schedule segment reveals
+    // Schedule batch reveals (2-3 segments at a time)
     const newTimers: ReturnType<typeof setTimeout>[] = [];
-    segments.forEach((seg, index) => {
+    batches.forEach((batch) => {
+      const triggerMs = segments[batch[0]].startMs;
       const timer = setTimeout(() => {
         if (!mountedRef.current) return;
-        setVisibleText((prev) => [...prev, seg.text]);
-        setCurrentSegmentIndex(index);
-      }, seg.startMs);
+        const newTexts = batch.map(i => segments[i].text);
+        setVisibleText(prev => [...prev, ...newTexts]);
+        setCurrentSegmentIndex(batch[batch.length - 1]);
+        setCurrentBatchIndices(batch);
+      }, triggerMs);
       newTimers.push(timer);
-
-      // Schedule per-word reveal timers within each segment
-      const words = seg.text.split(/\s+/);
-      const segDuration = seg.endMs - seg.startMs;
-      const wordDelay = Math.min(80, segDuration / words.length);
-      words.forEach((_, wordIdx) => {
-        const wordTimer = setTimeout(() => {
-          if (!mountedRef.current) return;
-          setRevealedWords((prev) => {
-            const next = [...prev];
-            next[index] = wordIdx + 1;
-            return next;
-          });
-        }, seg.startMs + wordIdx * wordDelay);
-        newTimers.push(wordTimer);
-      });
     });
     timersRef.current = newTimers;
-  }, [segments, player, status.isLoaded]);
+  }, [segments, batches, player, status.isLoaded]);
 
   const skip = useCallback(() => {
     clearTimers();
-    player.pause();
+    try { player.pause(); } catch { /* native player may already be released */ }
     setIsComplete(true);
   }, [clearTimers, player]);
 
@@ -178,8 +179,9 @@ export function useIntroAudio() {
     return () => {
       mountedRef.current = false;
       clearTimers();
+      try { player.pause(); } catch {}
     };
-  }, [clearTimers]);
+  }, [clearTimers, player]);
 
   return {
     isLoading,
@@ -188,9 +190,10 @@ export function useIntroAudio() {
     error,
     visibleText,
     currentSegmentIndex,
+    currentBatchIndices,
+    segmentBatchPosition,
     segments,
     play,
     skip,
-    revealedWords,
   };
 }

@@ -62,3 +62,14 @@ export const fillerWords = pgTable('filler_words', {
   count: integer('count').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+export const practiceAttempts = pgTable('practice_attempts', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  correctionId: integer('correction_id').references(() => corrections.id, { onDelete: 'cascade' }).notNull(),
+  mode: text('mode').notNull(),
+  passed: boolean('passed').notNull(),
+  transcript: text('transcript').notNull(),
+  feedback: text('feedback'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});

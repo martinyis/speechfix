@@ -254,6 +254,7 @@ export default function SessionDetailScreen() {
                 const card = (
                   <CorrectionCard
                     key={key}
+                    id={c.id}
                     sentence={sentence}
                     originalText={c.originalText}
                     correctedText={c.correctedText}

@@ -170,6 +170,14 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
 
     try { await activateKeepAwakeAsync(); } catch (e) { console.warn('[onboarding-voice] keepAwake error:', e); }
 
+    // Request mic permissions — this also configures AVAudioSession for recording + playback
+    const { granted } = await ExpoPlayAudioStream.requestPermissionsAsync();
+    if (!granted) {
+      onError('Microphone permission is required');
+      store.getState().endVoiceSession();
+      return;
+    }
+
     try {
       await ExpoPlayAudioStream.setSoundConfig({
         sampleRate: 24000,

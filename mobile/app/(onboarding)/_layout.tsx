@@ -12,7 +12,6 @@ export default function OnboardingLayout() {
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="mic-permission" />
       <Stack.Screen name="voice-session" />
     </Stack>
   );

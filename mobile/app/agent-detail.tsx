@@ -7,6 +7,7 @@ import { colors, alpha, glass, spacing, layout } from '../theme';
 import { authFetch } from '../lib/api';
 import { useAgentStore } from '../stores/agentStore';
 import { useVoices } from '../hooks/useVoices';
+import { useVoicePreview } from '../hooks/useVoicePreview';
 import { VoicePicker } from '../components/VoicePicker';
 import { AgentAvatar } from '../components/AgentAvatar';
 import { ScreenHeader, Button } from '../components/ui';
@@ -29,6 +30,7 @@ export default function AgentDetailScreen() {
   const [name, setName] = useState(initialName ?? '');
   const [voiceId, setVoiceId] = useState<string | null>(initialVoiceId ?? null);
   const [avatarSeed, setAvatarSeed] = useState<string | null>(initialAvatarSeed ?? null);
+  const voicePreview = useVoicePreview();
   const [avatarOptions, setAvatarOptions] = useState(() => generateSeeds(8));
 
   const updateMutation = useMutation({
@@ -119,7 +121,15 @@ export default function AgentDetailScreen() {
         </Pressable>
 
         <Text style={[styles.label, { marginTop: spacing.xl }]}>VOICE</Text>
-        <VoicePicker voices={voices} selectedVoiceId={voiceId} onSelect={setVoiceId} />
+        <VoicePicker
+          voices={voices}
+          selectedVoiceId={voiceId}
+          onSelect={setVoiceId}
+          previewVoiceId={voicePreview.activeVoiceId}
+          previewPlaying={voicePreview.isPlaying}
+          previewLoading={voicePreview.isLoading}
+          onTogglePreview={voicePreview.toggle}
+        />
 
         <View style={styles.deleteWrap}>
           <Button

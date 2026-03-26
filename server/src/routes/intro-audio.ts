@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { pcmToWav } from '../utils/audio.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = join(__dirname, '..', '..', '.cache');
@@ -23,7 +24,8 @@ const INTRO_SEGMENTS = [
   'of exactly what to work on.',
   'No generic tips. Just precise, personalized feedback',
   'based on how you actually speak.',
-  "Let's set things up.",
+  'Before we begin,',
+  "I'll need access to your microphone so I can listen to you speak. Tap the button below to get started.",
 ];
 
 const FULL_SCRIPT = INTRO_SEGMENTS.join(' ');
@@ -31,7 +33,6 @@ const SCRIPT_HASH = createHash('md5').update(FULL_SCRIPT).digest('hex');
 
 const SAMPLE_RATE = 24000;
 const BITS_PER_SAMPLE = 16;
-const NUM_CHANNELS = 1;
 
 interface CachedMeta {
   scriptHash: string;
@@ -49,38 +50,6 @@ function computeSegmentTimings(totalDurationMs: number): Array<{ text: string; s
     currentMs += durationMs;
     return { text, startMs, endMs: Math.round(currentMs) };
   });
-}
-
-/** Wrap raw PCM data in a WAV header */
-function pcmToWav(pcmBuffer: Buffer): Buffer {
-  const byteRate = SAMPLE_RATE * NUM_CHANNELS * (BITS_PER_SAMPLE / 8);
-  const blockAlign = NUM_CHANNELS * (BITS_PER_SAMPLE / 8);
-  const dataSize = pcmBuffer.length;
-  const headerSize = 44;
-
-  const wav = Buffer.alloc(headerSize + dataSize);
-
-  // RIFF header
-  wav.write('RIFF', 0);
-  wav.writeUInt32LE(36 + dataSize, 4); // file size - 8
-  wav.write('WAVE', 8);
-
-  // fmt chunk
-  wav.write('fmt ', 12);
-  wav.writeUInt32LE(16, 16);           // chunk size
-  wav.writeUInt16LE(1, 20);            // PCM format
-  wav.writeUInt16LE(NUM_CHANNELS, 22);
-  wav.writeUInt32LE(SAMPLE_RATE, 24);
-  wav.writeUInt32LE(byteRate, 28);
-  wav.writeUInt16LE(blockAlign, 32);
-  wav.writeUInt16LE(BITS_PER_SAMPLE, 34);
-
-  // data chunk
-  wav.write('data', 36);
-  wav.writeUInt32LE(dataSize, 40);
-  pcmBuffer.copy(wav, headerSize);
-
-  return wav;
 }
 
 async function ensureAudioCached(): Promise<{ meta: CachedMeta; wavPath: string } | null> {
@@ -159,20 +128,26 @@ async function ensureAudioCached(): Promise<{ meta: CachedMeta; wavPath: string 
 export async function introAudioRoute(app: FastifyInstance) {
   // JSON metadata: segments + timing (authenticated)
   app.get('/intro-audio', async (_request, reply) => {
+    app.log.info('[intro-audio] GET /intro-audio — metadata request');
     const result = await ensureAudioCached();
     if (!result) {
+      app.log.error('[intro-audio] ensureAudioCached returned null — audio generation failed');
       return reply.code(500).send({ error: 'Failed to generate intro audio' });
     }
+    app.log.info(`[intro-audio] Returning metadata: ${result.meta.segments.length} segments, ${result.meta.totalDurationMs}ms total`);
     return reply.send({ segments: result.meta.segments, totalDurationMs: result.meta.totalDurationMs });
   });
 
   // WAV binary stream (public — same audio for all users)
   app.get('/intro-audio/stream', async (_request, reply) => {
+    app.log.info('[intro-audio] GET /intro-audio/stream — audio stream request');
     const result = await ensureAudioCached();
     if (!result) {
+      app.log.error('[intro-audio] ensureAudioCached returned null — cannot serve stream');
       return reply.code(500).send({ error: 'Failed to generate intro audio' });
     }
     const wavBuffer = readFileSync(result.wavPath);
+    app.log.info(`[intro-audio] Serving WAV: ${wavBuffer.length} bytes from ${result.wavPath}`);
     return reply
       .header('Content-Type', 'audio/wav')
       .header('Content-Length', wavBuffer.length)

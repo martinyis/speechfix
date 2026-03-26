@@ -72,10 +72,10 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId
     appStateSubRef.current = null;
 
     if (isRecordingRef.current) {
-      try { await ExpoPlayAudioStream.stopRecording(); } catch {}
+      try { await ExpoPlayAudioStream.stopRecording(); } catch (e) { console.warn('[voice-session] stopRecording error:', e); }
       isRecordingRef.current = false;
     }
-    try { await ExpoPlayAudioStream.stopAudio(); } catch {}
+    try { await ExpoPlayAudioStream.stopAudio(); } catch (e) { console.warn('[voice-session] stopAudio error:', e); }
 
     if (wsRef.current) {
       wsRef.current.close();
@@ -110,7 +110,8 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId
       if (subscription) {
         subscriptionRef.current = subscription;
       }
-    } catch {
+    } catch (e) {
+      console.error('[voice-session] startRecording failed:', e);
       onError('Failed to start microphone');
       cleanup();
       store.getState().endVoiceSession();
@@ -137,7 +138,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId
         const streamId = String(msg.turnId ?? turnIdRef.current);
         try {
           ExpoPlayAudioStream.playSound(msg.data, streamId, 'pcm_s16le');
-        } catch {}
+        } catch (e) { console.error('[voice-session] playSound error:', e); }
         break;
       }
 
@@ -232,7 +233,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId
     s.startVoiceSession();
     s.resetElapsedTime();
 
-    try { await activateKeepAwakeAsync(); } catch {}
+    try { await activateKeepAwakeAsync(); } catch (e) { console.warn('[voice-session] keepAwake error:', e); }
 
     // Request mic permissions
     const { granted } = await ExpoPlayAudioStream.requestPermissionsAsync();
@@ -248,7 +249,10 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId
         sampleRate: 24000,
         playbackMode: PlaybackModes.CONVERSATION,
       });
-    } catch {}
+    } catch (e) { console.error('[voice-session] setSoundConfig failed:', e); }
+
+    // Allow iOS AVAudioSession to fully initialize before audio arrives
+    await new Promise(resolve => setTimeout(resolve, 400));
 
     // Connect WebSocket — append agent ID if selected
     const selectedAgent = agentId ?? useAgentStore.getState().selectedAgentId;
@@ -267,7 +271,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId
       try {
         const msg = JSON.parse(event.data);
         handleMessage(msg);
-      } catch {}
+      } catch (e) { console.error('[voice-session] message parse error:', e); }
     };
 
     ws.onerror = () => {
@@ -300,14 +304,14 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId
 
     // Stop mic
     if (isRecordingRef.current) {
-      try { await ExpoPlayAudioStream.stopRecording(); } catch {}
+      try { await ExpoPlayAudioStream.stopRecording(); } catch (e) { console.warn('[voice-session] stop: stopRecording error:', e); }
       isRecordingRef.current = false;
     }
     subscriptionRef.current?.remove();
     subscriptionRef.current = null;
 
     // Stop audio playback
-    try { await ExpoPlayAudioStream.stopAudio(); } catch {}
+    try { await ExpoPlayAudioStream.stopAudio(); } catch (e) { console.warn('[voice-session] stop: stopAudio error:', e); }
 
     // Stop timer
     if (timerRef.current) {
@@ -334,7 +338,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId
 
     // If muting while AI is speaking, stop audio playback
     if (newMuted && s.voiceSessionState === 'speaking') {
-      try { await ExpoPlayAudioStream.stopAudio(); } catch {}
+      try { await ExpoPlayAudioStream.stopAudio(); } catch (e) { console.warn('[voice-session] mute: stopAudio error:', e); }
     }
   }, []);
 

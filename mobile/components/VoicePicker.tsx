@@ -1,21 +1,80 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, alpha, glass, spacing } from '../theme';
 import type { Voice } from '../types/session';
 
-interface VoicePickerProps {
+interface VoicePreviewProps {
+  previewVoiceId?: string | null;
+  previewPlaying?: boolean;
+  previewLoading?: boolean;
+  onTogglePreview?: (voiceId: string) => void;
+}
+
+interface VoicePickerProps extends VoicePreviewProps {
   voices: Voice[];
   selectedVoiceId: string | null;
   onSelect: (voiceId: string) => void;
   compact?: boolean;
 }
 
-export function VoicePicker({ voices, selectedVoiceId, onSelect, compact }: VoicePickerProps) {
+function PreviewButton({
+  voiceId,
+  isActive,
+  isPlaying,
+  isLoading,
+  onToggle,
+  size = 20,
+}: {
+  voiceId: string;
+  isActive: boolean;
+  isPlaying: boolean;
+  isLoading: boolean;
+  onToggle: (id: string) => void;
+  size?: number;
+}) {
+  if (isActive && isLoading) {
+    return (
+      <Pressable
+        onPress={() => onToggle(voiceId)}
+        hitSlop={8}
+        style={styles.previewButton}
+      >
+        <ActivityIndicator size="small" color={colors.primary} />
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={() => onToggle(voiceId)}
+      hitSlop={8}
+      style={styles.previewButton}
+    >
+      <Ionicons
+        name={isActive && isPlaying ? 'stop-circle' : 'play-circle'}
+        size={size}
+        color={isActive ? colors.primary : alpha(colors.white, 0.4)}
+      />
+    </Pressable>
+  );
+}
+
+export function VoicePicker({
+  voices,
+  selectedVoiceId,
+  onSelect,
+  compact,
+  previewVoiceId,
+  previewPlaying = false,
+  previewLoading = false,
+  onTogglePreview,
+}: VoicePickerProps) {
   if (compact) {
     return (
       <View style={styles.chipRow}>
         {voices.map((voice) => {
           const selected = voice.id === selectedVoiceId;
+          const isActive = voice.id === previewVoiceId;
           return (
             <Pressable
               key={voice.id}
@@ -25,7 +84,17 @@ export function VoicePicker({ voices, selectedVoiceId, onSelect, compact }: Voic
               <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
                 {voice.name}
               </Text>
-              {selected && (
+              {onTogglePreview && (
+                <PreviewButton
+                  voiceId={voice.id}
+                  isActive={isActive}
+                  isPlaying={previewPlaying}
+                  isLoading={previewLoading}
+                  onToggle={onTogglePreview}
+                  size={18}
+                />
+              )}
+              {selected && !onTogglePreview && (
                 <Ionicons name="checkmark" size={14} color={colors.background} />
               )}
             </Pressable>
@@ -39,6 +108,7 @@ export function VoicePicker({ voices, selectedVoiceId, onSelect, compact }: Voic
     <View style={styles.container}>
       {voices.map((voice) => {
         const selected = voice.id === selectedVoiceId;
+        const isActive = voice.id === previewVoiceId;
         return (
           <Pressable
             key={voice.id}
@@ -54,6 +124,16 @@ export function VoicePicker({ voices, selectedVoiceId, onSelect, compact }: Voic
                 {voice.description}
               </Text>
             </View>
+            {onTogglePreview && (
+              <PreviewButton
+                voiceId={voice.id}
+                isActive={isActive}
+                isPlaying={previewPlaying}
+                isLoading={previewLoading}
+                onToggle={onTogglePreview}
+                size={24}
+              />
+            )}
             {selected && (
               <View style={styles.checkCircle}>
                 <Ionicons name="checkmark" size={16} color={colors.background} />
@@ -114,8 +194,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: spacing.md,
   },
+  previewButton: {
+    marginLeft: spacing.sm,
+    padding: 2,
+  },
 
-  // ── Compact chip variant ──────────────────────────────────────────────
+  // Compact chip variant
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',

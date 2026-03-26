@@ -1,8 +1,15 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { db } from '../db/index.js';
 import { agents } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
+import { pcmToWav } from '../utils/audio.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const VOICE_SAMPLE_CACHE_DIR = join(__dirname, '..', '..', '.cache', 'voice-samples');
 
 const updateAgentSchema = z.object({
   name: z.string().min(1).max(255).optional(),
@@ -184,5 +191,78 @@ export async function agentRoutes(fastify: FastifyInstance) {
   // List available voices
   fastify.get('/voices', async () => {
     return { voices: AVAILABLE_VOICES };
+  });
+
+  // Voice sample preview
+  fastify.get<{ Params: { voiceId: string } }>('/voices/:voiceId/sample', async (request, reply) => {
+    const { voiceId } = request.params;
+    const voice = AVAILABLE_VOICES.find((v) => v.id === voiceId);
+    if (!voice) {
+      return reply.code(404).send({ error: 'Voice not found' });
+    }
+
+    const cachePath = join(VOICE_SAMPLE_CACHE_DIR, `${voiceId}.wav`);
+
+    // Serve from cache if available
+    if (existsSync(cachePath)) {
+      const wav = readFileSync(cachePath);
+      return reply
+        .header('Content-Type', 'audio/wav')
+        .header('Content-Length', wav.length)
+        .header('Cache-Control', 'public, max-age=604800')
+        .send(wav);
+    }
+
+    // Generate via ElevenLabs
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+      return reply.code(500).send({ error: 'ElevenLabs not configured' });
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=pcm_24000`,
+        {
+          method: 'POST',
+          headers: {
+            'xi-api-key': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: "Hi there, I'm your conversation partner. Let's practice speaking together.",
+            model_id: 'eleven_multilingual_v2',
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.75,
+              speed: 1.0,
+            },
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        fastify.log.error(`[voice-sample] ElevenLabs error: ${response.status} ${errorText}`);
+        return reply.code(502).send({ error: 'Failed to generate voice sample' });
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const wavBuffer = pcmToWav(Buffer.from(arrayBuffer));
+
+      // Cache to disk
+      if (!existsSync(VOICE_SAMPLE_CACHE_DIR)) {
+        mkdirSync(VOICE_SAMPLE_CACHE_DIR, { recursive: true });
+      }
+      writeFileSync(cachePath, wavBuffer);
+
+      return reply
+        .header('Content-Type', 'audio/wav')
+        .header('Content-Length', wavBuffer.length)
+        .header('Cache-Control', 'public, max-age=604800')
+        .send(wavBuffer);
+    } catch (err) {
+      fastify.log.error({ err }, '[voice-sample] Generation error');
+      return reply.code(500).send({ error: 'Failed to generate voice sample' });
+    }
   });
 }

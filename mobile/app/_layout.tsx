@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { Stack, router, useSegments, useRootNavigationState } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator } from 'react-native';
 import { colors } from '../theme';
@@ -43,54 +45,58 @@ export default function RootLayout() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerStyle: { backgroundColor: colors.background },
-          headerTintColor: colors.onSurface,
-          contentStyle: { backgroundColor: colors.background },
-        }}
-      >
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(onboarding)" options={{ headerShown: false, gestureEnabled: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="session-detail"
-          options={{
-            headerShown: false,
-            presentation: 'card',
-          }}
-        />
-        <Stack.Screen
-          name="all-sessions"
-          options={{
-            headerShown: false,
-            presentation: 'card',
-          }}
-        />
-        <Stack.Screen
-          name="agent-detail"
-          options={{
-            headerShown: false,
-            presentation: 'card',
-          }}
-        />
-        <Stack.Screen
-          name="agent-create"
-          options={{
-            headerShown: false,
-            presentation: 'card',
-          }}
-        />
-        <Stack.Screen
-          name="agent-creation-choice"
-          options={{
-            headerShown: false,
-            presentation: 'modal',
-          }}
-        />
-      </Stack>
-    </QueryClientProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <QueryClientProvider client={queryClient}>
+        <BottomSheetModalProvider>
+          <StatusBar style="light" />
+          <Stack
+            screenOptions={{
+              headerStyle: { backgroundColor: colors.background },
+              headerTintColor: colors.onSurface,
+              contentStyle: { backgroundColor: colors.background },
+            }}
+          >
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(onboarding)" options={{ headerShown: false, gestureEnabled: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen
+              name="session-detail"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="all-sessions"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="agent-detail"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="agent-create"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="practice-session"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+          </Stack>
+        </BottomSheetModalProvider>
+      </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }

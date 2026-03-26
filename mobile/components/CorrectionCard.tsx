@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { colors, alpha } from '../theme';
 
 interface CorrectionCardProps {
+  id?: number;
   sentence: string;
   originalText: string;
   correctedText: string;
@@ -49,6 +51,7 @@ function trimContext(sentence: string, originalText: string, maxContext = 20) {
 }
 
 export function CorrectionCard({
+  id,
   sentence,
   originalText,
   correctedText,
@@ -110,7 +113,7 @@ export function CorrectionCard({
           <Text style={styles.correctionPill}>{correctedText}</Text>
         </View>
 
-        {/* Collapsible explanation + play hint */}
+        {/* Why? button / explanation */}
         <View style={styles.bottomRow}>
           {explanation ? (
             showExplanation ? (
@@ -135,17 +138,31 @@ export function CorrectionCard({
                 <Text style={styles.whyButtonText}>Why?</Text>
               </Pressable>
             )
-          ) : (
-            <View />
-          )}
-
-          <View style={styles.playRow}>
-            <View style={styles.playButton}>
-              <Ionicons name="play" size={12} color={alpha(colors.white, 0.5)} />
-            </View>
-            <Text style={styles.playHint}>Tap to hear</Text>
-          </View>
+          ) : null}
         </View>
+
+        {/* Practice CTA bar */}
+        {id != null && (
+          <>
+            <View style={styles.practiceDivider} />
+            <Pressable
+              style={styles.practiceBar}
+              onPress={() => {
+                router.push({
+                  pathname: '/practice-session',
+                  params: {
+                    correctionId: String(id),
+                    mode: 'say_it_right',
+                  },
+                });
+              }}
+            >
+              <Ionicons name="mic" size={16} color={colors.primary} />
+              <Text style={styles.practiceBarText}>Practice this phrase</Text>
+              <Ionicons name="chevron-forward" size={14} color={alpha(colors.primary, 0.6)} />
+            </Pressable>
+          </>
+        )}
       </View>
     </View>
   );
@@ -236,12 +253,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: alpha(colors.white, 0.92),
-    backgroundColor: alpha(colors.secondary, 0.15),
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    backgroundColor: 'rgba(74, 222, 128, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(74, 222, 128, 0.3)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     overflow: 'hidden',
     letterSpacing: -0.2,
+    shadowColor: '#4ade80',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
   },
 
   // Bottom row
@@ -282,22 +305,31 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: alpha(colors.white, 0.4),
   },
-  playRow: {
+  practiceDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: alpha(colors.white, 0.06),
+    marginTop: 14,
+  },
+  practiceBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  playButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: alpha(colors.white, 0.06),
-    alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    marginTop: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: alpha(colors.primary, 0.25),
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
   },
-  playHint: {
-    fontSize: 11,
-    color: alpha(colors.white, 0.25),
-    fontWeight: '500',
+  practiceBarText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.primary,
+    letterSpacing: 0.3,
   },
 });

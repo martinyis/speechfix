@@ -7,8 +7,8 @@ import {
   ScrollView,
   Pressable,
   Alert,
-  KeyboardAvoidingView,
   Platform,
+  Keyboard,
   LayoutChangeEvent,
   useWindowDimensions,
 } from 'react-native';
@@ -32,6 +32,7 @@ import { useAgentStore } from '../stores/agentStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useAgentCreatorVoiceSession } from '../hooks/useAgentCreatorVoiceSession';
 import { VoicePicker } from '../components/VoicePicker';
+import { useVoicePreview } from '../hooks/useVoicePreview';
 import { VoiceSessionOverlay } from '../components/VoiceSessionOverlay';
 import { StyleChips } from '../components/StyleChips';
 import { AgentAvatar } from '../components/AgentAvatar';
@@ -79,11 +80,13 @@ function generateSeeds(count: number): string[] {
 // ── IntroHero — floating agent avatar + text, overlaid above form ────────
 function IntroHero({
   focusIdx,
+  keyboardShown,
   scrollAreaHeight,
   avatarSeed,
   name: agentName,
 }: {
   focusIdx: SharedValue<number>;
+  keyboardShown: SharedValue<number>;
   scrollAreaHeight: number;
   avatarSeed: string | null;
   name: string;
@@ -99,7 +102,10 @@ function IntroHero({
   }, []);
 
   const containerStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(focusIdx.value === 0 ? 1 : 0, { duration: 400 }),
+    opacity: withTiming(
+      focusIdx.value === 0 && keyboardShown.value === 0 ? 1 : 0,
+      { duration: 300 },
+    ),
   }));
 
   const floatStyle = useAnimatedStyle(() => ({
@@ -134,6 +140,7 @@ function FormSection({
   focusIndex,
   label,
   onContinue,
+  onBack,
   onTap,
   isLast,
   onLayout,
@@ -144,13 +151,14 @@ function FormSection({
   focusIndex: number;
   label: string;
   onContinue: () => void;
+  onBack?: () => void;
   onTap: (i: number) => void;
   isLast?: boolean;
   onLayout?: (e: LayoutChangeEvent) => void;
   children: React.ReactNode;
 }) {
   const animStyle = useAnimatedStyle(() => {
-    const target = index === focusIdx.value ? 1.0 : 0.25;
+    const target = index === focusIdx.value ? 1.0 : 0.12;
     return {
       opacity: withTiming(target, { duration: 300 }),
     };
@@ -163,10 +171,21 @@ function FormSection({
       <Pressable onPress={() => onTap(index)} disabled={isFocused}>
         <Text style={styles.fieldLabel}>{label}</Text>
         {children}
-        {isFocused && !isLast && (
-          <Pressable onPress={onContinue} hitSlop={8} style={styles.continueLink}>
-            <Text style={styles.continueLinkText}>Continue →</Text>
-          </Pressable>
+        {isFocused && (
+          <View style={styles.sectionNav}>
+            {onBack ? (
+              <Pressable onPress={onBack} hitSlop={8} style={styles.backLink}>
+                <Text style={styles.backLinkText}>← Back</Text>
+              </Pressable>
+            ) : (
+              <View />
+            )}
+            {!isLast && (
+              <Pressable onPress={onContinue} hitSlop={8} style={styles.continueLink}>
+                <Text style={styles.continueLinkText}>Continue →</Text>
+              </Pressable>
+            )}
+          </View>
         )}
       </Pressable>
     </Animated.View>
@@ -191,24 +210,71 @@ export default function AgentCreateScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const sectionYs = useRef<number[]>([]);
   const sectionHeights = useRef<number[]>([]);
-  const scrollAreaHeight = useRef(0);
+  const [scrollAreaHeight, setScrollAreaHeight] = useState(0);
+  const keyboardVisible = useRef(false);
+  const keyboardShown = useSharedValue(0);
 
-  const setFocus = useCallback((i: number) => {
-    focusIdx.value = i;
-    setFocusIndex(i);
+  // Scroll to a section using the current keyboard height from the ref
+  const scrollToSection = useCallback((i: number) => {
     const y = sectionYs.current[i];
     const h = sectionHeights.current[i];
-    if (y != null && h != null && scrollAreaHeight.current > 0) {
-      // Center the section in the visible scroll area
-      const targetY = y - (scrollAreaHeight.current / 2) + (h / 2);
+    const kbH = keyboardHeightRef.current;
+    if (y != null && h != null && scrollAreaHeight > 0) {
+      let targetY: number;
+      if (kbH > 0) {
+        const availableHeight = scrollAreaHeight - kbH;
+        targetY = y + h - availableHeight + 80;
+      } else {
+        targetY = y - (scrollAreaHeight / 2) + (h / 2);
+      }
       scrollRef.current?.scrollTo({ y: Math.max(0, targetY), animated: true });
     }
-  }, []);
+  }, [scrollAreaHeight]);
+
+  // Voice preview
+  const voicePreview = useVoicePreview();
+
+  // Change focus to section i (called by Continue / Back / tap)
+  const setFocus = useCallback((i: number) => {
+    // Stop voice preview when leaving voice section
+    if (focusIndex === 3 && i !== 3) voicePreview.stop();
+    focusIdx.value = i;
+    setFocusIndex(i);
+    Keyboard.dismiss();
+    // Scroll after a tick so keyboard-hide has settled
+    setTimeout(() => scrollToSection(i), 50);
+  }, [scrollToSection, focusIndex, voicePreview.stop]);
 
   const handleSectionLayout = useCallback((index: number, e: LayoutChangeEvent) => {
     sectionYs.current[index] = e.nativeEvent.layout.y;
     sectionHeights.current[index] = e.nativeEvent.layout.height;
   }, []);
+
+  // Keyboard tracking — capture exact keyboard height
+  const keyboardHeightRef = useRef(0);
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        keyboardHeightRef.current = e.endCoordinates.height;
+        keyboardVisible.current = true;
+        keyboardShown.value = withTiming(1, { duration: 200 });
+        // Re-center current section above keyboard
+        scrollToSection(focusIdx.value);
+      },
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        keyboardHeightRef.current = 0;
+        keyboardVisible.current = false;
+        keyboardShown.value = withTiming(0, { duration: 200 });
+        // Re-center current section in full viewport
+        scrollToSection(focusIdx.value);
+      },
+    );
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, [scrollToSection]);
 
   // Form state
   const [name, setName] = useState('');
@@ -295,6 +361,7 @@ export default function AgentCreateScreen() {
 
   useEffect(() => {
     if (phase === 'voice') {
+      voicePreview.stop();
       start();
     }
   }, [phase]);
@@ -318,19 +385,20 @@ export default function AgentCreateScreen() {
       <View style={styles.container}>
         <ScreenHeader variant="modal" title="Create Agent" />
 
-        <KeyboardAvoidingView
+        <View
           style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={100}
+          onLayout={(e) => {
+            const h = e.nativeEvent.layout.height;
+            if (!keyboardVisible.current) {
+              setScrollAreaHeight(h);
+            }
+          }}
         >
-          <View
-            style={styles.flex}
-            onLayout={(e) => { scrollAreaHeight.current = e.nativeEvent.layout.height; }}
-          >
             {/* Intro hero — absolutely positioned, doesn't affect scroll content */}
             <IntroHero
               focusIdx={focusIdx}
-              scrollAreaHeight={scrollAreaHeight.current}
+              keyboardShown={keyboardShown}
+              scrollAreaHeight={scrollAreaHeight}
               avatarSeed={avatarSeed}
               name={name}
             />
@@ -341,16 +409,17 @@ export default function AgentCreateScreen() {
               contentContainerStyle={[
                 styles.inputScrollContent,
                 {
-                  paddingTop: scrollAreaHeight.current > 0
-                    ? scrollAreaHeight.current / 2 - 40
+                  paddingTop: scrollAreaHeight > 0
+                    ? scrollAreaHeight / 2 - 40
                     : windowHeight * 0.35,
-                  paddingBottom: scrollAreaHeight.current > 0
-                    ? scrollAreaHeight.current / 2 - 40
+                  paddingBottom: scrollAreaHeight > 0
+                    ? scrollAreaHeight / 2 - 40
                     : windowHeight * 0.35,
                 },
               ]}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
+              scrollEnabled={false}
             >
 
             {/* 0 — Name */}
@@ -365,7 +434,7 @@ export default function AgentCreateScreen() {
             {/* 1 — Description */}
             <FormSection
               index={1} focusIdx={focusIdx} focusIndex={focusIndex}
-              label="DESCRIPTION" onContinue={() => setFocus(2)} onTap={setFocus}
+              label="DESCRIPTION" onContinue={() => setFocus(2)} onBack={() => setFocus(0)} onTap={setFocus}
               onLayout={(e) => handleSectionLayout(1, e)}
             >
               <FocusableInput
@@ -377,7 +446,7 @@ export default function AgentCreateScreen() {
             {/* 2 — Avatar */}
             <FormSection
               index={2} focusIdx={focusIdx} focusIndex={focusIndex}
-              label="AVATAR" onContinue={() => setFocus(3)} onTap={setFocus}
+              label="AVATAR" onContinue={() => setFocus(3)} onBack={() => setFocus(1)} onTap={setFocus}
               onLayout={(e) => handleSectionLayout(2, e)}
             >
               <View style={styles.avatarGrid}>
@@ -406,16 +475,25 @@ export default function AgentCreateScreen() {
             {/* 3 — Voice */}
             <FormSection
               index={3} focusIdx={focusIdx} focusIndex={focusIndex}
-              label="VOICE" onContinue={() => setFocus(4)} onTap={setFocus}
+              label="VOICE" onContinue={() => setFocus(4)} onBack={() => setFocus(2)} onTap={setFocus}
               onLayout={(e) => handleSectionLayout(3, e)}
             >
-              <VoicePicker voices={voices} selectedVoiceId={voiceId} onSelect={setVoiceId} compact />
+              <VoicePicker
+                voices={voices}
+                selectedVoiceId={voiceId}
+                onSelect={setVoiceId}
+                compact
+                previewVoiceId={voicePreview.activeVoiceId}
+                previewPlaying={voicePreview.isPlaying}
+                previewLoading={voicePreview.isLoading}
+                onTogglePreview={voicePreview.toggle}
+              />
             </FormSection>
 
             {/* 4 — Focus Area */}
             <FormSection
               index={4} focusIdx={focusIdx} focusIndex={focusIndex}
-              label="FOCUS AREA" onContinue={() => setFocus(5)} onTap={setFocus}
+              label="FOCUS AREA" onContinue={() => setFocus(5)} onBack={() => setFocus(3)} onTap={setFocus}
               onLayout={(e) => handleSectionLayout(4, e)}
             >
               <FocusableInput
@@ -427,7 +505,7 @@ export default function AgentCreateScreen() {
             {/* 5 — Style */}
             <FormSection
               index={5} focusIdx={focusIdx} focusIndex={focusIndex}
-              label="STYLE" onContinue={() => setFocus(6)} onTap={setFocus}
+              label="STYLE" onContinue={() => setFocus(6)} onBack={() => setFocus(4)} onTap={setFocus}
               onLayout={(e) => handleSectionLayout(5, e)}
             >
               <StyleChips
@@ -440,7 +518,7 @@ export default function AgentCreateScreen() {
             {/* 6 — Custom Rules (last) */}
             <FormSection
               index={6} focusIdx={focusIdx} focusIndex={focusIndex}
-              label="CUSTOM RULES" onContinue={() => {}} onTap={setFocus} isLast
+              label="CUSTOM RULES" onContinue={() => {}} onBack={() => setFocus(5)} onTap={setFocus} isLast
               onLayout={(e) => handleSectionLayout(6, e)}
             >
               <FocusableInput
@@ -473,8 +551,7 @@ export default function AgentCreateScreen() {
               style={styles.fadeBottom}
               pointerEvents="none"
             />
-          </View>
-        </KeyboardAvoidingView>
+        </View>
       </View>
     );
   }
@@ -550,9 +627,21 @@ const styles = StyleSheet.create({
     color: alpha(colors.white, 0.4),
     marginBottom: spacing.sm,
   },
-  continueLink: {
-    alignSelf: 'flex-end',
+  sectionNav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: spacing.md,
+  },
+  backLink: {
+    paddingVertical: spacing.xs,
+  },
+  backLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: alpha(colors.white, 0.4),
+  },
+  continueLink: {
     paddingVertical: spacing.xs,
   },
   continueLinkText: {
@@ -615,7 +704,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 120,
+    height: 96,
     zIndex: 10,
   },
   fadeBottom: {
@@ -623,7 +712,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 120,
+    height: 96,
     zIndex: 10,
   },
 

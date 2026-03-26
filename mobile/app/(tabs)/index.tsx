@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,10 +17,12 @@ import Animated, {
   withSpring,
   interpolateColor,
 } from 'react-native-reanimated';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import MicBloomOrb from '../../components/MicBloomOrb';
 import { AgentSelector } from '../../components/AgentSelector';
+import { AgentCreationSheet } from '../../components/AgentCreationSheet';
 import { VoiceSessionOverlay } from '../../components/VoiceSessionOverlay';
-import { SessionRow } from '../../components/SessionRow';
+import { SessionRowVariantC as SessionRow } from '../../components/session-variants/VariantC';
 import { SectionHeader } from '../../components/ui';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useAgentStore, getSelectedAgentDisplay } from '../../stores/agentStore';
@@ -33,6 +35,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const agentSheetRef = useRef<BottomSheetModal>(null);
   const { data: sessions, refetch } = useSessions();
   const { data: agents = [] } = useAgents();
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
@@ -145,7 +148,7 @@ export default function HomeScreen() {
   );
 
   const handleCreateAgent = useCallback(() => {
-    router.push('/agent-creation-choice');
+    agentSheetRef.current?.present();
   }, []);
 
   // -- Data --
@@ -242,6 +245,8 @@ export default function HomeScreen() {
 
         </ScrollView>
       </Animated.View>
+
+      <AgentCreationSheet ref={agentSheetRef} />
     </Animated.View>
   );
 }
