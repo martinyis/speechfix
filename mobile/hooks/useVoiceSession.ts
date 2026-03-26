@@ -26,6 +26,8 @@ type VoiceMessage =
       sessionInsights: SessionInsight[];
     }}
   | { type: 'session_ending' }
+  | { type: 'correction'; index: number; data: any }
+  | { type: 'analysis_complete'; dbSessionId?: number; data: any }
   | { type: 'agent_created'; agent: Agent }
   | { type: 'error'; message?: string };
 
@@ -36,10 +38,11 @@ interface UseVoiceSessionCallbacks {
   onSessionEnd: (results: SessionDetail, dbSessionId: number) => void;
   onError: (message: string) => void;
   onAgentCreated?: (agent: Agent) => void;
+  onFirstCorrection?: () => void;
   agentId?: number | null;
 }
 
-export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId }: UseVoiceSessionCallbacks) {
+export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirstCorrection, agentId }: UseVoiceSessionCallbacks) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscriptionRef = useRef<{ remove(): void } | null>(null);
   const isStoppingRef = useRef(false);
@@ -189,6 +192,30 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId
         s.setVoiceSessionState('analyzing');
         break;
 
+      case 'correction': {
+        // First correction triggers streaming mode and navigation
+        if (msg.index === 0) {
+          s.startStreamingAnalysis();
+          onFirstCorrection?.();
+        }
+        s.addStreamingCorrection(msg.data);
+        break;
+      }
+
+      case 'analysis_complete': {
+        if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
+        const dbId = msg.dbSessionId ?? 0;
+        s.finalizeStreamingSession(dbId, msg.data);
+        // Retrieve the finalized data from the store
+        const finalized = store.getState().currentSessionData;
+        if (finalized) {
+          s.endVoiceSession();
+          cleanup();
+          onSessionEnd(finalized, dbId);
+        }
+        break;
+      }
+
       case 'session_end': {
         if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
         const dbSessionId = msg.dbSessionId ?? msg.sessionId ?? 0;
@@ -224,7 +251,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, agentId
         s.endVoiceSession();
         break;
     }
-  }, [startMicAndTimer, cleanup, onSessionEnd, onError, onAgentCreated]);
+  }, [startMicAndTimer, cleanup, onSessionEnd, onError, onAgentCreated, onFirstCorrection]);
 
   const start = useCallback(async () => {
     isStoppingRef.current = false;
