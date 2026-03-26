@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SessionDetail } from '../types/session';
+import type { Correction, SessionDetail } from '../types/session';
 
 export type VoiceSessionState =
   | 'connecting'
@@ -14,6 +14,10 @@ interface SessionStore {
   // Session data (passed between voice session and session-detail)
   currentSessionId: number | null;
   currentSessionData: SessionDetail | null;
+
+  // Streaming analysis state
+  isStreamingAnalysis: boolean;
+  streamingCorrections: Correction[];
 
   // Voice session state (controls Home screen mode)
   isVoiceSessionActive: boolean;
@@ -30,11 +34,24 @@ interface SessionStore {
   setMuted: (muted: boolean) => void;
   incrementElapsedTime: () => void;
   resetElapsedTime: () => void;
+
+  // Streaming actions
+  startStreamingAnalysis: () => void;
+  addStreamingCorrection: (correction: Correction) => void;
+  finalizeStreamingSession: (dbSessionId: number, data: {
+    sentences?: string[];
+    fillerWords?: any[];
+    fillerPositions?: any[];
+    sessionInsights?: any[];
+    clarityScore?: number;
+  }) => void;
 }
 
-export const useSessionStore = create<SessionStore>((set) => ({
+export const useSessionStore = create<SessionStore>((set, get) => ({
   currentSessionId: null,
   currentSessionData: null,
+  isStreamingAnalysis: false,
+  streamingCorrections: [],
   isVoiceSessionActive: false,
   voiceSessionState: 'connecting',
   elapsedTime: 0,
@@ -52,6 +69,8 @@ export const useSessionStore = create<SessionStore>((set) => ({
       voiceSessionState: 'connecting',
       elapsedTime: 0,
       isMuted: false,
+      isStreamingAnalysis: false,
+      streamingCorrections: [],
     }),
 
   endVoiceSession: () =>
@@ -73,4 +92,46 @@ export const useSessionStore = create<SessionStore>((set) => ({
     set((s) => ({ elapsedTime: s.elapsedTime + 1 })),
 
   resetElapsedTime: () => set({ elapsedTime: 0 }),
+
+  startStreamingAnalysis: () =>
+    set({ isStreamingAnalysis: true, streamingCorrections: [] }),
+
+  addStreamingCorrection: (correction) => {
+    const state = get();
+    const updatedCorrections = [...state.streamingCorrections, correction];
+
+    // Also update currentSessionData.corrections if it exists
+    const updatedSessionData = state.currentSessionData
+      ? { ...state.currentSessionData, corrections: updatedCorrections }
+      : null;
+
+    set({
+      streamingCorrections: updatedCorrections,
+      currentSessionData: updatedSessionData,
+    });
+  },
+
+  finalizeStreamingSession: (dbSessionId, data) => {
+    const state = get();
+    const existing = state.currentSessionData;
+
+    // Merge streamed corrections with the rest of the session data
+    const finalized: SessionDetail = {
+      id: dbSessionId,
+      transcription: existing?.transcription ?? '',
+      durationSeconds: existing?.durationSeconds ?? state.elapsedTime,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+      sentences: data.sentences ?? existing?.sentences ?? [],
+      corrections: state.streamingCorrections, // keep accumulated corrections
+      fillerWords: data.fillerWords ?? [],
+      fillerPositions: data.fillerPositions ?? [],
+      sessionInsights: data.sessionInsights ?? [],
+    };
+
+    set({
+      isStreamingAnalysis: false,
+      currentSessionId: dbSessionId,
+      currentSessionData: finalized,
+    });
+  },
 }));
