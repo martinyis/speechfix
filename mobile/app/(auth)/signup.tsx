@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -7,18 +7,12 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Image,
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  FadeInDown,
-} from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -27,13 +21,11 @@ import {
   alpha,
   spacing,
   borderRadius,
-  shadows,
   typography,
 } from '../../theme';
 import { API_BASE_URL } from '../../lib/api';
 import { useAuthStore } from '../../stores/authStore';
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+import { GlassIconPillButton } from '../../components/ui';
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets();
@@ -44,19 +36,6 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const buttonScale = useSharedValue(1);
-
-  const buttonAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: buttonScale.value }],
-  }));
-
-  const handlePressIn = useCallback(() => {
-    buttonScale.value = withSpring(0.97, { damping: 15, stiffness: 300 });
-  }, []);
-
-  const handlePressOut = useCallback(() => {
-    buttonScale.value = withSpring(1, { damping: 15, stiffness: 300 });
-  }, []);
 
   const handleSignup = async () => {
     if (!email.trim() || !password) {
@@ -215,22 +194,14 @@ export default function SignupScreen() {
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             {/* Get Started button */}
-            <AnimatedPressable
-              style={[styles.button, buttonAnimStyle, loading && styles.buttonDisabled]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                handleSignup();
-              }}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={colors.black} />
-              ) : (
-                <Text style={styles.buttonText}>Get Started</Text>
-              )}
-            </AnimatedPressable>
+            <GlassIconPillButton
+              variant="primary"
+              fullWidth
+              label="Get Started"
+              icon="arrow-forward"
+              onPress={handleSignup}
+              loading={loading}
+            />
 
             {/* Remember me + Forgot password */}
             <View style={styles.optionsRow}>
@@ -282,14 +253,18 @@ export default function SignupScreen() {
             entering={FadeInDown.delay(450).duration(500)}
             style={styles.socialSection}
           >
-            <Pressable style={styles.socialButton}>
-              <Ionicons name="logo-google" size={18} color={colors.white} />
-              <Text style={styles.socialButtonText}>Sign up with Google</Text>
-            </Pressable>
-            <Pressable style={styles.socialButton}>
-              <Ionicons name="logo-apple" size={18} color={colors.white} />
-              <Text style={styles.socialButtonText}>Continue with Apple</Text>
-            </Pressable>
+            <GlassIconPillButton
+              variant="secondary"
+              fullWidth
+              label="Sign up with Google"
+              icon="logo-google"
+            />
+            <GlassIconPillButton
+              variant="secondary"
+              fullWidth
+              label="Continue with Apple"
+              icon="logo-apple"
+            />
           </Animated.View>
 
           {/* Bottom switch */}
@@ -406,23 +381,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // CTA button
-  button: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.lg,
-    paddingVertical: 14,
-    alignItems: 'center',
-    ...shadows.glow,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    ...typography.bodyMdMedium,
-    color: colors.black,
-    fontWeight: '600',
-  },
-
   // Options row
   optionsRow: {
     flexDirection: 'row',
@@ -475,21 +433,6 @@ const styles = StyleSheet.create({
   // Social buttons
   socialSection: {
     gap: spacing.md,
-  },
-  socialButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: alpha(colors.white, 0.05),
-    borderRadius: borderRadius.default,
-    borderWidth: 1,
-    borderColor: alpha(colors.white, 0.08),
-    paddingVertical: 14,
-    gap: spacing.sm,
-  },
-  socialButtonText: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
   },
 
   // Bottom switch

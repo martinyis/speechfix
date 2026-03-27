@@ -94,7 +94,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   resetElapsedTime: () => set({ elapsedTime: 0 }),
 
   startStreamingAnalysis: () =>
-    set({ isStreamingAnalysis: true, streamingCorrections: [] }),
+    set((s) => ({
+      isStreamingAnalysis: true,
+      streamingCorrections: [],
+      currentSessionData: {
+        id: 0,
+        transcription: '',
+        durationSeconds: s.elapsedTime,
+        createdAt: new Date().toISOString(),
+        sentences: [],
+        corrections: [],
+        fillerWords: [],
+        fillerPositions: [],
+        sessionInsights: [],
+      },
+    })),
 
   addStreamingCorrection: (correction) => {
     const state = get();

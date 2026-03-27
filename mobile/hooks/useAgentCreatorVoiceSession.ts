@@ -58,7 +58,7 @@ export function useAgentCreatorVoiceSession({
       try { await ExpoPlayAudioStream.stopRecording(); } catch {}
       isRecordingRef.current = false;
     }
-    try { await ExpoPlayAudioStream.stopAudio(); } catch {}
+    try { await ExpoPlayAudioStream.stopSound(); } catch {}
 
     if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
     deactivateKeepAwake();
@@ -231,24 +231,28 @@ export function useAgentCreatorVoiceSession({
 
     store.getState().setVoiceSessionState('analyzing');
 
+    // Stop audio playback immediately so user hears silence
+    try { await ExpoPlayAudioStream.stopSound(); } catch {}
+
     if (playbackTimerRef.current) {
       clearTimeout(playbackTimerRef.current);
       playbackTimerRef.current = null;
     }
 
+    // Tell server to stop generating audio early
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'done' }));
+    }
+
+    // Stop mic (slow on iOS — no longer blocks UX)
     if (isRecordingRef.current) {
       try { await ExpoPlayAudioStream.stopRecording(); } catch {}
       isRecordingRef.current = false;
     }
     subscriptionRef.current?.remove(); subscriptionRef.current = null;
-    try { await ExpoPlayAudioStream.stopAudio(); } catch {}
 
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-
-    const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'done' }));
-    }
   }, []);
 
   const toggleMute = useCallback(async () => {

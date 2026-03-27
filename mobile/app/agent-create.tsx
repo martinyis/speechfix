@@ -36,7 +36,7 @@ import { useVoicePreview } from '../hooks/useVoicePreview';
 import { VoiceSessionOverlay } from '../components/VoiceSessionOverlay';
 import { StyleChips } from '../components/StyleChips';
 import { AgentAvatar } from '../components/AgentAvatar';
-import { Button, ScreenHeader } from '../components/ui';
+import { GlassIconPillButton, ScreenHeader } from '../components/ui';
 import type { Agent } from '../types/session';
 
 const STYLE_OPTIONS = ['Casual', 'Professional', 'Challenging', 'Supportive', 'Direct'];
@@ -527,12 +527,12 @@ export default function AgentCreateScreen() {
               />
               {focusIndex === 6 && (
                 <View style={styles.lastSectionButtons}>
-                  <Button
-                    variant="primary" label="Create Agent"
+                  <GlassIconPillButton
+                    variant="primary" label="Create Agent" icon="sparkles"
                     onPress={createViaApi} loading={isCreating} fullWidth
                   />
-                  <Button
-                    variant="secondary" label="Refine with Voice"
+                  <GlassIconPillButton
+                    variant="secondary" label="Refine with Voice" icon="mic-outline"
                     onPress={() => setPhase('voice')} fullWidth
                   />
                 </View>
@@ -592,15 +592,17 @@ export default function AgentCreateScreen() {
       </View>
 
       <View style={styles.successButtons}>
-        <Button
+        <GlassIconPillButton
           variant="primary"
           label="Start Practicing Now"
+          icon="play"
           onPress={handleStartPracticing}
           fullWidth
         />
-        <Button
+        <GlassIconPillButton
           variant="secondary"
           label="Back to Agents"
+          icon="arrow-back"
           onPress={() => router.back()}
           fullWidth
         />

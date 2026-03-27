@@ -112,7 +112,7 @@ export class ElevenLabsTTS {
 
   /**
    * Wait for TTS generation to complete.
-   * Resolves when: isFinal received, OR 500ms of audio silence after flush, OR timeout.
+   * Resolves when: isFinal received, OR 2000ms of audio silence after flush, OR timeout.
    */
   waitForCompletion(timeoutMs = 5000): Promise<void> {
     return new Promise((resolve) => {
@@ -165,10 +165,10 @@ export class ElevenLabsTTS {
     this.silenceCheckInterval = setInterval(() => {
       if (!this.flushed || !this.completionResolve) return;
 
-      // If we received at least one audio chunk and 500ms has passed since the last one
+      // If we received at least one audio chunk and 2000ms has passed since the last one
       if (this.audioChunkCount > 0 && this.lastAudioChunkTime > 0) {
         const silenceMs = Date.now() - this.lastAudioChunkTime;
-        if (silenceMs >= 500) {
+        if (silenceMs >= 2000) {
           console.log(`[tts] Audio silence detected (${silenceMs}ms), completing turn`);
           this.resolveCompletion();
         }

@@ -78,7 +78,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirst
       try { await ExpoPlayAudioStream.stopRecording(); } catch (e) { console.warn('[voice-session] stopRecording error:', e); }
       isRecordingRef.current = false;
     }
-    try { await ExpoPlayAudioStream.stopAudio(); } catch (e) { console.warn('[voice-session] stopAudio error:', e); }
+    try { await ExpoPlayAudioStream.stopSound(); } catch (e) { console.warn('[voice-session] stopSound error:', e); }
 
     if (wsRef.current) {
       wsRef.current.close();
@@ -131,7 +131,10 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirst
         break;
 
       case 'audio': {
-        if (doneRef.current) break;
+        if (doneRef.current) {
+          console.log('[voice-session] BLOCKED audio chunk after doneRef=true');
+          break;
+        }
         // Track first audio time and bytes for playback estimation
         if (firstAudioTimeRef.current === 0) {
           firstAudioTimeRef.current = Date.now();
@@ -321,15 +324,29 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirst
     if (isStoppingRef.current) return;
     isStoppingRef.current = true;
     doneRef.current = true;
+    console.log('[voice-session] stop() called');
 
     store.getState().setVoiceSessionState('analyzing');
+
+    // Stop audio playback immediately so user hears silence
+    try {
+      await ExpoPlayAudioStream.stopSound();
+      console.log('[voice-session] stopSound() resolved');
+    } catch (e) { console.warn('[voice-session] stop: stopSound error:', e); }
 
     if (playbackTimerRef.current) {
       clearTimeout(playbackTimerRef.current);
       playbackTimerRef.current = null;
     }
 
-    // Stop mic
+    // Tell server to stop generating audio early
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'done' }));
+      console.log('[voice-session] ws.send(done) sent');
+    }
+
+    // Stop mic (slow on iOS — no longer blocks UX)
     if (isRecordingRef.current) {
       try { await ExpoPlayAudioStream.stopRecording(); } catch (e) { console.warn('[voice-session] stop: stopRecording error:', e); }
       isRecordingRef.current = false;
@@ -337,20 +354,12 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirst
     subscriptionRef.current?.remove();
     subscriptionRef.current = null;
 
-    // Stop audio playback
-    try { await ExpoPlayAudioStream.stopAudio(); } catch (e) { console.warn('[voice-session] stop: stopAudio error:', e); }
-
     // Stop timer
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-
-    // Tell server we're done
-    const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'done' }));
-    }
+    console.log('[voice-session] stop() complete');
   }, []);
 
   const toggleMute = useCallback(async () => {
@@ -365,7 +374,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirst
 
     // If muting while AI is speaking, stop audio playback
     if (newMuted && s.voiceSessionState === 'speaking') {
-      try { await ExpoPlayAudioStream.stopAudio(); } catch (e) { console.warn('[voice-session] mute: stopAudio error:', e); }
+      try { await ExpoPlayAudioStream.stopSound(); } catch (e) { console.warn('[voice-session] mute: stopSound error:', e); }
     }
   }, []);
 

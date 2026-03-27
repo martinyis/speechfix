@@ -312,6 +312,7 @@ export class CorrectionStreamParser {
   private inString = false;
   private escapeNext = false;
   private correctionsDone = false;
+  private scanPos = 0;
 
   /** Feed a new chunk of text; returns any fully-parsed corrections. */
   feed(chunk: string): Correction[] {
@@ -322,11 +323,38 @@ export class CorrectionStreamParser {
 
     // Strip leading markdown fences that Claude sometimes emits
     if (!this.inCorrectionsArray && this.buffer.length < 200) {
-      this.buffer = this.buffer.replace(/^```(?:json)?\s*/, '');
+      const stripped = this.buffer.replace(/^\s*```(?:json)?\s*/, '');
+      if (stripped !== this.buffer) {
+        this.buffer = stripped;
+        this.scanPos = 0;
+      }
     }
 
-    // Scan character-by-character from the current position
-    let i = 0;
+    // PHASE 1: Find the corrections array using indexOf (no char scanning)
+    if (!this.inCorrectionsArray) {
+      const corrIdx = this.buffer.indexOf('"corrections"');
+      if (corrIdx === -1) {
+        // Haven't seen the key yet — keep only the tail in buffer
+        if (this.buffer.length > 20) {
+          this.buffer = this.buffer.slice(-20);
+          this.scanPos = 0;
+        }
+        return results;
+      }
+      const bracketIdx = this.buffer.indexOf('[', corrIdx + '"corrections"'.length);
+      if (bracketIdx === -1) return results;
+
+      this.inCorrectionsArray = true;
+      this.buffer = this.buffer.slice(bracketIdx + 1);
+      this.inString = false;
+      this.escapeNext = false;
+      this.scanPos = 0;
+    }
+
+    // PHASE 2: Character-by-character scanning inside the corrections array
+    // Resume from where we left off — state (braceDepth, inString, etc.)
+    // matches this.scanPos, not position 0.
+    let i = this.scanPos;
     while (i < this.buffer.length) {
       const ch = this.buffer[i];
 
@@ -348,34 +376,6 @@ export class CorrectionStreamParser {
       }
       if (this.inString) {
         i++;
-        continue;
-      }
-
-      // Detect the start of the corrections array
-      if (!this.inCorrectionsArray) {
-        // Look for "corrections" key followed by [
-        const corrIdx = this.buffer.indexOf('"corrections"', i);
-        if (corrIdx === -1) {
-          // Haven't seen the key yet — keep only the tail in buffer
-          // (preserve enough to match a split key)
-          if (this.buffer.length > 20) {
-            this.buffer = this.buffer.slice(-20);
-            i = 0;
-          } else {
-            i = this.buffer.length;
-          }
-          continue;
-        }
-        // Find the [ after the key
-        const bracketIdx = this.buffer.indexOf('[', corrIdx + '"corrections"'.length);
-        if (bracketIdx === -1) {
-          i = this.buffer.length;
-          continue;
-        }
-        this.inCorrectionsArray = true;
-        // Trim buffer to start at the opening bracket
-        this.buffer = this.buffer.slice(bracketIdx + 1);
-        i = 0;
         continue;
       }
 
@@ -421,11 +421,15 @@ export class CorrectionStreamParser {
         this.correctionsDone = true;
         // Keep remaining buffer for post-stream parsing of other fields
         this.buffer = this.buffer.slice(i + 1);
+        this.scanPos = 0;
         break;
       }
 
       i++;
     }
+
+    // Save scan position for next feed() call — state matches this position
+    this.scanPos = i;
 
     return results;
   }
@@ -468,6 +472,9 @@ export async function analyzeSpeechStreaming(
   const userMessage = `${conversationContext}Analyze these speech sentences for grammar errors, naturalness issues, filler words, and patterns:\n\n${numberedSentences}`;
 
   console.log(`[streaming-analysis] Starting streaming analysis for ${sentences.length} sentences`);
+  console.log(`[streaming-analysis] === PROMPT SENT TO CLAUDE ===`);
+  console.log(`[streaming-analysis] Model: claude-opus-4-6`);
+  console.log(`[streaming-analysis] User message:\n${userMessage}`);
 
   const streamedCorrections: Correction[] = [];
   const parser = new CorrectionStreamParser();
@@ -494,6 +501,8 @@ export async function analyzeSpeechStreaming(
     await stream.finalMessage();
 
     console.log(`[streaming-analysis] Stream complete, ${streamedCorrections.length} corrections streamed`);
+    console.log(`[streaming-analysis] === RAW CLAUDE RESPONSE ===`);
+    console.log(`[streaming-analysis] ${fullText}`);
 
     // Parse remaining fields from full text
     let jsonText = fullText.trim();
@@ -507,6 +516,24 @@ export async function analyzeSpeechStreaming(
 
     try {
       const parsed = JSON.parse(jsonText);
+
+      // Fallback: if streaming parser missed corrections but full JSON has them
+      if (streamedCorrections.length === 0 && Array.isArray(parsed.corrections) && parsed.corrections.length > 0) {
+        console.log(`[streaming-analysis] Fallback: extracting ${parsed.corrections.length} corrections from full response`);
+        for (const raw of parsed.corrections) {
+          const normalized: Correction = {
+            sentenceIndex: raw.sentenceIndex ?? 0,
+            originalText: raw.originalText ?? '',
+            correctedText: raw.correctedText ?? '',
+            explanation: raw.explanation ?? '',
+            correctionType: raw.correctionType || raw.type || 'other',
+            severity: ['error', 'improvement', 'polish'].includes(raw.severity) ? raw.severity : 'error',
+            contextSnippet: raw.contextSnippet ?? '',
+          };
+          streamedCorrections.push(normalized);
+          onCorrection?.(normalized);
+        }
+      }
 
       // Normalize fillerWords
       const rawFillers = parsed.fillerWords ?? [];

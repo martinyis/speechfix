@@ -1,5 +1,6 @@
-import { ScrollView, Text, Pressable, StyleSheet } from 'react-native';
-import { colors, alpha, spacing, borderRadius } from '../theme';
+import { ScrollView, StyleSheet } from 'react-native';
+import { spacing } from '../theme';
+import { GlassIconPillButton } from './ui';
 
 interface StyleChipsProps {
   options: string[];
@@ -17,15 +18,14 @@ export function StyleChips({ options, selected, onSelect }: StyleChipsProps) {
       {options.map((option) => {
         const isSelected = option === selected;
         return (
-          <Pressable
+          <GlassIconPillButton
             key={option}
-            style={[styles.chip, isSelected && styles.chipSelected]}
+            label={option}
+            noIcon
+            small
+            active={isSelected}
             onPress={() => onSelect(isSelected ? null : option)}
-          >
-            <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>
-              {option}
-            </Text>
-          </Pressable>
+          />
         );
       })}
     </ScrollView>
@@ -36,25 +36,5 @@ const styles = StyleSheet.create({
   container: {
     gap: spacing.sm,
     paddingVertical: spacing.xs,
-  },
-  chip: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.lg,
-    backgroundColor: alpha(colors.white, 0.06),
-    borderWidth: 1,
-    borderColor: alpha(colors.white, 0.1),
-  },
-  chipSelected: {
-    backgroundColor: alpha(colors.primary, 0.15),
-    borderColor: alpha(colors.primary, 0.3),
-  },
-  chipText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: alpha(colors.white, 0.6),
-  },
-  chipTextSelected: {
-    color: colors.primary,
   },
 });

@@ -8,17 +8,6 @@ import { colors, alpha } from '../theme';
 import { formatTime } from '../lib/formatters';
 import type { VoiceSessionState } from '../stores/sessionStore';
 
-// -- State label map --
-
-const STATE_LABELS: Record<string, string> = {
-  connecting: 'Connecting...',
-  listening: 'Listening',
-  speaking: 'Speaking',
-  thinking: 'Thinking',
-  muted: 'Muted',
-  analyzing: 'Analyzing...',
-};
-
 interface VoiceSessionOverlayProps {
   voiceState: VoiceSessionState;
   elapsedTime: number;
@@ -39,8 +28,6 @@ export function VoiceSessionOverlay({
   agentName,
 }: VoiceSessionOverlayProps) {
   const insets = useSafeAreaInsets();
-
-  const stateLabel = STATE_LABELS[voiceState] ?? '';
 
   // Map voiceState to orb state
   const orbState: AISpeakingOrbState =
@@ -75,14 +62,8 @@ export function VoiceSessionOverlay({
       {/* Center: Animated AI orb */}
       <AISpeakingOrb state={orbState} />
 
-      {/* State label */}
-      <View style={styles.stateLabelWrap}>
-        <Text style={styles.stateLabelText}>{stateLabel}</Text>
-        <View style={styles.stateSubRow}>
-          <View style={[styles.stateDot, { backgroundColor: colors.secondary }]} />
-          <Text style={styles.stateSubText}>VOICE AI IS ACTIVE</Text>
-        </View>
-      </View>
+      {/* Spacer — orb is the hero, no labels needed */}
+      <View style={styles.stateSpacer} />
 
       {/* Bottom controls — edge-pinned with glow */}
       {voiceState !== 'analyzing' && (
@@ -195,32 +176,8 @@ const styles = StyleSheet.create({
     color: alpha(colors.white, 0.35),
     textTransform: 'uppercase',
   },
-  stateLabelWrap: {
-    alignItems: 'center',
-    gap: 10,
+  stateSpacer: {
     marginBottom: 16,
-  },
-  stateLabelText: {
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    color: colors.onSurface,
-  },
-  stateSubRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stateDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  stateSubText: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 3,
-    color: alpha(colors.white, 0.35),
   },
   controlsRow: {
     flexDirection: 'row',

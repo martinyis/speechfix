@@ -1,8 +1,16 @@
-import { useState } from 'react';
+import { useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  interpolate,
+  Easing,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { colors, alpha } from '../theme';
 
 interface CorrectionCardProps {
@@ -21,21 +29,29 @@ const SEVERITY_COLOR: Record<string, string> = {
   polish: colors.severityPolish,
 };
 
-const SEVERITY_LABEL: Record<string, string> = {
-  error: 'Error',
-  improvement: 'Improvement',
-  polish: 'Polish',
+const SEVERITY_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
+  error: 'close-circle',
+  improvement: 'arrow-up-circle',
+  polish: 'sparkles',
 };
 
-const CARD_BG_OPACITY: Record<string, number> = {
-  error: 0.05,
-  improvement: 0.03,
-  polish: 0.02,
+const EXPAND_DURATION = 250;
+const EXPAND_HEIGHT = 62;
+
+const TIMING_CONFIG = {
+  duration: EXPAND_DURATION,
+  easing: Easing.out(Easing.cubic),
 };
 
-function trimContext(sentence: string, originalText: string, maxContext = 20) {
+const SPRING_CONFIG = { damping: 15, stiffness: 300 };
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function trimContext(sentence: string, originalText: string, maxContext = 24) {
   const idx = sentence.toLowerCase().indexOf(originalText.toLowerCase());
-  if (idx < 0) return { before: '', error: originalText, after: '' };
+  if (idx < 0) return null;
 
   let before = sentence.slice(Math.max(0, idx - maxContext), idx);
   let after = sentence.slice(
@@ -47,8 +63,47 @@ function trimContext(sentence: string, originalText: string, maxContext = 20) {
   if (idx + originalText.length + maxContext < sentence.length)
     after = after + '\u2026';
 
-  return { before, error: sentence.slice(idx, idx + originalText.length), after };
+  return {
+    before,
+    original: sentence.slice(idx, idx + originalText.length),
+    after,
+  };
 }
+
+type Segment =
+  | { type: 'context'; text: string }
+  | { type: 'original'; text: string }
+  | { type: 'arrow' }
+  | { type: 'replacement'; text: string };
+
+function buildInlineSegments(
+  sentence: string,
+  originalText: string,
+  correctedText: string,
+): Segment[] {
+  const ctx = trimContext(sentence, originalText);
+
+  if (!ctx) {
+    // Graceful degradation — original not found in sentence
+    return [
+      { type: 'original', text: originalText },
+      { type: 'arrow' },
+      { type: 'replacement', text: correctedText },
+    ];
+  }
+
+  const segments: Segment[] = [];
+  if (ctx.before) segments.push({ type: 'context', text: ctx.before });
+  segments.push({ type: 'original', text: ctx.original });
+  segments.push({ type: 'arrow' });
+  segments.push({ type: 'replacement', text: correctedText });
+  if (ctx.after) segments.push({ type: 'context', text: ctx.after });
+  return segments;
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export function CorrectionCard({
   id,
@@ -59,277 +114,286 @@ export function CorrectionCard({
   correctionType,
   severity,
 }: CorrectionCardProps) {
-  const [showExplanation, setShowExplanation] = useState(false);
   const severityColor = SEVERITY_COLOR[severity] ?? colors.severityError;
-  const bgOpacity = CARD_BG_OPACITY[severity] ?? 0.03;
+  const icon = SEVERITY_ICON[severity] ?? 'close-circle';
+  const hasExplanation = !!explanation;
+  const hasPractice = id != null;
 
-  const { before, error, after } = trimContext(sentence, originalText);
+  // Animation shared values
+  const expanded = useSharedValue(0);
+  const micScale = useSharedValue(1);
+  const isExpanded = useRef(false);
+
+  const segments = buildInlineSegments(sentence, originalText, correctedText);
+
+  // --- Animated styles ---
+
+  const expandStyle = useAnimatedStyle(() => ({
+    height: interpolate(expanded.value, [0, 1], [0, EXPAND_HEIGHT]),
+    opacity: interpolate(expanded.value, [0, 0.4, 1], [0, 0, 1]),
+    overflow: 'hidden' as const,
+  }));
+
+  const chevronStyle = useAnimatedStyle(() => ({
+    transform: [
+      { rotate: `${interpolate(expanded.value, [0, 1], [0, 180])}deg` },
+    ],
+  }));
+
+  const micAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: micScale.value }],
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: interpolate(micScale.value, [0.85, 1], [0.4, 0]),
+    shadowRadius: interpolate(micScale.value, [0.85, 1], [12, 0]),
+  }));
+
+  // --- Handlers ---
+
+  const toggleExpand = useCallback(() => {
+    const next = !isExpanded.current;
+    isExpanded.current = next;
+    expanded.value = withTiming(next ? 1 : 0, TIMING_CONFIG);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [expanded]);
+
+  const onMicPressIn = useCallback(() => {
+    micScale.value = withSpring(0.85, SPRING_CONFIG);
+  }, [micScale]);
+
+  const onMicPressOut = useCallback(() => {
+    micScale.value = withSpring(1, SPRING_CONFIG);
+  }, [micScale]);
+
+  const onMicPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push({
+      pathname: '/practice-session',
+      params: { correctionId: String(id), mode: 'say_it_right' },
+    });
+  }, [id]);
+
+  // --- Render ---
 
   return (
-    <View style={[styles.card, { backgroundColor: alpha(colors.white, bgOpacity) }]}>
-      {/* Severity-colored left border gradient */}
-      <LinearGradient
-        colors={[alpha(severityColor, 0.6), 'transparent']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={styles.leftBorder}
-      />
+    <View style={styles.card}>
+      <View style={styles.cardBody}>
+        {/* Row 1: icon + inline text + chevron */}
+        <View style={styles.row1}>
+          <Ionicons
+            name={icon}
+            size={16}
+            color={severityColor}
+            style={styles.severityIcon}
+          />
 
-      <View style={styles.cardContent}>
-        {/* Severity badge + correction type */}
-        <View style={styles.topRow}>
-          <View style={[styles.severityBadge, { borderColor: alpha(severityColor, 0.25) }]}>
-            <View style={[styles.severityDot, { backgroundColor: severityColor }]} />
-            <Text style={[styles.severityText, { color: severityColor }]}>
-              {SEVERITY_LABEL[severity]}
-            </Text>
-          </View>
-          {correctionType && (
-            <Text style={styles.correctionType}>{correctionType}</Text>
+          <Text
+            style={styles.inlineText}
+            numberOfLines={2}
+            ellipsizeMode="tail"
+          >
+            {segments.map((seg, i) => {
+              switch (seg.type) {
+                case 'context':
+                  return (
+                    <Text key={i} style={styles.contextText}>
+                      {seg.text}
+                    </Text>
+                  );
+                case 'original':
+                  return (
+                    <Text
+                      key={i}
+                      style={[
+                        styles.originalText,
+                        { backgroundColor: alpha(severityColor, 0.1) },
+                      ]}
+                    >
+                      {seg.text}
+                    </Text>
+                  );
+                case 'arrow':
+                  return (
+                    <Text key={i} style={styles.arrowText}>
+                      {' -> '}
+                    </Text>
+                  );
+                case 'replacement':
+                  return (
+                    <Text key={i} style={styles.replacementText}>
+                      {seg.text}
+                    </Text>
+                  );
+              }
+            })}
+          </Text>
+
+          {hasExplanation ? (
+            <Pressable
+              onPress={toggleExpand}
+              hitSlop={8}
+              style={styles.chevronHit}
+            >
+              <Animated.View style={chevronStyle}>
+                <Ionicons
+                  name="chevron-down"
+                  size={16}
+                  color={alpha(colors.white, 0.3)}
+                />
+              </Animated.View>
+            </Pressable>
+          ) : (
+            <View style={styles.chevronSpacer} />
           )}
         </View>
 
-        {/* Context line with error highlighted */}
-        <Text style={styles.contextLine}>
-          {before ? <Text style={styles.contextDim}>{before}</Text> : null}
-          <Text
-            style={[
-              styles.errorPill,
-              { backgroundColor: alpha(severityColor, 0.15) },
-            ]}
-          >
-            {error}
-          </Text>
-          {after ? <Text style={styles.contextDim}>{after}</Text> : null}
-        </Text>
-
-        {/* Arrow */}
-        <Text style={[styles.arrow, { color: alpha(severityColor, 0.5) }]}>
-          {'\u2193'}
-        </Text>
-
-        {/* Correction */}
-        <View style={styles.correctionRow}>
-          <Text style={styles.correctionPill}>{correctedText}</Text>
-        </View>
-
-        {/* Why? button / explanation */}
-        <View style={styles.bottomRow}>
-          {explanation ? (
-            showExplanation ? (
-              <Pressable
-                onPress={() => setShowExplanation(false)}
-                style={styles.explanationContainer}
-              >
-                <View style={styles.explanationRow}>
-                  <Ionicons
-                    name="information-circle-outline"
-                    size={14}
-                    color={alpha(colors.white, 0.3)}
-                  />
-                  <Text style={styles.explanationText}>{explanation}</Text>
-                </View>
-              </Pressable>
+        {/* Row 2: correction type + mic button */}
+        {(correctionType || hasPractice) ? (
+          <View style={styles.row2}>
+            {correctionType ? (
+              <Text style={styles.correctionType}>{correctionType}</Text>
             ) : (
+              <View style={{ flex: 1 }} />
+            )}
+            {hasPractice && (
               <Pressable
-                onPress={() => setShowExplanation(true)}
-                style={styles.whyButton}
+                onPress={onMicPress}
+                onPressIn={onMicPressIn}
+                onPressOut={onMicPressOut}
+                hitSlop={6}
               >
-                <Text style={styles.whyButtonText}>Why?</Text>
+                <Animated.View style={[styles.micButton, micAnimStyle]}>
+                  <Ionicons name="mic" size={14} color={colors.primary} />
+                </Animated.View>
               </Pressable>
-            )
-          ) : null}
-        </View>
+            )}
+          </View>
+        ) : null}
 
-        {/* Practice CTA bar */}
-        {id != null && (
-          <>
-            <View style={styles.practiceDivider} />
-            <Pressable
-              style={styles.practiceBar}
-              onPress={() => {
-                router.push({
-                  pathname: '/practice-session',
-                  params: {
-                    correctionId: String(id),
-                    mode: 'say_it_right',
-                  },
-                });
-              }}
-            >
-              <Ionicons name="mic" size={16} color={colors.primary} />
-              <Text style={styles.practiceBarText}>Practice this phrase</Text>
-              <Ionicons name="chevron-forward" size={14} color={alpha(colors.primary, 0.6)} />
-            </Pressable>
-          </>
+        {/* Expandable explanation */}
+        {hasExplanation && (
+          <Animated.View style={expandStyle}>
+            <View style={styles.explanationRow}>
+              <Ionicons
+                name="information-circle-outline"
+                size={14}
+                color={alpha(colors.white, 0.25)}
+                style={styles.explanationIcon}
+              />
+              <Text style={styles.explanationText} numberOfLines={3}>
+                {explanation}
+              </Text>
+            </View>
+          </Animated.View>
         )}
       </View>
+
     </View>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     marginHorizontal: 20,
-    marginBottom: 16,
+    marginBottom: 8,
     borderRadius: 16,
+    backgroundColor: alpha(colors.white, 0.04),
     borderWidth: 1,
-    borderColor: alpha(colors.white, 0.05),
+    borderColor: alpha(colors.white, 0.08),
     overflow: 'hidden',
   },
-  leftBorder: {
-    width: 3,
-  },
-  cardContent: {
+  cardBody: {
     flex: 1,
-    padding: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
   },
 
-  // Top row
-  topRow: {
+  // Row 1: severity icon + inline text + chevron
+  row1: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
+    alignItems: 'flex-start',
   },
-  severityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    borderWidth: 1,
-    borderRadius: 100,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+  severityIcon: {
+    marginTop: 2,
+    marginRight: 8,
   },
-  severityDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-  },
-  severityText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  correctionType: {
-    fontSize: 11,
-    color: alpha(colors.white, 0.25),
-    fontWeight: '500',
-  },
-
-  // Context line with error
-  contextLine: {
+  inlineText: {
+    flex: 1,
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 21,
     color: alpha(colors.white, 0.4),
   },
-  contextDim: {
-    color: alpha(colors.white, 0.35),
+  contextText: {
+    color: alpha(colors.white, 0.4),
   },
-  errorPill: {
-    color: alpha(colors.white, 0.75),
-    fontWeight: '600',
+  originalText: {
+    color: alpha(colors.white, 0.65),
     textDecorationLine: 'line-through',
-    borderRadius: 4,
-    paddingHorizontal: 2,
   },
-
-  // Arrow
-  arrow: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginVertical: 6,
+  arrowText: {
+    color: alpha(colors.white, 0.25),
+    fontWeight: '400',
   },
-
-  // Correction
-  correctionRow: {
-    flexDirection: 'row',
+  replacementText: {
+    color: alpha(colors.white, 0.9),
+    fontWeight: '600',
+  },
+  chevronHit: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginLeft: 4,
   },
-  correctionPill: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: alpha(colors.white, 0.92),
-    backgroundColor: 'rgba(74, 222, 128, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(74, 222, 128, 0.3)',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    overflow: 'hidden',
-    letterSpacing: -0.2,
-    shadowColor: '#4ade80',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
+  chevronSpacer: {
+    width: 32,
   },
 
-  // Bottom row
-  bottomRow: {
+  // Row 2: correction type + mic button
+  row2: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    marginTop: 2,
+    marginLeft: 24, // aligns with text (16px icon + 8px gap)
   },
-  explanationContainer: {
+  correctionType: {
     flex: 1,
-    marginRight: 12,
+    fontSize: 13,
+    color: alpha(colors.white, 0.2),
   },
+  micButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: alpha(colors.primary, 0.1),
+    borderWidth: 1,
+    borderColor: alpha(colors.primary, 0.2),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Expandable explanation
   explanationRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: alpha(colors.white, 0.05),
+    marginTop: 8,
+    marginLeft: 24,
+    paddingRight: 4,
+  },
+  explanationIcon: {
+    marginTop: 1,
+    marginRight: 6,
   },
   explanationText: {
     flex: 1,
     fontSize: 13,
     color: alpha(colors.white, 0.4),
-    lineHeight: 19,
-    fontWeight: '400',
+    lineHeight: 18,
   },
-  whyButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 100,
-    backgroundColor: alpha(colors.white, 0.04),
-    borderWidth: 1,
-    borderColor: alpha(colors.white, 0.08),
-  },
-  whyButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: alpha(colors.white, 0.4),
-  },
-  practiceDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: alpha(colors.white, 0.06),
-    marginTop: 14,
-  },
-  practiceBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderWidth: 1,
-    borderColor: alpha(colors.primary, 0.25),
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-  },
-  practiceBarText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.primary,
-    letterSpacing: 0.3,
-  },
+
 });

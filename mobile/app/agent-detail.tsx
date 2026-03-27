@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
 import { colors, alpha, glass, spacing, layout } from '../theme';
 import { authFetch } from '../lib/api';
 import { useAgentStore } from '../stores/agentStore';
@@ -10,7 +9,7 @@ import { useVoices } from '../hooks/useVoices';
 import { useVoicePreview } from '../hooks/useVoicePreview';
 import { VoicePicker } from '../components/VoicePicker';
 import { AgentAvatar } from '../components/AgentAvatar';
-import { ScreenHeader, Button } from '../components/ui';
+import { ScreenHeader, GlassIconPillButton } from '../components/ui';
 
 function generateSeeds(count: number): string[] {
   return Array.from({ length: count }, () => Math.random().toString(36).slice(2, 10));
@@ -109,16 +108,18 @@ export default function AgentDetailScreen() {
             </Pressable>
           ))}
         </View>
-        <Pressable
-          onPress={() => {
-            setAvatarOptions(generateSeeds(8));
-            setAvatarSeed(null);
-          }}
-          style={styles.shuffleButton}
-        >
-          <Ionicons name="shuffle" size={16} color={colors.primary} />
-          <Text style={styles.shuffleText}>Shuffle</Text>
-        </Pressable>
+        <View style={styles.shuffleWrap}>
+          <GlassIconPillButton
+            variant="secondary"
+            small
+            label="Shuffle"
+            icon="shuffle"
+            onPress={() => {
+              setAvatarOptions(generateSeeds(8));
+              setAvatarSeed(null);
+            }}
+          />
+        </View>
 
         <Text style={[styles.label, { marginTop: spacing.xl }]}>VOICE</Text>
         <VoicePicker
@@ -132,12 +133,12 @@ export default function AgentDetailScreen() {
         />
 
         <View style={styles.deleteWrap}>
-          <Button
+          <GlassIconPillButton
             variant="danger"
+            fullWidth
             label="Delete Agent"
             icon="trash-outline"
             onPress={handleDelete}
-            fullWidth
           />
         </View>
       </ScrollView>
@@ -186,18 +187,9 @@ const styles = StyleSheet.create({
   avatarOptionSelected: {
     borderColor: colors.primary,
   },
-  shuffleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  shuffleWrap: {
     alignSelf: 'flex-start',
-    gap: 6,
     marginTop: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  shuffleText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.primary,
   },
   deleteWrap: {
     marginTop: spacing.xxxl,

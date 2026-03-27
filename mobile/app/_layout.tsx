@@ -32,6 +32,7 @@ export default function RootLayout() {
     } else if (token && inAuthGroup && !isSigningUp) {
       router.replace('/(tabs)');
     } else if (token && inOnboarding && !isSigningUp) {
+      console.log('[onboarding] Root layout redirecting to tabs — isSigningUp:', isSigningUp);
       router.replace('/(tabs)');
     }
   }, [token, user, isReady, isSigningUp, segments, navigationState]);

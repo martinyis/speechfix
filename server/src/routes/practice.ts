@@ -62,11 +62,14 @@ export async function practiceRoutes(fastify: FastifyInstance) {
   // POST /evaluate — Evaluate a practice attempt
   fastify.post('/evaluate', async (request, reply) => {
     const userId = request.user.userId;
+    console.log('[Practice/evaluate] Request received from user:', userId);
     const data = await request.file();
 
     if (!data) {
+      console.warn('[Practice/evaluate] No audio file in request');
       return reply.code(400).send({ error: 'No audio file provided' });
     }
+    console.log('[Practice/evaluate] File received — fieldname:', data.fieldname, 'mimetype:', data.mimetype, 'fields:', Object.keys(data.fields || {}));
 
     // Extract form fields
     const correctionIdField = data.fields?.correctionId;
@@ -83,7 +86,10 @@ export async function practiceRoutes(fastify: FastifyInstance) {
       ? String(scenarioField.value)
       : undefined;
 
+    console.log('[Practice/evaluate] Parsed fields — correctionId:', correctionId, 'mode:', mode, 'scenario:', scenario ? 'yes' : 'no');
+
     if (!correctionId || !mode || !['say_it_right', 'use_it_naturally'].includes(mode)) {
+      console.warn('[Practice/evaluate] Invalid fields — aborting');
       return reply.code(400).send({ error: 'correctionId and mode (say_it_right|use_it_naturally) are required' });
     }
 
@@ -110,13 +116,17 @@ export async function practiceRoutes(fastify: FastifyInstance) {
 
     const tempPath = path.join('/tmp', `${randomUUID()}.m4a`);
     const buffer = await data.toBuffer();
+    console.log(`[Practice/evaluate] Audio buffer size: ${buffer.length} bytes, writing to ${tempPath}`);
     await writeFile(tempPath, buffer);
 
     try {
       // Transcribe audio
+      console.log('[Practice/evaluate] Transcribing...');
       const transcription = await transcribe(tempPath);
+      console.log('[Practice/evaluate] Transcription result:', JSON.stringify(transcription));
 
       if (!transcription.text) {
+        console.warn('[Practice/evaluate] No speech detected');
         return reply.code(200).send({
           passed: false,
           transcript: '',

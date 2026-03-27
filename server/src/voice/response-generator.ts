@@ -27,10 +27,24 @@ export async function* generateResponse(
   // Keep last 10 exchanges to limit context
   const recentHistory = conversationHistory.slice(-20);
 
+  const brevityInstructions = [
+    'Keep responses short and conversational (1-2 sentences typically).',
+    'Only give longer responses when the user explicitly asks for explanation or clarification.',
+    'Prioritize being a responsive conversation partner over being thorough.',
+  ].join(' ');
+
+  const fullSystemPrompt = `${systemPrompt}\n\n${brevityInstructions}`;
+
   const stream = anthropic.messages.stream({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 300,
-    system: systemPrompt,
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 150,
+    system: [
+      {
+        type: 'text' as const,
+        text: fullSystemPrompt,
+        cache_control: { type: 'ephemeral' as const },
+      },
+    ],
     messages: recentHistory.map(m => ({
       role: m.role,
       content: m.content,

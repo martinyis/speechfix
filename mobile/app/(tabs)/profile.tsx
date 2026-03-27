@@ -2,7 +2,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { colors, alpha, spacing } from '../../theme';
 import { useAuthStore } from '../../stores/authStore';
-import { ScreenHeader, GlassCard, Button } from '../../components/ui';
+import { ScreenHeader, GlassCard, GlassIconPillButton } from '../../components/ui';
 
 export default function ProfileScreen() {
   const user = useAuthStore((s) => s.user);
@@ -32,11 +32,12 @@ export default function ProfileScreen() {
         </GlassCard>
 
         <View style={styles.logoutWrap}>
-          <Button
+          <GlassIconPillButton
             variant="danger"
-            label="Log Out"
-            onPress={handleLogout}
             fullWidth
+            label="Log Out"
+            icon="log-out-outline"
+            onPress={handleLogout}
           />
         </View>
       </View>

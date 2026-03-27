@@ -29,25 +29,28 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
   const turnAudioBytesRef = useRef(0);
   const playbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingCompleteRef = useRef<{ displayName: string | null; speechObservation: string | null; farewellMessage: string | null } | null>(null);
+  const cleanedUpRef = useRef(false);
 
   const store = useSessionStore;
 
   const cleanup = useCallback(async () => {
+    if (cleanedUpRef.current) return;
+    cleanedUpRef.current = true;
+
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     if (playbackTimerRef.current) { clearTimeout(playbackTimerRef.current); playbackTimerRef.current = null; }
     subscriptionRef.current?.remove(); subscriptionRef.current = null;
     appStateSubRef.current?.remove(); appStateSubRef.current = null;
 
     if (isRecordingRef.current) {
-      try { await ExpoPlayAudioStream.stopRecording(); } catch (e) { console.warn('[onboarding-voice] stopRecording error:', e); }
+      try { await ExpoPlayAudioStream.stopRecording(); } catch {}
       isRecordingRef.current = false;
     }
-    try { await ExpoPlayAudioStream.stopAudio(); } catch (e) { console.warn('[onboarding-voice] stopAudio error:', e); }
+    try { await ExpoPlayAudioStream.stopSound(); } catch {}
 
     if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
     deactivateKeepAwake();
     isStoppingRef.current = false;
-    doneRef.current = false;
   }, []);
 
   const startMicAndTimer = useCallback(async () => {
@@ -71,7 +74,7 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
       isRecordingRef.current = true;
       if (subscription) subscriptionRef.current = subscription;
     } catch (e) {
-      console.error('[onboarding-voice] startRecording failed:', e);
+      console.error('[onboarding] startRecording failed:', e);
       onError('Failed to start microphone');
       cleanup();
       store.getState().endVoiceSession();
@@ -83,7 +86,7 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
 
     switch (msg.type) {
       case 'ready':
-        console.log('[onboarding-voice] Received ready, starting mic');
+        console.log('[onboarding] Server ready, starting mic');
         startMicAndTimer();
         s.setVoiceSessionState('listening');
         break;
@@ -94,7 +97,7 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
         const rawBytes = Math.ceil((msg.data?.length ?? 0) * 3 / 4);
         turnAudioBytesRef.current += rawBytes;
         const streamId = String(msg.turnId ?? turnIdRef.current);
-        try { ExpoPlayAudioStream.playSound(msg.data, streamId, 'pcm_s16le'); } catch (e) { console.error('[onboarding-voice] playSound error:', e); }
+        try { ExpoPlayAudioStream.playSound(msg.data, streamId, 'pcm_s16le'); } catch {}
         break;
       }
 
@@ -108,13 +111,13 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
         if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
         playbackTimerRef.current = setTimeout(() => {
           playbackTimerRef.current = null;
-          if (pendingCompleteRef.current) {
+          if (pendingCompleteRef.current && !cleanedUpRef.current) {
             const { displayName, speechObservation, farewellMessage } = pendingCompleteRef.current;
             pendingCompleteRef.current = null;
             store.getState().endVoiceSession();
             cleanup();
             onComplete(displayName, speechObservation, farewellMessage);
-          } else {
+          } else if (!pendingCompleteRef.current) {
             store.getState().setVoiceSessionState('listening');
           }
         }, remainingMs);
@@ -139,9 +142,11 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
       }
 
       case 'onboarding_complete': {
+        doneRef.current = true;
         const displayName = msg.displayName ?? null;
         const speechObservation = msg.speechObservation ?? null;
         const farewellMessage = msg.farewellMessage ?? null;
+        console.log('[onboarding] Server sent onboarding_complete', { hasPendingAudio: !!playbackTimerRef.current });
         if (playbackTimerRef.current) {
           // Audio still playing — defer navigation until playback finishes
           pendingCompleteRef.current = { displayName, speechObservation, farewellMessage };
@@ -162,13 +167,15 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
   }, [startMicAndTimer, cleanup, onComplete, onError]);
 
   const start = useCallback(async () => {
+    console.log('[onboarding] Starting voice session');
     isStoppingRef.current = false;
     doneRef.current = false;
+    cleanedUpRef.current = false;
     const s = store.getState();
     s.startVoiceSession();
     s.resetElapsedTime();
 
-    try { await activateKeepAwakeAsync(); } catch (e) { console.warn('[onboarding-voice] keepAwake error:', e); }
+    try { await activateKeepAwakeAsync(); } catch {}
 
     // Request mic permissions — this also configures AVAudioSession for recording + playback
     const { granted } = await ExpoPlayAudioStream.requestPermissionsAsync();
@@ -183,7 +190,7 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
         sampleRate: 24000,
         playbackMode: PlaybackModes.CONVERSATION,
       });
-    } catch (e) { console.error('[onboarding-voice] setSoundConfig failed:', e); }
+    } catch {}
 
     // Allow iOS AVAudioSession to fully initialize before audio arrives
     await new Promise(resolve => setTimeout(resolve, 400));
@@ -191,16 +198,22 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
     const ws = new WebSocket(wsUrl('/voice-session') + '&mode=onboarding');
     wsRef.current = ws;
 
-    ws.onopen = () => { ws.send(JSON.stringify({ type: 'start' })); };
+    ws.onopen = () => {
+      console.log('[onboarding] WebSocket connected, sending start');
+      ws.send(JSON.stringify({ type: 'start' }));
+    };
     ws.onmessage = (event) => {
-      try { handleMessage(JSON.parse(event.data)); } catch (e) { console.error('[onboarding-voice] message parse error:', e); }
+      try { handleMessage(JSON.parse(event.data)); } catch {}
     };
     ws.onerror = () => {
+      console.error('[onboarding] WebSocket error');
       onError("Couldn't connect. Check your connection and try again.");
       cleanup();
       s.endVoiceSession();
     };
-    ws.onclose = () => {};
+    ws.onclose = (event) => {
+      console.warn('[onboarding] WebSocket closed', { code: event.code, reason: event.reason, wasDone: doneRef.current });
+    };
 
     appStateSubRef.current = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'background' && !doneRef.current) { stop(); }
@@ -208,30 +221,35 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
   }, [handleMessage, cleanup, onError]);
 
   const stop = useCallback(async () => {
-    if (isStoppingRef.current) return;
+    if (isStoppingRef.current || cleanedUpRef.current) return;
+    console.log('[onboarding] stop() called');
     isStoppingRef.current = true;
     doneRef.current = true;
 
     store.getState().setVoiceSessionState('analyzing');
+
+    // Stop audio playback immediately so user hears silence
+    try { await ExpoPlayAudioStream.stopSound(); } catch {}
 
     if (playbackTimerRef.current) {
       clearTimeout(playbackTimerRef.current);
       playbackTimerRef.current = null;
     }
 
-    if (isRecordingRef.current) {
-      try { await ExpoPlayAudioStream.stopRecording(); } catch (e) { console.warn('[onboarding-voice] stopRecording error:', e); }
-      isRecordingRef.current = false;
-    }
-    subscriptionRef.current?.remove(); subscriptionRef.current = null;
-    try { await ExpoPlayAudioStream.stopAudio(); } catch (e) { console.warn('[onboarding-voice] stopAudio error:', e); }
-
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-
+    // Tell server to stop generating audio early
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'done' }));
     }
+
+    // Stop mic (slow on iOS — no longer blocks UX)
+    if (isRecordingRef.current) {
+      try { await ExpoPlayAudioStream.stopRecording(); } catch {}
+      isRecordingRef.current = false;
+    }
+    subscriptionRef.current?.remove(); subscriptionRef.current = null;
+
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
   }, []);
 
   const toggleMute = useCallback(async () => {

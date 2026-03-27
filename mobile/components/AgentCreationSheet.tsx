@@ -15,10 +15,10 @@ import Animated, {
   withTiming,
   withRepeat,
   withSequence,
-  withSpring,
   useDerivedValue,
   Easing,
   interpolate,
+  interpolateColor,
 } from 'react-native-reanimated';
 import {
   BottomSheetModal,
@@ -36,7 +36,7 @@ import {
   layout,
   borderRadius,
 } from '../theme';
-import { Button } from './ui';
+import { GlassIconPillButton } from './ui';
 import { GradientText } from './GradientText';
 
 // ── Palette ──────────────────────────────────────────────────────────────
@@ -323,6 +323,11 @@ type Mode = keyof typeof MODES;
 // ── Option Row ──────────────────────────────────────────────────────────
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+const ROW_BORDER_REST = alpha(colors.white, 0.06);
+const ROW_BORDER_PRESSED = alpha(colors.primary, 0.35);
+const ROW_FILL_REST = 'transparent';
+const ROW_FILL_PRESSED = alpha(colors.primary, 0.06);
+
 function OptionRow({
   mode,
   selected,
@@ -335,7 +340,7 @@ function OptionRow({
   children: React.ReactNode;
 }) {
   const progress = useSharedValue(selected ? 1 : 0);
-  const pressScale = useSharedValue(1);
+  const pressed = useSharedValue(0);
 
   useEffect(() => {
     progress.value = withTiming(selected ? 1 : 0, { duration: 200 });
@@ -343,7 +348,16 @@ function OptionRow({
 
   const rowStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0, 1], [0.45, 1]),
-    transform: [{ scale: pressScale.value }],
+    borderColor: interpolateColor(
+      pressed.value,
+      [0, 1],
+      [ROW_BORDER_REST, ROW_BORDER_PRESSED],
+    ),
+    backgroundColor: interpolateColor(
+      pressed.value,
+      [0, 1],
+      [ROW_FILL_REST, ROW_FILL_PRESSED],
+    ),
   }));
 
   const accentStyle = useAnimatedStyle(() => ({
@@ -351,12 +365,14 @@ function OptionRow({
     transform: [{ scaleY: progress.value }],
   }));
 
+  const easing = Easing.out(Easing.cubic);
+
   const handlePressIn = () => {
-    pressScale.value = withSpring(0.97, { damping: 15, stiffness: 300 });
+    pressed.value = withTiming(1, { duration: 220, easing });
   };
 
   const handlePressOut = () => {
-    pressScale.value = withSpring(1, { damping: 15, stiffness: 300 });
+    pressed.value = withTiming(0, { duration: 280, easing });
   };
 
   return (
@@ -470,11 +486,12 @@ export const AgentCreationSheet = forwardRef<BottomSheetModal>((_props, ref) => 
 
         {/* CTA */}
         <View style={styles.bottom}>
-          <Button
+          <GlassIconPillButton
             variant="primary"
-            label="Continue"
-            onPress={handleGetStarted}
             fullWidth
+            label="Continue"
+            icon="arrow-forward"
+            onPress={handleGetStarted}
           />
         </View>
       </BottomSheetView>
@@ -525,6 +542,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.lg,
+    borderWidth: 1,
+    borderColor: alpha(colors.white, 0.06),
+    borderRadius: borderRadius.default,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
   },
   accentBar: {
     width: 3,

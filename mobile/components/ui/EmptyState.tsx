@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, typography, alpha } from '@/theme';
-import { Button } from './Button';
+import { GlassIconPillButton } from './GlassIconPillButton';
 
 type EmptyStateProps = {
   icon?: string;
@@ -36,7 +36,7 @@ export function EmptyState({
       <Text style={styles.title}>{title}</Text>
       {subtitle != null && <Text style={styles.subtitle}>{subtitle}</Text>}
       {action != null && (
-        <Button
+        <GlassIconPillButton
           variant="primary"
           label={action.label}
           onPress={action.onPress}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView, LayoutChangeEvent, Dimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, LayoutChangeEvent, Dimensions } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
@@ -7,94 +7,102 @@ import Animated, {
   FadeOut,
   useSharedValue,
   useAnimatedStyle,
+  useAnimatedRef,
   withTiming,
-  withDelay,
+  scrollTo,
   Easing,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import MaskedView from '@react-native-masked-view/masked-view';
+import { scheduleOnUI } from 'react-native-worklets';
 import { ExpoPlayAudioStream } from '@mykin-ai/expo-audio-stream';
 import { AISpeakingOrb } from '../../components/AISpeakingOrb';
 import { useIntroAudio } from '../../hooks/useIntroAudio';
+import { INTRO_SEGMENTS, type SegmentTimings } from '../../lib/introTimestamps';
 import { colors, alpha } from '../../theme';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const TEXT_AREA_HEIGHT = SCREEN_HEIGHT * 0.30;
-// Mask width for left-to-right text reveal (wider than text for soft trailing edge)
-const MASK_WIDTH = (SCREEN_WIDTH - 56) * 1.4;
+const GRADIENT_HEIGHT = TEXT_AREA_HEIGHT * 0.40;
 
-/** Progressive opacity based on distance from active segment */
-function getTargetOpacity(distance: number): number {
-  if (distance <= 0) return 1.0;
-  if (distance === 1) return 0.5;
-  if (distance === 2) return 0.28;
-  if (distance === 3) return 0.15;
-  return 0.06;
-}
+const SEGMENT_DIM_MAP = [1.0, 0.45, 0.25, 0.12];
+const BASE_DIM = 0.06;
 
-/** Single lyric segment — left-to-right reveal on mount, progressive dimming */
-function LyricSegment({
-  text,
-  isActive,
-  targetOpacity,
-  onLayout,
-}: {
-  text: string;
-  isActive: boolean;
-  targetOpacity: number;
-  onLayout: (e: LayoutChangeEvent) => void;
-}) {
-  const revealProgress = useSharedValue(0);
-  const dimOpacity = useSharedValue(0);
-  const hasEntered = useRef(false);
+function WordToken({ word, isActive, isRevealed }: { word: string; isActive: boolean; isRevealed: boolean }) {
+  const opacity = useSharedValue(0.18);
+  const wasRevealed = useRef(false);
 
   useEffect(() => {
-    if (!hasEntered.current) {
-      hasEntered.current = true;
-      revealProgress.value = withTiming(1, {
-        duration: 800,
+    if (isRevealed && !wasRevealed.current) {
+      wasRevealed.current = true;
+      opacity.value = withTiming(1.0, {
+        duration: 2000,
         easing: Easing.out(Easing.cubic),
       });
-      dimOpacity.value = withTiming(targetOpacity, { duration: 800 });
     }
-  }, []);
+  }, [isRevealed]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.Text style={[styles.word, isActive && styles.wordActive, animStyle]}>
+      {word + ' '}
+    </Animated.Text>
+  );
+}
+
+function SegmentBlock({
+  segment,
+  segmentIndex,
+  revealedWordCount,
+  currentWordIndex,
+  currentSegmentIndex,
+  globalWordOffset,
+  onLayout,
+}: {
+  segment: SegmentTimings;
+  segmentIndex: number;
+  revealedWordCount: number;
+  currentWordIndex: number;
+  currentSegmentIndex: number;
+  globalWordOffset: number;
+  onLayout: (index: number, e: LayoutChangeEvent) => void;
+}) {
+  const segmentOpacity = useMemo(() => {
+    if (currentSegmentIndex < 0) return 0.12;
+    const distance = Math.abs(currentSegmentIndex - segmentIndex);
+    return SEGMENT_DIM_MAP[distance] ?? BASE_DIM;
+  }, [segmentIndex, currentSegmentIndex]);
+
+  const dimOpacity = useSharedValue(segmentOpacity);
 
   useEffect(() => {
-    if (hasEntered.current) {
-      dimOpacity.value = withTiming(targetOpacity, { duration: 600 });
-    }
-  }, [targetOpacity]);
-
-  // Animated gradient mask slides from left to right
-  const maskAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: (revealProgress.value - 1) * MASK_WIDTH }],
-  }));
+    dimOpacity.value = withTiming(segmentOpacity, { duration: 600 });
+  }, [segmentOpacity]);
 
   const containerStyle = useAnimatedStyle(() => ({
     opacity: dimOpacity.value,
   }));
 
   return (
-    <Animated.View onLayout={onLayout} style={[styles.segmentWrap, containerStyle]}>
-      <MaskedView
-        maskElement={
-          <View style={{ flex: 1 }}>
-            <Animated.View style={[{ width: MASK_WIDTH, height: '100%' }, maskAnimStyle]}>
-              <LinearGradient
-                colors={['black', 'black', alpha('#000000', 0)]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                locations={[0, 0.82, 1]}
-                style={{ flex: 1 }}
-              />
-            </Animated.View>
-          </View>
-        }
-      >
-        <Text style={isActive ? styles.activeSegment : styles.pastSegment}>
-          {text}
-        </Text>
-      </MaskedView>
+    <Animated.View
+      style={[styles.segmentBlock, containerStyle]}
+      onLayout={(e) => onLayout(segmentIndex, e)}
+    >
+      {segment.words.map((wordTiming, i) => {
+        const globalIdx = globalWordOffset + i;
+        const isRevealed = globalIdx < revealedWordCount;
+        const isActive = globalIdx === currentWordIndex;
+        return (
+          <WordToken
+            key={i}
+            word={wordTiming.word}
+            isActive={isActive}
+            isRevealed={isRevealed}
+          />
+        );
+      })}
     </Animated.View>
   );
 }
@@ -106,24 +114,30 @@ export default function IntroAgentScreen() {
     isPlaying,
     isComplete,
     error,
-    visibleText,
-    currentBatchIndices,
+    revealedWordCount,
+    currentWordIndex,
+    currentSegmentIndex,
     play,
     skip,
   } = useIntroAudio();
   const hasStartedRef = useRef(false);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const segmentYPositions = useRef<Record<number, number>>({});
+  const segmentHeights = useRef<Record<number, number>>({});
   const scrollAreaHeight = useRef(0);
-  const lastScrollY = useRef(0);
 
   const [showMicPrompt, setShowMicPrompt] = useState(false);
 
-  // First active segment index for distance-based dimming
-  const firstActiveIdx = useMemo(
-    () => currentBatchIndices.length > 0 ? Math.min(...currentBatchIndices) : -1,
-    [currentBatchIndices],
-  );
+  // Precompute global word offsets per segment
+  const globalWordOffsets = useMemo(() => {
+    const offsets: number[] = [];
+    let cumulative = 0;
+    for (const seg of INTRO_SEGMENTS) {
+      offsets.push(cumulative);
+      cumulative += seg.words.length;
+    }
+    return offsets;
+  }, []);
 
   // Auto-play when audio is loaded
   useEffect(() => {
@@ -138,28 +152,23 @@ export default function IntroAgentScreen() {
     if (isComplete) setShowMicPrompt(true);
   }, [isComplete]);
 
-  // Smooth auto-scroll: only scroll when active segment is past 50% of visible area
+  // Auto-scroll: center active segment vertically
+  // scrollTo is a UI-thread API — must dispatch via scheduleOnUI
   useEffect(() => {
-    if (currentBatchIndices.length === 0) return;
-    const idx = currentBatchIndices[0];
+    if (currentSegmentIndex < 0) return;
 
-    const timer = setTimeout(() => {
-      const y = segmentYPositions.current[idx];
-      if (y == null || !scrollViewRef.current) return;
+    const y = segmentYPositions.current[currentSegmentIndex];
+    const h = segmentHeights.current[currentSegmentIndex];
+    if (y == null || h == null) return;
 
-      const visibleBottom = lastScrollY.current + scrollAreaHeight.current;
-      const threshold = lastScrollY.current + scrollAreaHeight.current * 0.5;
+    const areaH = scrollAreaHeight.current;
+    const targetY = Math.max(0, y - (areaH / 2) + (h / 2));
 
-      // Only scroll if the segment is past the midpoint of the visible area
-      if (y > threshold || y < lastScrollY.current) {
-        const targetY = Math.max(0, y - scrollAreaHeight.current * 0.3);
-        lastScrollY.current = targetY;
-        scrollViewRef.current.scrollTo({ y: targetY, animated: true });
-      }
-    }, 200);
-
-    return () => clearTimeout(timer);
-  }, [currentBatchIndices]);
+    scheduleOnUI(() => {
+      'worklet';
+      scrollTo(scrollRef, 0, targetY, true);
+    });
+  }, [currentSegmentIndex, scrollRef]);
 
   const handleScrollAreaLayout = useCallback((e: LayoutChangeEvent) => {
     scrollAreaHeight.current = e.nativeEvent.layout.height;
@@ -167,9 +176,11 @@ export default function IntroAgentScreen() {
 
   const handleSegmentLayout = useCallback((index: number, e: LayoutChangeEvent) => {
     segmentYPositions.current[index] = e.nativeEvent.layout.y;
+    segmentHeights.current[index] = e.nativeEvent.layout.height;
   }, []);
 
   const handleSkip = useCallback(() => {
+    console.log('[onboarding] Intro skipped');
     skip();
     setShowMicPrompt(true);
   }, [skip]);
@@ -181,10 +192,15 @@ export default function IntroAgentScreen() {
   const handleEnableMic = useCallback(async () => {
     skip();
     const { granted } = await ExpoPlayAudioStream.requestPermissionsAsync();
+    console.log('[onboarding] Enable mic tapped, permission:', granted ? 'granted' : 'denied');
     if (granted) {
       router.push('/(onboarding)/voice-session');
     }
   }, [skip]);
+
+  const contentPaddingVertical = scrollAreaHeight.current
+    ? scrollAreaHeight.current * 0.5
+    : TEXT_AREA_HEIGHT * 0.5;
 
   if (error) {
     return (
@@ -226,43 +242,42 @@ export default function IntroAgentScreen() {
           style={styles.textArea}
           onLayout={handleScrollAreaLayout}
         >
-          <ScrollView
-            ref={scrollViewRef}
+          <Animated.ScrollView
+            ref={scrollRef}
             style={styles.textScroll}
-            contentContainerStyle={styles.textScrollContent}
+            contentContainerStyle={[
+              styles.textScrollContent,
+              { paddingTop: contentPaddingVertical, paddingBottom: contentPaddingVertical },
+            ]}
             showsVerticalScrollIndicator={false}
             scrollEventThrottle={16}
-            onScroll={(e) => { lastScrollY.current = e.nativeEvent.contentOffset.y; }}
           >
-            {visibleText.map((text, index) => {
-              const isActive = currentBatchIndices.includes(index);
-              const distance = firstActiveIdx >= 0 ? firstActiveIdx - index : 0;
-              const targetOpacity = isActive ? 1.0 : getTargetOpacity(distance);
+            {INTRO_SEGMENTS.map((segment, idx) => (
+              <SegmentBlock
+                key={idx}
+                segment={segment}
+                segmentIndex={idx}
+                revealedWordCount={revealedWordCount}
+                currentWordIndex={currentWordIndex}
+                currentSegmentIndex={currentSegmentIndex}
+                globalWordOffset={globalWordOffsets[idx]}
+                onLayout={handleSegmentLayout}
+              />
+            ))}
+          </Animated.ScrollView>
 
-              return (
-                <LyricSegment
-                  key={index}
-                  text={text}
-                  isActive={isActive}
-                  targetOpacity={targetOpacity}
-                  onLayout={(e) => handleSegmentLayout(index, e)}
-                />
-              );
-            })}
-          </ScrollView>
-
-          {/* Top fade — seamless blend into background (no transparent→black fringing) */}
+          {/* Top fade — iOS picker style vignette */}
           <LinearGradient
-            colors={[colors.background, alpha(colors.background, 0.7), alpha(colors.background, 0)]}
-            locations={[0, 0.5, 1]}
+            colors={[colors.background, alpha(colors.background, 0.85), alpha(colors.background, 0.3), alpha(colors.background, 0)]}
+            locations={[0, 0.3, 0.7, 1]}
             style={styles.gradientTop}
             pointerEvents="none"
           />
 
           {/* Bottom fade */}
           <LinearGradient
-            colors={[alpha(colors.background, 0), alpha(colors.background, 0.7), colors.background]}
-            locations={[0, 0.5, 1]}
+            colors={[alpha(colors.background, 0), alpha(colors.background, 0.3), alpha(colors.background, 0.85), colors.background]}
+            locations={[0, 0.3, 0.7, 1]}
             style={styles.gradientBottom}
             pointerEvents="none"
           />
@@ -322,31 +337,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   textScrollContent: {
-    paddingTop: 50,
-    paddingBottom: 120,
+    // paddingTop/paddingBottom set dynamically via contentPaddingVertical
   },
-  segmentWrap: {
-    marginBottom: 4,
+  segmentBlock: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginBottom: 6,
   },
-  activeSegment: {
-    color: colors.primary,
+  word: {
     fontSize: 20,
     fontWeight: '600',
-    lineHeight: 28,
-    textAlign: 'center',
+    lineHeight: 30,
+    color: '#c9a0f0',
   },
-  pastSegment: {
-    color: colors.primary,
-    fontSize: 17,
-    lineHeight: 24,
-    textAlign: 'center',
+  wordActive: {
+    color: '#e0c4ff',
   },
   gradientTop: {
     position: 'absolute',
     top: 0,
     left: -28,
     right: -28,
-    height: 80,
+    height: GRADIENT_HEIGHT,
     zIndex: 2,
   },
   gradientBottom: {
@@ -354,7 +367,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: -28,
     right: -28,
-    height: 80,
+    height: GRADIENT_HEIGHT,
     zIndex: 2,
   },
   loadingText: {

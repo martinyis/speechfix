@@ -22,13 +22,14 @@ export default function VoiceSessionScreen() {
   }, []);
 
   const handleComplete = useCallback((displayName: string | null, speechObservation: string | null, farewellMessage: string | null) => {
+    console.log('[onboarding] handleComplete fired', { displayName, hasFarewell: !!farewellMessage });
     useOnboardingStore.getState().setOnboardingResult(displayName, speechObservation, farewellMessage);
     useAuthStore.getState().setOnboardingComplete();
     navigateToHome();
   }, [navigateToHome]);
 
   const handleError = useCallback((message: string) => {
-    console.warn('Onboarding voice error:', message);
+    console.error('[onboarding] handleError — navigating home due to error:', message);
     useAuthStore.getState().setOnboardingComplete();
     navigateToHome();
   }, [navigateToHome]);
@@ -40,6 +41,7 @@ export default function VoiceSessionScreen() {
 
   // Auto-start voice session on mount
   useEffect(() => {
+    console.log('[onboarding] VoiceSessionScreen mounted');
     if (!startedRef.current) {
       startedRef.current = true;
       start();

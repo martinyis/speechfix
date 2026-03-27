@@ -11,14 +11,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated, {
-  useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withTiming,
   FadeIn,
   FadeInDown,
 } from 'react-native-reanimated';
 import { ScreenHeader } from '../components/ui';
+import PracticeRecordOrb from '../components/PracticeRecordOrb';
 import { usePracticeTasks } from '../hooks/usePracticeTasks';
 import { usePracticeRecording } from '../hooks/usePracticeRecording';
 import { authFetch } from '../lib/api';
@@ -30,8 +29,6 @@ const SEVERITY_COLOR: Record<string, string> = {
   improvement: colors.severityImprovement,
   polish: colors.severityPolish,
 };
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function PracticeSessionScreen() {
   const { correctionId, mode: modeParam, fromList } = useLocalSearchParams<{
@@ -90,13 +87,17 @@ export default function PracticeSessionScreen() {
 
   // Handlers
   const handleStartRecording = useCallback(async () => {
+    console.log('[PracticeSession] Record button pressed — state:', recording.state);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await recording.start();
+    console.log('[PracticeSession] recording.start() resolved — state:', recording.state);
   }, [recording]);
 
   const handleStopRecording = useCallback(async () => {
+    console.log('[PracticeSession] Stop button pressed — state:', recording.state, 'elapsed:', recording.elapsedSeconds);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await recording.stop(currentCorrectionId, mode, scenario ?? undefined);
+    console.log('[PracticeSession] recording.stop() resolved');
   }, [recording, currentCorrectionId, mode, scenario]);
 
   // Auto-stop at max duration
@@ -147,12 +148,6 @@ export default function PracticeSessionScreen() {
   }, [recording.state, recording.result]);
 
   const severityColor = task ? (SEVERITY_COLOR[task.severity] ?? colors.severityError) : colors.severityError;
-
-  // Record button animation
-  const recordScale = useSharedValue(1);
-  const recordAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: recordScale.value }],
-  }));
 
   // Dim content during recording
   const contentOpacity = useAnimatedStyle(() => ({
@@ -313,48 +308,18 @@ export default function PracticeSessionScreen() {
             </Animated.View>
 
             {/* Recording area */}
-            <View style={[styles.recordArea, { paddingBottom: insets.bottom + 60 }]}>
+            <View style={[styles.recordArea, { paddingBottom: insets.bottom + 16 }]}>
               {recording.state === 'evaluating' ? (
                 <View style={styles.evaluatingWrap}>
                   <ActivityIndicator size="small" color={colors.primary} />
                   <Text style={styles.evaluatingText}>Evaluating...</Text>
                 </View>
-              ) : recording.state === 'recording' ? (
-                <>
-                  <AnimatedPressable
-                    onPress={handleStopRecording}
-                    onPressIn={() => {
-                      recordScale.value = withSpring(0.9, { damping: 15, stiffness: 300 });
-                    }}
-                    onPressOut={() => {
-                      recordScale.value = withSpring(1, { damping: 15, stiffness: 300 });
-                    }}
-                    style={recordAnimStyle}
-                  >
-                    <View style={styles.stopButton}>
-                      <Animated.View style={styles.stopPulseRing} />
-                      <View style={styles.stopIcon} />
-                    </View>
-                  </AnimatedPressable>
-                  <Text style={styles.timerText}>
-                    0:{String(recording.elapsedSeconds).padStart(2, '0')}
-                  </Text>
-                </>
               ) : (
-                <AnimatedPressable
-                  onPress={handleStartRecording}
-                  onPressIn={() => {
-                    recordScale.value = withSpring(0.9, { damping: 15, stiffness: 300 });
-                  }}
-                  onPressOut={() => {
-                    recordScale.value = withSpring(1, { damping: 15, stiffness: 300 });
-                  }}
-                  style={recordAnimStyle}
-                >
-                  <View style={styles.recordButton}>
-                    <Ionicons name="mic" size={28} color={colors.black} />
-                  </View>
-                </AnimatedPressable>
+                <PracticeRecordOrb
+                  state={recording.state === 'idle' ? 'idle' : 'recording'}
+                  audioLevel={recording.audioLevel}
+                  onPress={recording.state === 'recording' ? handleStopRecording : handleStartRecording}
+                />
               )}
 
               {recording.error && (
@@ -510,48 +475,7 @@ const styles = StyleSheet.create({
   // Record area
   recordArea: {
     alignItems: 'center',
-    paddingVertical: spacing.xl,
     gap: spacing.md,
-  },
-  recordButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  stopButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.severityError,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stopPulseRing: {
-    position: 'absolute',
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    borderWidth: 2,
-    borderColor: alpha(colors.severityError, 0.3),
-  },
-  stopIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    backgroundColor: colors.white,
-  },
-  timerText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: alpha(colors.white, 0.5),
-    fontVariant: ['tabular-nums'],
   },
   evaluatingWrap: {
     flexDirection: 'row',
