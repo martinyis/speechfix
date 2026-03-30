@@ -1,6 +1,6 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { ConversationMessage } from '../response-generator.js';
 import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from './types.js';
+import type { ChatTool } from '../tools.js';
 import { END_SESSION_TOOL } from '../tools.js';
 import { IDENTITY_PROMPT } from '../prompts/identity.js';
 import { BEHAVIOR_PROMPT } from '../prompts/behavior.js';
@@ -8,6 +8,7 @@ import { AGENT_CREATOR_SESSION_PROMPT } from '../prompts/session-types/agent-cre
 import { extractAgentConfig } from '../../services/agent-config-extractor.js';
 import { db } from '../../db/index.js';
 import { agents } from '../../db/schema.js';
+import { generateGreetingForAgent } from '../../services/greeting-generator.js';
 
 export class AgentCreatorHandler implements AgentTypeHandler {
   readonly needsUserContext = false;
@@ -33,7 +34,7 @@ export class AgentCreatorHandler implements AgentTypeHandler {
     return layers.join('\n\n');
   }
 
-  getTools(): Anthropic.Messages.Tool[] {
+  getTools(): ChatTool[] {
     return [END_SESSION_TOOL];
   }
 
@@ -77,6 +78,11 @@ export class AgentCreatorHandler implements AgentTypeHandler {
 
       console.log(`[agent-creator-handler] Fallback agent created: ${newAgent.id}`);
 
+      // Generate first greeting for the new agent
+      generateGreetingForAgent(userId, newAgent.id).catch(err =>
+        console.error('[greeting] Initial generation failed:', err)
+      );
+
       return {
         type: 'agent-created',
         agentId: newAgent.id,
@@ -108,6 +114,11 @@ export class AgentCreatorHandler implements AgentTypeHandler {
       .returning();
 
     console.log(`[agent-creator-handler] Agent created: ${newAgent.id} (${newAgent.name})`);
+
+    // Generate first greeting for the new agent
+    generateGreetingForAgent(userId, newAgent.id).catch(err =>
+      console.error('[greeting] Initial generation failed:', err)
+    );
 
     return {
       type: 'agent-created',

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, alpha, typography, spacing } from '../../theme';
+import { colors, alpha, typography, spacing, fonts } from '../../theme';
 import { GlassCard } from '../ui/GlassCard';
 import { MiniScoreRing } from './MiniScoreRing';
 import type { PatternCategory } from './mockData';
@@ -113,6 +113,6 @@ const styles = StyleSheet.create({
   },
   trendText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
   },
 });

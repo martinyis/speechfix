@@ -1,4 +1,4 @@
-import type Anthropic from '@anthropic-ai/sdk';
+import type { ChatTool } from '../tools.js';
 import type { ConversationMessage, UserContext } from '../response-generator.js';
 
 export interface AgentConfig {
@@ -12,13 +12,14 @@ export interface AgentConfig {
 }
 
 export interface FullUserContext extends UserContext {
-  contextNotes?: Array<{ date: string; notes: string[] }> | null;
+  contextNotes?: Array<{ date: string; notes: string[]; agentId?: number | null }> | null;
 }
 
 export interface SessionEndResult {
   type: 'analysis' | 'onboarding' | 'agent-created';
   dbSessionId?: number;
   clarityScore?: number;
+  correctionIds?: number[];
   analysisResults?: {
     sentences: string[];
     corrections: any[];
@@ -37,8 +38,10 @@ export interface SessionEndResult {
 
 export interface AgentTypeHandler {
   readonly needsUserContext: boolean;
+  readonly silenceTimeoutMs?: number;
+  readonly maxSessionDurationMs?: number;
   buildSystemPrompt(agentConfig: AgentConfig | null, userContext?: FullUserContext, formContext?: Record<string, unknown> | null): string;
-  getTools?(): Anthropic.Messages.Tool[];
+  getTools?(): ChatTool[];
   shouldAutoEnd(turnCount: number, conversationHistory: ConversationMessage[]): boolean;
   onSessionEnd(
     userId: number,

@@ -22,6 +22,7 @@ import {
   alpha,
   borderRadius,
   shadows,
+  fonts,
 } from '@/theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -328,7 +329,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   label: {
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     letterSpacing: 0.2,
   },
 });

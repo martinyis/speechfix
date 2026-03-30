@@ -44,7 +44,7 @@ interface SessionStore {
     fillerPositions?: any[];
     sessionInsights?: any[];
     clarityScore?: number;
-  }) => void;
+  }, correctionIds?: number[]) => void;
 }
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
@@ -125,9 +125,16 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
   },
 
-  finalizeStreamingSession: (dbSessionId, data) => {
+  finalizeStreamingSession: (dbSessionId, data, correctionIds) => {
     const state = get();
     const existing = state.currentSessionData;
+
+    // Merge DB IDs into streamed corrections so practice buttons appear
+    const mergedCorrections = state.streamingCorrections.map((c, i) => ({
+      ...c,
+      id: correctionIds?.[i] ?? c.id,
+      sessionId: dbSessionId,
+    }));
 
     // Merge streamed corrections with the rest of the session data
     const finalized: SessionDetail = {
@@ -136,7 +143,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       durationSeconds: existing?.durationSeconds ?? state.elapsedTime,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       sentences: data.sentences ?? existing?.sentences ?? [],
-      corrections: state.streamingCorrections, // keep accumulated corrections
+      corrections: mergedCorrections,
       fillerWords: data.fillerWords ?? [],
       fillerPositions: data.fillerPositions ?? [],
       sessionInsights: data.sessionInsights ?? [],

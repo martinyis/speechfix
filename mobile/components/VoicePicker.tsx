@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, alpha, glass, spacing } from '../theme';
+import { colors, alpha, glass, spacing, fonts } from '../theme';
 import type { Voice } from '../types/session';
 
 interface VoicePreviewProps {
@@ -171,18 +171,19 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.onSurface,
   },
   gender: {
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     letterSpacing: 1,
     color: colors.onSurfaceVariant,
     textTransform: 'uppercase',
   },
   description: {
     fontSize: 13,
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.5),
   },
   checkCircle: {
@@ -222,11 +223,11 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.6),
   },
   chipTextSelected: {
     color: colors.primary,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
   },
 });

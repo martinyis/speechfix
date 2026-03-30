@@ -25,7 +25,7 @@ import Animated, {
   Easing,
   SharedValue,
 } from 'react-native-reanimated';
-import { colors, alpha, glass, spacing, layout, typography } from '../theme';
+import { colors, alpha, glass, spacing, layout, typography, fonts } from '../theme';
 import { authFetch } from '../lib/api';
 import { useVoices } from '../hooks/useVoices';
 import { useAgentStore } from '../stores/agentStore';
@@ -36,6 +36,7 @@ import { useVoicePreview } from '../hooks/useVoicePreview';
 import { VoiceSessionOverlay } from '../components/VoiceSessionOverlay';
 import { StyleChips } from '../components/StyleChips';
 import { AgentAvatar } from '../components/AgentAvatar';
+import { ALL_AVATAR_IDS, type AvatarId } from '../lib/avatars';
 import { GlassIconPillButton, ScreenHeader } from '../components/ui';
 import type { Agent } from '../types/session';
 
@@ -71,10 +72,6 @@ function FocusableInput({
       onBlur={() => setFocused(false)}
     />
   );
-}
-
-function generateSeeds(count: number): string[] {
-  return Array.from({ length: count }, () => Math.random().toString(36).slice(2, 10));
 }
 
 // ── IntroHero — floating agent avatar + text, overlaid above form ────────
@@ -113,7 +110,6 @@ function IntroHero({
   }));
 
   const topOffset = scrollAreaHeight > 0 ? scrollAreaHeight * 0.15 : 100;
-  const displaySeed = avatarSeed ?? (agentName.trim() || 'new-agent');
 
   return (
     <Animated.View
@@ -122,7 +118,7 @@ function IntroHero({
     >
       <Animated.View style={[styles.introAvatarWrap, floatStyle]}>
         <View style={styles.introAvatarGlow} />
-        <AgentAvatar seed={displaySeed} size={88} />
+        <AgentAvatar seed={avatarSeed} size={88} />
       </Animated.View>
 
       <Text style={styles.introHeadline}>Make it yours</Text>
@@ -285,8 +281,7 @@ export default function AgentCreateScreen() {
   const [customRules, setCustomRules] = useState('');
   const [createdAgent, setCreatedAgent] = useState<Agent | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [avatarOptions, setAvatarOptions] = useState(() => generateSeeds(8));
-  const [avatarSeed, setAvatarSeed] = useState<string | null>(null);
+  const [avatarSeed, setAvatarSeed] = useState<AvatarId | null>(null);
 
   // Voice session state from store
   const voiceState = useSessionStore((s) => s.voiceSessionState);
@@ -300,7 +295,7 @@ export default function AgentCreateScreen() {
     focusArea,
     conversationStyle,
     customRules,
-    avatarSeed: avatarSeed ?? (name.trim() || undefined),
+    avatarSeed: avatarSeed ?? undefined,
   };
 
   const handleAgentCreated = useCallback(
@@ -336,7 +331,7 @@ export default function AgentCreateScreen() {
           focusArea: focusArea.trim() || undefined,
           conversationStyle: conversationStyle || undefined,
           customRules: customRules.trim() || undefined,
-          avatarSeed: avatarSeed ?? (name.trim() || undefined),
+          avatarSeed: avatarSeed ?? undefined,
         }),
       });
       if (!res.ok) throw new Error('Failed to create agent');
@@ -450,26 +445,19 @@ export default function AgentCreateScreen() {
               onLayout={(e) => handleSectionLayout(2, e)}
             >
               <View style={styles.avatarGrid}>
-                {avatarOptions.map((seed) => (
+                {ALL_AVATAR_IDS.map((id) => (
                   <Pressable
-                    key={seed}
-                    onPress={() => setAvatarSeed(seed)}
+                    key={id}
+                    onPress={() => setAvatarSeed(id)}
                     style={[
                       styles.avatarOption,
-                      avatarSeed === seed && styles.avatarOptionSelected,
+                      avatarSeed === id && styles.avatarOptionSelected,
                     ]}
                   >
-                    <AgentAvatar seed={seed} size={48} />
+                    <AgentAvatar seed={id} size={48} />
                   </Pressable>
                 ))}
               </View>
-              <Pressable
-                onPress={() => { setAvatarOptions(generateSeeds(8)); setAvatarSeed(null); }}
-                style={styles.shuffleButton}
-              >
-                <Ionicons name="shuffle" size={16} color={colors.primary} />
-                <Text style={styles.shuffleText}>Shuffle</Text>
-              </Pressable>
             </FormSection>
 
             {/* 3 — Voice */}
@@ -640,7 +628,7 @@ const styles = StyleSheet.create({
   },
   backLinkText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.4),
   },
   continueLink: {
@@ -648,7 +636,7 @@ const styles = StyleSheet.create({
   },
   continueLinkText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.primary,
   },
   lastSectionButtons: {
@@ -680,13 +668,14 @@ const styles = StyleSheet.create({
   },
   introHeadline: {
     fontSize: 34,
-    fontWeight: '800',
+    fontFamily: fonts.extrabold,
     letterSpacing: -1,
     color: colors.onSurface,
     textAlign: 'center',
   },
   introSub: {
     fontSize: 16,
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.35),
     textAlign: 'center',
     marginTop: spacing.sm,
@@ -723,6 +712,7 @@ const styles = StyleSheet.create({
     ...glass.cardElevated,
     padding: spacing.lg,
     fontSize: 15,
+    fontFamily: fonts.regular,
     color: colors.onSurface,
   },
   inputMultiline: {
@@ -752,20 +742,6 @@ const styles = StyleSheet.create({
   avatarOptionSelected: {
     borderColor: colors.primary,
   },
-  shuffleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 6,
-    marginTop: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  shuffleText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-
   // ── Voice phase ──────────────────────────────────────────────────────
   voiceContainer: {
     flex: 1,
@@ -780,7 +756,7 @@ const styles = StyleSheet.create({
   },
   skipText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.6),
     textDecorationLine: 'underline',
   },

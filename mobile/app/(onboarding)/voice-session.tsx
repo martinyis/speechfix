@@ -16,6 +16,7 @@ export default function VoiceSessionScreen() {
   const startedRef = useRef(false);
 
   const navigateToHome = useCallback(() => {
+    console.log('[onboarding] navigateToHome called');
     useAuthStore.getState().setSigningUp(false);
     useOnboardingStore.getState().reset();
     router.replace('/(tabs)');
@@ -29,7 +30,7 @@ export default function VoiceSessionScreen() {
   }, [navigateToHome]);
 
   const handleError = useCallback((message: string) => {
-    console.error('[onboarding] handleError — navigating home due to error:', message);
+    console.error('[onboarding] handleError:', message);
     useAuthStore.getState().setOnboardingComplete();
     navigateToHome();
   }, [navigateToHome]);

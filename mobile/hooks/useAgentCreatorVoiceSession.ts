@@ -204,6 +204,9 @@ export function useAgentCreatorVoiceSession({
       });
     } catch {}
 
+    // Allow iOS AVAudioSession to fully initialize before audio arrives
+    await new Promise(resolve => setTimeout(resolve, 400));
+
     const url = wsUrl('/voice-session') + '&mode=agent-creator&formContext=' + encodeURIComponent(JSON.stringify(formContext));
     const ws = new WebSocket(url);
     wsRef.current = ws;
@@ -259,6 +262,11 @@ export function useAgentCreatorVoiceSession({
     const s = store.getState();
     const newMuted = !s.isMuted;
     s.setMuted(newMuted);
+
+    // If muting while AI is speaking, stop audio playback
+    if (newMuted && s.voiceSessionState === 'speaking') {
+      try { await ExpoPlayAudioStream.stopSound(); } catch (e) { console.warn('[voice-session] mute: stopSound error:', e); }
+    }
 
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) {

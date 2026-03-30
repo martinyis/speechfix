@@ -16,7 +16,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-import { colors, typography, spacing, layout, alpha } from '@/theme';
+import { colors, typography, spacing, layout, alpha, fonts } from '@/theme';
 
 type RightAction = {
   label: string;
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     right: 60,
     textAlign: 'center',
     fontSize: 17,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.9),
   },
 
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: colors.onSurface,
     flex: 1,
     textAlign: 'center',
@@ -284,6 +284,6 @@ const styles = StyleSheet.create({
   },
   rightActionText: {
     fontSize: 17,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
   },
 });

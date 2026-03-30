@@ -42,12 +42,15 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   setOnboardingComplete: () => {
+    console.log('[auth] setOnboardingComplete called');
     set((state) => ({
       user: state.user ? { ...state.user, onboardingComplete: true } : null,
     }));
   },
 
   setSigningUp: (value) => {
+    const prev = useAuthStore.getState().isSigningUp;
+    console.log(`[auth] setSigningUp: ${value} (was: ${prev})`, new Error().stack?.split('\n').slice(1, 4).join(' <- '));
     set({ isSigningUp: value });
   },
 

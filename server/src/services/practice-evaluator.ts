@@ -21,29 +21,37 @@ export async function evaluateSayItRight(
 ): Promise<EvaluationResult> {
   const prompt = `You are evaluating a non-native English speaker's practice attempt.
 
-They were asked to say this sentence:
-TARGET: "${correction.correctedText}"
+MODE: Generation — the user saw their original error but NOT the corrected version. They must figure out the correction themselves.
 
-They actually said:
+ORIGINAL (what they said wrong): "${correction.originalText}"
+CORRECTION TYPE: ${correction.correctionType}
+RULE: "${correction.explanation ?? ''}"
+
+They said:
 SPOKEN: "${transcript}"
 
-Their original mistake was: "${correction.originalText}" -> "${correction.correctedText}"
-The correction type was: ${correction.correctionType}
+REFERENCE (do NOT reveal this to the user): "${correction.correctedText}"
 
-Evaluate whether they successfully said the target sentence. Be lenient with:
-- Minor word order variations that don't change meaning
-- Synonyms that are equally natural
-- Added/removed filler words (um, uh)
-- Slight differences in articles or pronouns if the core correction was about something else
+Evaluate whether they successfully corrected the specific ${correction.correctionType} error. Accept ANY valid correction that fixes the error type — the user does not need to match the reference exactly.
 
-Be strict about:
-- The specific correction they were practicing (if the correction was about verb tense, the verb tense must be correct)
-- Meaning-changing differences
+Pass if:
+- The specific error type (${correction.correctionType}) is correctly fixed
+- The sentence is grammatically correct and natural
+- Minor variations, synonyms, or rephrasing are fine as long as the core error is resolved
+
+Fail if:
+- The original error still persists (same mistake repeated)
+- A new error of the same type is introduced
+- The sentence is unintelligible or completely off-topic
+
+CRITICAL: In your feedback, NEVER reveal the correct answer or the reference text.
+- On pass: confirm what they got right (e.g., "Correct use of the past tense here.")
+- On fail: hint at what's still wrong WITHOUT giving away the answer (e.g., "The verb tense still isn't right — think about when this happened." NOT "The correct word is 'went'.")
 
 Return JSON only:
 {
   "passed": true/false,
-  "feedback": "1-2 sentences. If passed: acknowledge what they got right. If failed: explain specifically what was wrong and what the correct version is. Be direct, not congratulatory. Match the Dr. Aris persona -- precise and expert."
+  "feedback": "1-2 sentences. Hint at the issue on failure. Confirm the fix on success. Be direct, precise, expert tone. Never reveal the answer."
 }`;
 
   return callClaude(prompt);
@@ -76,7 +84,7 @@ Evaluate whether they correctly applied the grammar rule from the correction in 
 Return JSON only:
 {
   "passed": true/false,
-  "feedback": "1-2 sentences. If passed: note what they did well with the specific grammar point. If failed: explain what went wrong with the specific grammar pattern they were practicing. Be direct, precise, Dr. Aris tone."
+  "feedback": "1-2 sentences. If passed: note what they did well with the specific grammar point. If failed: explain what went wrong with the specific grammar pattern they were practicing. Be direct and precise."
 }`;
 
   return callClaude(prompt);

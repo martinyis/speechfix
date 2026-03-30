@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
-import { colors, alpha } from '../theme';
+import { colors, alpha, fonts } from '../theme';
 import type { CorrectionFilter } from '../types/session';
 
 interface CorrectionFilterChipsProps {
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.4),
   },
   chipTextActive: {

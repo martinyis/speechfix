@@ -1,10 +1,12 @@
 import type { FullUserContext } from '../handlers/types.js';
 
-export function buildUserContextPrompt(userContext?: FullUserContext): string {
+export function buildUserContextPrompt(userContext?: FullUserContext, agentId?: number | null): string {
   if (!userContext) return '';
 
   const { displayName, context, goals, contextNotes } = userContext;
-  const hasProfile = displayName || context || (goals && goals.length > 0);
+  const isCustomAgent = agentId !== undefined && agentId !== null;
+
+  const hasProfile = displayName || (!isCustomAgent && (context || (goals && goals.length > 0)));
   const hasNotes = contextNotes && contextNotes.length > 0;
 
   if (!hasProfile && !hasNotes) return '';
@@ -14,20 +16,31 @@ export function buildUserContextPrompt(userContext?: FullUserContext): string {
   if (displayName) {
     lines.push(`- Their name is ${displayName}. Use it occasionally, not every response.`);
   }
-  if (context) {
-    lines.push(`- Background: ${context}`);
-  }
-  if (goals && goals.length > 0) {
-    lines.push(`- Goals: ${goals.join(', ')}`);
+
+  // Only Reflexa sees background and goals
+  if (!isCustomAgent) {
+    if (context) {
+      lines.push(`- Background: ${context}`);
+    }
+    if (goals && goals.length > 0) {
+      lines.push(`- Goals: ${goals.join(', ')}`);
+    }
   }
 
   if (hasNotes) {
-    lines.push('');
-    lines.push('THINGS YOU KNOW FROM PAST CONVERSATIONS:');
-    const recent = contextNotes!.slice(-10);
-    for (const entry of recent) {
-      for (const note of entry.notes) {
-        lines.push(`- ${note}`);
+    // Filter notes by agent scope
+    const filtered = isCustomAgent
+      ? contextNotes!.filter(entry => entry.agentId === agentId)
+      : contextNotes!; // Reflexa sees all notes
+
+    const recent = filtered.slice(-10);
+    if (recent.length > 0) {
+      lines.push('');
+      lines.push('THINGS YOU KNOW FROM PAST CONVERSATIONS:');
+      for (const entry of recent) {
+        for (const note of entry.notes) {
+          lines.push(`- ${note}`);
+        }
       }
     }
   }

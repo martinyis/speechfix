@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { colors, spacing, alpha, typography } from '@/theme';
+import { colors, spacing, alpha, typography, fonts } from '@/theme';
 
 type SectionHeaderProps = {
   label: string;
@@ -55,20 +55,20 @@ const styles = StyleSheet.create({
   // ── Size variants ─────────────────────────────────────────────────────
   titleSm: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
     color: alpha(colors.white, 0.5),
   },
   titleMd: {
     fontSize: 22,
-    fontWeight: '800',
+    fontFamily: fonts.extrabold,
     letterSpacing: -0.3,
     color: colors.onSurface,
   },
   titleLg: {
     fontSize: 30,
-    fontWeight: '800',
+    fontFamily: fonts.extrabold,
     letterSpacing: -1,
     color: colors.onSurface,
   },
@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
 
   actionText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: colors.primary,
     letterSpacing: 1.5,
     textTransform: 'uppercase',

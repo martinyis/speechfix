@@ -46,7 +46,7 @@
 - Full-screen overlay on top of all content
 - Gradient border ring orb with animated bloom
 - 5-bar waveform animation inside orb
-- Top: "LIVE MODE" badge, Dr. Aris avatar, timer pill
+- Top: "LIVE MODE" badge, timer pill
 - Center: orb + state label
 - Bottom: Mute and End Session control cards
 - Footer: "Secure Connection" trust badge

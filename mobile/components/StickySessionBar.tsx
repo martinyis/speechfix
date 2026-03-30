@@ -9,7 +9,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, alpha } from '../theme';
+import { colors, alpha, fonts } from '../theme';
 import { CorrectionFilterChips } from './CorrectionFilterChips';
 import { formatDuration } from '../lib/formatters';
 import type { CorrectionFilter } from '../types/session';
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   // Score
   miniScore: {
     fontSize: 17,
-    fontWeight: '800',
+    fontFamily: fonts.extrabold,
     color: colors.onSurface,
     letterSpacing: -0.5,
   },
@@ -217,13 +217,13 @@ const styles = StyleSheet.create({
   },
   miniDotCount: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
   },
 
   // Duration
   miniDuration: {
     fontSize: 12,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.3),
   },
 

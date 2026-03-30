@@ -7,7 +7,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-import { colors, alpha } from '../theme';
+import { colors, alpha, fonts } from '../theme';
 import type { PracticeTask } from '../types/practice';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   correctedText: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.85),
   },
   severityDot: {
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   },
   practiceCount: {
     fontSize: 12,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.25),
   },
 });

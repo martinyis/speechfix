@@ -18,7 +18,7 @@ import { ExpoPlayAudioStream } from '@mykin-ai/expo-audio-stream';
 import { AISpeakingOrb } from '../../components/AISpeakingOrb';
 import { useIntroAudio } from '../../hooks/useIntroAudio';
 import { INTRO_SEGMENTS, type SegmentTimings } from '../../lib/introTimestamps';
-import { colors, alpha } from '../../theme';
+import { colors, alpha, fonts } from '../../theme';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const TEXT_AREA_HEIGHT = SCREEN_HEIGHT * 0.30;
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
   },
   skipButtonText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.5),
   },
   orbSection: {
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
   },
   word: {
     fontSize: 20,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     lineHeight: 30,
     color: '#c9a0f0',
   },
@@ -372,6 +372,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.4),
     textAlign: 'center',
     position: 'absolute',
@@ -394,10 +395,11 @@ const styles = StyleSheet.create({
   },
   micButtonText: {
     fontSize: 17,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: colors.background,
   },
   micFootnote: {
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.25),
     fontSize: 12,
     textAlign: 'center',
@@ -411,12 +413,13 @@ const styles = StyleSheet.create({
   },
   errorTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: colors.onSurface,
     marginBottom: 8,
   },
   errorSubtext: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.5),
     textAlign: 'center',
     marginBottom: 24,
@@ -430,7 +433,7 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: colors.background,
   },
   skipLink: {
@@ -438,6 +441,7 @@ const styles = StyleSheet.create({
   },
   skipLinkText: {
     fontSize: 14,
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.4),
   },
 });

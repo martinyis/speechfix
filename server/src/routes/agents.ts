@@ -29,8 +29,9 @@ const createAgentSchema = z.object({
   avatarSeed: z.string().max(255).optional(),
 });
 
-function buildAgentSystemPrompt({ description, focusArea, conversationStyle }: { description?: string; focusArea?: string; conversationStyle?: string }): string {
+function buildAgentSystemPrompt({ name, description, focusArea, conversationStyle }: { name?: string; description?: string; focusArea?: string; conversationStyle?: string }): string {
   const lines = ['You are a conversation partner for English speaking practice.'];
+  if (name) lines.push(`Your name is ${name}.`);
   if (description) lines.push(`About you: ${description}`);
   if (focusArea) lines.push(`You specialize in conversations about: ${focusArea}`);
   if (conversationStyle) lines.push(`Your conversation style is: ${conversationStyle}`);
@@ -77,7 +78,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
     const { name, voiceId, description, focusArea, conversationStyle, customRules, avatarSeed } = parsed.data;
 
-    const systemPrompt = buildAgentSystemPrompt({ description, focusArea, conversationStyle });
+    const systemPrompt = buildAgentSystemPrompt({ name, description, focusArea, conversationStyle });
     const settings: Record<string, unknown> = {};
     if (description) settings.description = description;
     if (focusArea) settings.focusArea = focusArea;

@@ -1,11 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
+import type { ConversationMessage } from './response-generator.js';
 
 export type TurnDecision = 'respond' | 'wait' | 'uncertain';
-
-interface ConversationMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
 
 const TRIGGER_PHRASES = [
   'what do you think',
@@ -72,7 +68,7 @@ export function detectTurnHeuristic(
 
 const anthropic = new Anthropic();
 
-const TURN_DETECTION_PROMPT = `You are a turn-detection model for a voice conversation. The user is a non-native English speaker practicing conversation with an AI partner. Given the user's latest utterance and brief conversation context, decide: should the AI respond, or should it stay quiet and let the user continue?
+const TURN_DETECTION_PROMPT = `You are a turn-detection model for a voice conversation between a user and an AI partner. Given the user's latest utterance and brief conversation context, decide: should the AI respond, or should it stay quiet and let the user continue?
 
 Respond with exactly one word: RESPOND or WAIT.
 

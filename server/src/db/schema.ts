@@ -63,6 +63,14 @@ export const fillerWords = pgTable('filler_words', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const agentGreetings = pgTable('agent_greetings', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  agentId: integer('agent_id').references(() => agents.id, { onDelete: 'cascade' }),
+  greetingText: text('greeting_text').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 export const practiceAttempts = pgTable('practice_attempts', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),

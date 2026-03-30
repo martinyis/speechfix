@@ -11,7 +11,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { colors, alpha } from '../theme';
+import { colors, alpha, fonts } from '../theme';
 
 interface CorrectionCardProps {
   id?: number;
@@ -189,8 +189,6 @@ export function CorrectionCard({
 
           <Text
             style={styles.inlineText}
-            numberOfLines={2}
-            ellipsizeMode="tail"
           >
             {segments.map((seg, i) => {
               switch (seg.type) {
@@ -325,23 +323,26 @@ const styles = StyleSheet.create({
   inlineText: {
     flex: 1,
     fontSize: 15,
+    fontFamily: fonts.regular,
     lineHeight: 21,
     color: alpha(colors.white, 0.4),
   },
   contextText: {
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.4),
   },
   originalText: {
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.65),
     textDecorationLine: 'line-through',
   },
   arrowText: {
     color: alpha(colors.white, 0.25),
-    fontWeight: '400',
+    fontFamily: fonts.regular,
   },
   replacementText: {
     color: alpha(colors.white, 0.9),
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
   },
   chevronHit: {
     width: 32,
@@ -364,6 +365,7 @@ const styles = StyleSheet.create({
   correctionType: {
     flex: 1,
     fontSize: 13,
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.2),
   },
   micButton: {
@@ -392,6 +394,7 @@ const styles = StyleSheet.create({
   explanationText: {
     flex: 1,
     fontSize: 13,
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.4),
     lineHeight: 18,
   },

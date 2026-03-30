@@ -7,7 +7,7 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
-import { colors, alpha, typography } from '../../theme';
+import { colors, alpha, typography, fonts } from '../../theme';
 import type { HeatMapDay } from './mockData';
 
 interface HeatMapTimelineProps {
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 9,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.25),
   },
   legendCell: {

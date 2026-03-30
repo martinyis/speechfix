@@ -1,8 +1,10 @@
 import type { ConversationMessage } from '../response-generator.js';
 import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from './types.js';
+import type { ChatTool } from '../tools.js';
 import { IDENTITY_PROMPT } from '../prompts/identity.js';
 import { BEHAVIOR_PROMPT } from '../prompts/behavior.js';
 import { ONBOARDING_SESSION_PROMPT } from '../prompts/session-types/onboarding.js';
+import { END_ONBOARDING_TOOL } from '../tools.js';
 import { extractUserProfile } from '../../services/profile-extractor.js';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema.js';
@@ -10,13 +12,19 @@ import { eq } from 'drizzle-orm';
 
 export class OnboardingHandler implements AgentTypeHandler {
   readonly needsUserContext = false;
+  readonly silenceTimeoutMs = 30_000;
+  readonly maxSessionDurationMs = 3 * 60 * 1000;
 
   buildSystemPrompt(_agentConfig: AgentConfig | null, _userContext?: FullUserContext, _formContext?: Record<string, unknown> | null): string {
     return [IDENTITY_PROMPT, BEHAVIOR_PROMPT, ONBOARDING_SESSION_PROMPT].join('\n\n');
   }
 
-  shouldAutoEnd(turnCount: number, _conversationHistory: ConversationMessage[]): boolean {
-    return turnCount >= 2;
+  getTools(): ChatTool[] {
+    return [END_ONBOARDING_TOOL];
+  }
+
+  shouldAutoEnd(_turnCount: number, _conversationHistory: ConversationMessage[]): boolean {
+    return false;
   }
 
   async onSessionEnd(
@@ -39,22 +47,14 @@ export class OnboardingHandler implements AgentTypeHandler {
 
       console.log(`[onboarding-handler] Profile saved for user ${userId}: ${profile.displayName}`);
 
-      // Extract the last assistant message as a speech observation
-      const lastAssistantMsg = [...conversationHistory]
-        .reverse()
-        .find((m) => m.role === 'assistant');
-      const speechObservation = lastAssistantMsg?.content ?? null;
-
-      const farewellMessage = profile.displayName
-        ? `You're all set, ${profile.displayName}. Explore the app, talk to different agents, and start improving your speech.`
-        : `You're all set! Explore the app, talk to different agents, and start improving your speech.`;
-
+      // The AI already spoke its farewell (including speech observation) via TTS
+      // before calling end_onboarding, so we don't need to generate separate text here.
       return {
         type: 'onboarding',
         success: true,
         displayName: profile.displayName,
-        speechObservation,
-        farewellMessage,
+        speechObservation: null,
+        farewellMessage: null,
       };
     } catch (err) {
       console.error(`[onboarding-handler] Profile extraction error:`, err);

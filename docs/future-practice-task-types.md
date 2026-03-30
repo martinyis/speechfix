@@ -5,9 +5,9 @@ All voice-based — always force the user to speak.
 
 ## Conversation Drill
 
-Short 2-3 turn voice conversation with Dr. Aris that's engineered to require the specific pattern the user keeps getting wrong. AI steers the conversation so the user naturally has to use the problematic construction.
+Short 2-3 turn voice conversation engineered to require the specific pattern the user keeps getting wrong. AI steers the conversation so the user naturally has to use the problematic construction.
 
-**Example:** User misuses prepositions with time expressions. Dr. Aris asks: "Tell me about your daily routine — when do you wake up, what do you do in the morning, at lunch..." — forcing preposition+time usage.
+**Example:** User misuses prepositions with time expressions. The coach asks: "Tell me about your daily routine — when do you wake up, what do you do in the morning, at lunch..." — forcing preposition+time usage.
 
 **Why it's powerful:** Practice in context, not isolation. Closest to real speech. Scoped (2-3 turns, not open-ended). Uses existing voice session infrastructure.
 

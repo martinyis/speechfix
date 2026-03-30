@@ -24,7 +24,7 @@ import { CorrectionCard } from '../components/CorrectionCard';
 import { AnalyzingBanner } from '../components/AnalyzingBanner';
 import { ScreenHeader, EmptyState } from '../components/ui';
 import { formatDuration } from '../lib/formatters';
-import { colors, alpha } from '../theme';
+import { colors, alpha, fonts } from '../theme';
 import type { SessionDetail, CorrectionFilter } from '../types/session';
 
 const INITIAL_CORRECTION_LIMIT = 5;
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
   topBarDuration: {
     fontSize: 13,
     color: alpha(colors.white, 0.3),
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     letterSpacing: 0.5,
   },
 
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
   },
   refinementsLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: alpha(colors.white, 0.25),
     letterSpacing: 1.2,
     paddingHorizontal: 20,
@@ -381,12 +381,12 @@ const styles = StyleSheet.create({
   },
   showRemainingText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.35),
   },
   showRemainingAction: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.primary,
   },
 });

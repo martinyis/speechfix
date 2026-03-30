@@ -2,18 +2,15 @@ import { useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { colors, alpha, glass, spacing, layout } from '../theme';
+import { colors, alpha, glass, spacing, layout, fonts } from '../theme';
 import { authFetch } from '../lib/api';
 import { useAgentStore } from '../stores/agentStore';
 import { useVoices } from '../hooks/useVoices';
 import { useVoicePreview } from '../hooks/useVoicePreview';
 import { VoicePicker } from '../components/VoicePicker';
 import { AgentAvatar } from '../components/AgentAvatar';
+import { ALL_AVATAR_IDS, resolveAvatarId, type AvatarId } from '../lib/avatars';
 import { ScreenHeader, GlassIconPillButton } from '../components/ui';
-
-function generateSeeds(count: number): string[] {
-  return Array.from({ length: count }, () => Math.random().toString(36).slice(2, 10));
-}
 
 export default function AgentDetailScreen() {
   const { id, name: initialName, voiceId: initialVoiceId, avatarSeed: initialAvatarSeed } = useLocalSearchParams<{
@@ -28,9 +25,10 @@ export default function AgentDetailScreen() {
 
   const [name, setName] = useState(initialName ?? '');
   const [voiceId, setVoiceId] = useState<string | null>(initialVoiceId ?? null);
-  const [avatarSeed, setAvatarSeed] = useState<string | null>(initialAvatarSeed ?? null);
+  const [avatarSeed, setAvatarSeed] = useState<AvatarId>(
+    resolveAvatarId(initialAvatarSeed ?? null),
+  );
   const voicePreview = useVoicePreview();
-  const [avatarOptions, setAvatarOptions] = useState(() => generateSeeds(8));
 
   const updateMutation = useMutation({
     mutationFn: async () => {
@@ -81,7 +79,7 @@ export default function AgentDetailScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.avatarHeader}>
-          <AgentAvatar seed={avatarSeed ?? name} size={72} />
+          <AgentAvatar seed={avatarSeed} size={72} />
         </View>
 
         <Text style={styles.label}>NAME</Text>
@@ -95,30 +93,18 @@ export default function AgentDetailScreen() {
 
         <Text style={[styles.label, { marginTop: spacing.xl }]}>AVATAR</Text>
         <View style={styles.avatarGrid}>
-          {avatarOptions.map((seed) => (
+          {ALL_AVATAR_IDS.map((id) => (
             <Pressable
-              key={seed}
-              onPress={() => setAvatarSeed(seed)}
+              key={id}
+              onPress={() => setAvatarSeed(id)}
               style={[
                 styles.avatarOption,
-                avatarSeed === seed && styles.avatarOptionSelected,
+                avatarSeed === id && styles.avatarOptionSelected,
               ]}
             >
-              <AgentAvatar seed={seed} size={48} />
+              <AgentAvatar seed={id} size={48} />
             </Pressable>
           ))}
-        </View>
-        <View style={styles.shuffleWrap}>
-          <GlassIconPillButton
-            variant="secondary"
-            small
-            label="Shuffle"
-            icon="shuffle"
-            onPress={() => {
-              setAvatarOptions(generateSeeds(8));
-              setAvatarSeed(null);
-            }}
-          />
         </View>
 
         <Text style={[styles.label, { marginTop: spacing.xl }]}>VOICE</Text>
@@ -157,7 +143,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     letterSpacing: 1.5,
     color: colors.onSurfaceVariant,
     textTransform: 'uppercase',
@@ -167,6 +153,7 @@ const styles = StyleSheet.create({
     ...glass.card,
     padding: spacing.lg,
     fontSize: 15,
+    fontFamily: fonts.regular,
     color: colors.onSurface,
   },
   avatarHeader: {
@@ -186,10 +173,6 @@ const styles = StyleSheet.create({
   },
   avatarOptionSelected: {
     borderColor: colors.primary,
-  },
-  shuffleWrap: {
-    alignSelf: 'flex-start',
-    marginTop: spacing.sm,
   },
   deleteWrap: {
     marginTop: spacing.xxxl,

@@ -22,6 +22,7 @@ import {
   spacing,
   borderRadius,
   typography,
+  fonts,
 } from '../../theme';
 import { API_BASE_URL } from '../../lib/api';
 import { useAuthStore } from '../../stores/authStore';
@@ -425,6 +426,6 @@ const styles = StyleSheet.create({
   },
   switchLink: {
     color: colors.primary,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
   },
 });

@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { colors, alpha, spacing, glass, typography } from '../theme';
+import { colors, alpha, spacing, glass, typography, fonts } from '../theme';
 import { formatTimeOfDay, formatDurationLong } from '../lib/formatters';
 import { AgentAvatar } from './AgentAvatar';
 import type { SessionListItem, TopicCategory } from '../types/session';
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   },
   scoreInline: {
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     letterSpacing: -0.3,
   },
   barWrap: {

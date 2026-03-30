@@ -16,12 +16,13 @@ import Animated, {
   FadeIn,
   FadeInDown,
 } from 'react-native-reanimated';
-import { ScreenHeader } from '../components/ui';
+import { ScreenHeader, GlassIconPillButton } from '../components/ui';
 import PracticeRecordOrb from '../components/PracticeRecordOrb';
+import { wordDiff, formatCorrectionTypeLabel } from '../lib/wordDiff';
 import { usePracticeTasks } from '../hooks/usePracticeTasks';
 import { usePracticeRecording } from '../hooks/usePracticeRecording';
 import { authFetch } from '../lib/api';
-import { colors, alpha, spacing, layout } from '../theme';
+import { colors, alpha, spacing, layout, fonts } from '../theme';
 import type { PracticeMode, PracticeTask } from '../types/practice';
 
 const SEVERITY_COLOR: Record<string, string> = {
@@ -46,6 +47,10 @@ export default function PracticeSessionScreen() {
   const [scenario, setScenario] = useState<string | null>(null);
   const [scenarioLoading, setScenarioLoading] = useState(false);
   const scenarioCacheRef = useRef<Record<number, string>>({});
+  const [answerRevealed, setAnswerRevealed] = useState(false);
+  const [sessionQueue, setSessionQueue] = useState<number[]>([]);
+  const [queueIndex, setQueueIndex] = useState(0);
+  const requeueCountRef = useRef<Record<number, number>>({});
 
   const { data: tasks, refetch: refetchTasks } = usePracticeTasks();
   const recording = usePracticeRecording();
@@ -78,6 +83,17 @@ export default function PracticeSessionScreen() {
       .finally(() => setScenarioLoading(false));
   }, [mode, currentCorrectionId]);
 
+  // Build session queue on mount for fromList mode
+  useEffect(() => {
+    if (isFromList && tasks && sessionQueue.length === 0) {
+      const unpracticed = tasks.filter((t) => !t.practiced).map((t) => t.correctionId);
+      if (unpracticed.length > 0) {
+        setSessionQueue(unpracticed);
+        setCurrentCorrectionId(unpracticed[0]);
+      }
+    }
+  }, [isFromList, tasks]);
+
   // Find next unpracticed task
   const nextTask = useMemo(() => {
     if (!tasks || !isFromList) return null;
@@ -109,6 +125,7 @@ export default function PracticeSessionScreen() {
 
   const handleTryAgain = useCallback(() => {
     recording.reset();
+    setAnswerRevealed(false);
   }, [recording]);
 
   const handleDone = useCallback(() => {
@@ -117,6 +134,35 @@ export default function PracticeSessionScreen() {
   }, [refetchTasks]);
 
   const handleNext = useCallback(() => {
+    // Queue-based navigation for say_it_right from list
+    if (mode === 'say_it_right' && sessionQueue.length > 0) {
+      const currentId = sessionQueue[queueIndex];
+      const passed = recording.result?.passed;
+
+      let newQueue = [...sessionQueue];
+      if (!passed && currentId) {
+        const count = requeueCountRef.current[currentId] || 0;
+        if (count < 3) {
+          requeueCountRef.current[currentId] = count + 1;
+          newQueue = [...newQueue, currentId];
+        }
+      }
+
+      const nextIdx = queueIndex + 1;
+      if (nextIdx < newQueue.length) {
+        setSessionQueue(newQueue);
+        setQueueIndex(nextIdx);
+        setCurrentCorrectionId(newQueue[nextIdx]);
+        recording.reset();
+        setAnswerRevealed(false);
+        setScenario(null);
+      } else {
+        handleDone();
+      }
+      return;
+    }
+
+    // Fallback for use_it_naturally or non-queue
     if (nextTask) {
       recording.reset();
       setCurrentCorrectionId(nextTask.correctionId);
@@ -124,9 +170,37 @@ export default function PracticeSessionScreen() {
     } else {
       handleDone();
     }
-  }, [nextTask, recording, handleDone]);
+  }, [mode, sessionQueue, queueIndex, recording, nextTask, handleDone]);
 
   const handleSkip = useCallback(() => {
+    // Queue-based skip for say_it_right — always re-queue
+    if (mode === 'say_it_right' && sessionQueue.length > 0) {
+      const currentId = sessionQueue[queueIndex];
+
+      let newQueue = [...sessionQueue];
+      if (currentId) {
+        const count = requeueCountRef.current[currentId] || 0;
+        if (count < 3) {
+          requeueCountRef.current[currentId] = count + 1;
+          newQueue = [...newQueue, currentId];
+        }
+      }
+
+      const nextIdx = queueIndex + 1;
+      if (nextIdx < newQueue.length) {
+        setSessionQueue(newQueue);
+        setQueueIndex(nextIdx);
+        setCurrentCorrectionId(newQueue[nextIdx]);
+        recording.reset();
+        setAnswerRevealed(false);
+        setScenario(null);
+      } else {
+        handleDone();
+      }
+      return;
+    }
+
+    // Fallback
     if (nextTask) {
       recording.reset();
       setCurrentCorrectionId(nextTask.correctionId);
@@ -134,7 +208,7 @@ export default function PracticeSessionScreen() {
     } else {
       handleDone();
     }
-  }, [nextTask, recording, handleDone]);
+  }, [mode, sessionQueue, queueIndex, recording, nextTask, handleDone]);
 
   // Haptics on result
   useEffect(() => {
@@ -193,8 +267,8 @@ export default function PracticeSessionScreen() {
       />
 
       <View style={styles.body}>
-        {/* Phase 3: Result */}
-        {recording.state === 'result' && recording.result ? (
+        {/* Use It Naturally: full-screen result takeover (unchanged) */}
+        {mode === 'use_it_naturally' && recording.state === 'result' && recording.result ? (
           <Animated.View style={styles.resultContainer} entering={FadeIn.duration(250)}>
             {recording.result.passed ? (
               <>
@@ -205,17 +279,11 @@ export default function PracticeSessionScreen() {
                 <Text style={styles.resultFeedback}>{recording.result.feedback}</Text>
                 <View style={styles.resultActions}>
                   {isFromList && nextTask ? (
-                    <Pressable style={styles.primaryButton} onPress={handleNext}>
-                      <Text style={styles.primaryButtonText}>Next</Text>
-                    </Pressable>
+                    <GlassIconPillButton label="Next" icon="arrow-forward" variant="primary" onPress={handleNext} fullWidth />
                   ) : (
-                    <Pressable style={styles.primaryButton} onPress={handleDone}>
-                      <Text style={styles.primaryButtonText}>Done</Text>
-                    </Pressable>
+                    <GlassIconPillButton label="Done" icon="checkmark" variant="primary" onPress={handleDone} fullWidth />
                   )}
-                  <Pressable style={styles.ghostButton} onPress={handleTryAgain}>
-                    <Text style={styles.ghostButtonText}>Try Again</Text>
-                  </Pressable>
+                  <GlassIconPillButton label="Try Again" icon="refresh" variant="secondary" onPress={handleTryAgain} fullWidth />
                 </View>
               </>
             ) : (
@@ -232,13 +300,9 @@ export default function PracticeSessionScreen() {
                   </View>
                 ) : null}
                 <View style={styles.resultActions}>
-                  <Pressable style={styles.primaryButton} onPress={handleTryAgain}>
-                    <Text style={styles.primaryButtonText}>Try Again</Text>
-                  </Pressable>
+                  <GlassIconPillButton label="Try Again" icon="refresh" variant="primary" onPress={handleTryAgain} fullWidth />
                   {isFromList && (
-                    <Pressable style={styles.ghostButton} onPress={handleSkip}>
-                      <Text style={styles.ghostButtonText}>Skip</Text>
-                    </Pressable>
+                    <GlassIconPillButton label="Skip" icon="arrow-forward" variant="secondary" onPress={handleSkip} fullWidth />
                   )}
                 </View>
               </>
@@ -247,30 +311,108 @@ export default function PracticeSessionScreen() {
         ) : (
           <>
             {/* Prompt content — flat on background */}
-            <Animated.View style={[styles.promptContainer, contentOpacity]}>
+            <Animated.View style={[
+              styles.promptContainer,
+              contentOpacity,
+              mode === 'say_it_right' && recording.state === 'result' && styles.promptContainerResult,
+            ]}>
               {mode === 'say_it_right' ? (
                 <>
-                  {/* Original text with stylized strikethrough */}
+                  {/* Original text with error words underlined */}
                   <View style={styles.originalWrap}>
-                    <Text style={styles.sectionLabel}>YOU SAID</Text>
-                    <View style={styles.strikethroughWrap}>
-                      <Text style={styles.originalText}>{task.originalText}</Text>
-                      <View style={[styles.strikethroughBar, { backgroundColor: alpha(severityColor, 0.4) }]} />
+                    <Text style={styles.sectionLabel}>YOUR ORIGINAL</Text>
+                    <Text style={styles.originalFullText}>
+                      {wordDiff(task.originalText, task.correctedText).map((seg, i) => (
+                        <Text
+                          key={i}
+                          style={
+                            seg.type === 'equal'
+                              ? undefined
+                              : [styles.errorUnderline, { textDecorationColor: severityColor }]
+                          }
+                        >
+                          {i > 0 ? ' ' : ''}{seg.text}
+                        </Text>
+                      ))}
+                    </Text>
+                  </View>
+
+                  {/* Hint area — explanation + correction type */}
+                  <View style={styles.hintArea}>
+                    {task.explanation ? (
+                      <Text style={styles.hintText}>{task.explanation}</Text>
+                    ) : null}
+                    <View style={styles.correctionTypePill}>
+                      <Text style={[styles.correctionTypePillText, { color: severityColor }]}>
+                        {formatCorrectionTypeLabel(task.correctionType)}
+                      </Text>
                     </View>
                   </View>
 
-                  {/* Target text — hero element with accent bar */}
-                  <View style={styles.targetWrap}>
-                    <Text style={styles.sectionLabel}>SAY THIS</Text>
-                    <View style={styles.targetRow}>
-                      <View style={[styles.accentBar, { backgroundColor: severityColor }]} />
-                      <Text style={styles.targetText}>{task.correctedText}</Text>
-                    </View>
-                  </View>
+                  {/* Instruction */}
+                  <Text style={styles.instructionText}>Now say the corrected version</Text>
 
-                  {/* Explanation — subtle footnote */}
-                  {task.explanation && (
-                    <Text style={styles.explanationText}>{task.explanation}</Text>
+                  {/* Answer reveal section */}
+                  {answerRevealed && (
+                    <Animated.View entering={FadeInDown.duration(250)} style={styles.revealWrap}>
+                      <Text style={styles.sectionLabel}>CORRECT VERSION</Text>
+                      <View style={styles.targetRow}>
+                        <View style={[styles.accentBar, { backgroundColor: severityColor }]} />
+                        <Text style={styles.targetText}>{task.correctedText}</Text>
+                      </View>
+                      {task.explanation && (
+                        <Text style={[styles.explanationText, { marginTop: 12 }]}>{task.explanation}</Text>
+                      )}
+                    </Animated.View>
+                  )}
+
+                  {/* Inline result for say_it_right */}
+                  {recording.state === 'result' && recording.result && (
+                    <Animated.View entering={FadeInDown.duration(250)} style={styles.inlineResultWrap}>
+                      <View style={styles.resultRow}>
+                        <Ionicons
+                          name={recording.result.passed ? 'checkmark-circle' : 'close-circle'}
+                          size={22}
+                          color={recording.result.passed ? colors.severityPolish : '#f59e0b'}
+                          style={styles.resultIcon}
+                        />
+                        <Text style={[
+                          styles.resultLabel,
+                          { color: recording.result.passed ? colors.severityPolish : '#f59e0b' },
+                        ]}>
+                          {recording.result.passed ? 'Correct' : 'Not quite'}
+                        </Text>
+                      </View>
+                      <Text style={styles.resultFeedbackInline}>{recording.result.feedback}</Text>
+                      {!recording.result.passed && recording.result.transcript ? (
+                        <View style={styles.transcriptBox}>
+                          <Text style={styles.transcriptLabel}>What you said:</Text>
+                          <Text style={styles.transcriptText}>{recording.result.transcript}</Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.actionButtons}>
+                        {!answerRevealed && !recording.result.passed && (
+                          <GlassIconPillButton
+                            label="See Answer"
+                            icon="eye-outline"
+                            variant="secondary"
+                            onPress={() => setAnswerRevealed(true)}
+                          />
+                        )}
+                        <GlassIconPillButton
+                          label="Try Again"
+                          icon="refresh"
+                          variant="primary"
+                          onPress={handleTryAgain}
+                        />
+                        <GlassIconPillButton
+                          label="Next"
+                          icon="arrow-forward"
+                          variant="secondary"
+                          onPress={handleNext}
+                        />
+                      </View>
+                    </Animated.View>
                   )}
                 </>
               ) : (
@@ -307,25 +449,27 @@ export default function PracticeSessionScreen() {
               )}
             </Animated.View>
 
-            {/* Recording area */}
-            <View style={[styles.recordArea, { paddingBottom: insets.bottom + 16 }]}>
-              {recording.state === 'evaluating' ? (
-                <View style={styles.evaluatingWrap}>
-                  <ActivityIndicator size="small" color={colors.primary} />
-                  <Text style={styles.evaluatingText}>Evaluating...</Text>
-                </View>
-              ) : (
-                <PracticeRecordOrb
-                  state={recording.state === 'idle' ? 'idle' : 'recording'}
-                  audioLevel={recording.audioLevel}
-                  onPress={recording.state === 'recording' ? handleStopRecording : handleStartRecording}
-                />
-              )}
+            {/* Recording area — hidden when say_it_right has a result showing */}
+            {!(mode === 'say_it_right' && recording.state === 'result') && (
+              <View style={[styles.recordArea, { paddingBottom: insets.bottom + 16 }]}>
+                {recording.state === 'evaluating' ? (
+                  <View style={styles.evaluatingWrap}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                    <Text style={styles.evaluatingText}>Evaluating...</Text>
+                  </View>
+                ) : (
+                  <PracticeRecordOrb
+                    state={recording.state === 'idle' ? 'idle' : 'recording'}
+                    audioLevel={recording.audioLevel}
+                    onPress={recording.state === 'recording' ? handleStopRecording : handleStartRecording}
+                  />
+                )}
 
-              {recording.error && (
-                <Text style={styles.errorText}>{recording.error}</Text>
-              )}
-            </View>
+                {recording.error && (
+                  <Text style={styles.errorText}>{recording.error}</Text>
+                )}
+              </View>
+            )}
           </>
         )}
       </View>
@@ -363,7 +507,7 @@ const styles = StyleSheet.create({
   },
   modePillText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.3),
   },
   modePillTextActive: {
@@ -377,36 +521,64 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.screenPadding + 4,
     gap: 32,
   },
+  promptContainerResult: {
+    justifyContent: 'flex-start',
+    paddingTop: spacing.lg,
+  },
   sectionLabel: {
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     letterSpacing: 1.5,
     color: alpha(colors.white, 0.2),
     marginBottom: 10,
   },
 
-  // Say It Right — original
+  // Say It Right — original sentence with underlined errors
   originalWrap: {},
-  strikethroughWrap: {
-    position: 'relative',
+  originalFullText: {
+    fontSize: 20,
+    fontFamily: fonts.medium,
+    color: alpha(colors.white, 0.85),
+    lineHeight: 30,
   },
-  originalText: {
-    fontSize: 17,
-    fontWeight: '400',
-    color: alpha(colors.white, 0.35),
-    lineHeight: 26,
+  errorUnderline: {
+    textDecorationLine: 'underline' as const,
+    textDecorationStyle: 'solid' as const,
   },
-  strikethroughBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: '50%',
-    height: 2,
-    borderRadius: 1,
+  // Hint area
+  hintArea: {
+    gap: 10,
+  },
+  hintText: {
+    fontSize: 14,
+    fontFamily: fonts.medium,
+    color: alpha(colors.white, 0.4),
+    lineHeight: 20,
+    fontStyle: 'italic' as const,
+  },
+  correctionTypePill: {
+    alignSelf: 'flex-start' as const,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: alpha(colors.white, 0.06),
+  },
+  correctionTypePillText: {
+    fontSize: 9,
+    fontFamily: fonts.bold,
+    letterSpacing: 1,
+  },
+  instructionText: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: alpha(colors.white, 0.2),
+    textAlign: 'center' as const,
+  },
+  revealWrap: {
+    gap: 0,
   },
 
-  // Say It Right — target (hero)
-  targetWrap: {},
+  // Say It Right — target (hero, also used in answer reveal)
   targetRow: {
     flexDirection: 'row',
   },
@@ -419,12 +591,13 @@ const styles = StyleSheet.create({
   targetText: {
     flex: 1,
     fontSize: 22,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: alpha(colors.white, 0.95),
     lineHeight: 32,
   },
   explanationText: {
     fontSize: 13,
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.2),
     lineHeight: 19,
     paddingHorizontal: 2,
@@ -441,17 +614,18 @@ const styles = StyleSheet.create({
   },
   inlineOriginal: {
     fontSize: 14,
-    fontWeight: '400',
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.3),
     textDecorationLine: 'line-through',
   },
   inlineCorrected: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.55),
   },
   ruleText: {
     fontSize: 13,
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.2),
     lineHeight: 19,
   },
@@ -461,13 +635,13 @@ const styles = StyleSheet.create({
   scenarioText: {
     flex: 1,
     fontSize: 18,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.88),
     lineHeight: 28,
   },
   scenarioHint: {
     fontSize: 12,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.15),
     marginTop: 12,
   },
@@ -485,11 +659,12 @@ const styles = StyleSheet.create({
   },
   evaluatingText: {
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.5),
   },
   errorText: {
     fontSize: 13,
+    fontFamily: fonts.regular,
     color: colors.severityError,
     textAlign: 'center',
   },
@@ -504,13 +679,14 @@ const styles = StyleSheet.create({
   },
   resultTitle: {
     fontSize: 24,
-    fontWeight: '800',
+    fontFamily: fonts.extrabold,
     color: colors.onSurface,
     letterSpacing: -0.5,
     marginTop: spacing.sm,
   },
   resultFeedback: {
     fontSize: 15,
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.5),
     textAlign: 'center',
     lineHeight: 22,
@@ -528,12 +704,13 @@ const styles = StyleSheet.create({
   },
   transcriptLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.3),
     marginBottom: 4,
   },
   transcriptText: {
     fontSize: 14,
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.45),
     lineHeight: 20,
   },
@@ -544,32 +721,31 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 300,
   },
-  primaryButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 32,
-    alignSelf: 'stretch',
+
+  // Inline result for Say It Right
+  inlineResultWrap: {
+    gap: 12,
+  },
+  resultRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.black,
-  },
-  ghostButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 32,
-    alignSelf: 'stretch',
-    alignItems: 'center',
-    backgroundColor: alpha(colors.white, 0.05),
-    borderWidth: 1,
-    borderColor: alpha(colors.white, 0.08),
-  },
-  ghostButtonText: {
+  resultIcon: {},
+  resultLabel: {
     fontSize: 15,
-    fontWeight: '600',
-    color: alpha(colors.white, 0.5),
+    fontFamily: fonts.bold,
+  },
+  resultFeedbackInline: {
+    fontSize: 14,
+    fontFamily: fonts.regular,
+    color: alpha(colors.white, 0.45),
+    lineHeight: 20,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
   },
 });

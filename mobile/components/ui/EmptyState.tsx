@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, typography, alpha } from '@/theme';
+import { colors, spacing, typography, alpha, fonts } from '@/theme';
 import { GlassIconPillButton } from './GlassIconPillButton';
 
 type EmptyStateProps = {
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.headlineSm,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.white,
     textAlign: 'center',
   },

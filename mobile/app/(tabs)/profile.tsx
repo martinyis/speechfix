@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
-import { colors, alpha, spacing } from '../../theme';
+import { colors, alpha, spacing, fonts } from '../../theme';
 import { useAuthStore } from '../../stores/authStore';
 import { ScreenHeader, GlassCard, GlassIconPillButton } from '../../components/ui';
 
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.4),
     letterSpacing: 1,
     textTransform: 'uppercase',
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 16,
     color: colors.onSurface,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
   },
   logoutWrap: {
     marginTop: spacing.xl,

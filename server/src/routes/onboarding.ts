@@ -25,6 +25,14 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
     };
   });
 
+  fastify.post('/onboarding/skip', async (request) => {
+    await db.update(users).set({
+      onboardingComplete: true,
+    }).where(eq(users.id, request.user.userId));
+
+    return { success: true };
+  });
+
   fastify.post('/onboarding/manual', async (request, reply) => {
     const parsed = manualOnboardingSchema.safeParse(request.body);
     if (!parsed.success) {

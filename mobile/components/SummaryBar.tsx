@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, alpha } from '../theme';
+import { colors, alpha, fonts } from '../theme';
 
 interface SummaryBarProps {
   totalSentences: number;
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   },
   dateLabel: {
     fontSize: 10,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.primary,
     letterSpacing: 3,
     textTransform: 'uppercase',
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   },
   headlineWord: {
     fontSize: 36,
-    fontWeight: '800',
+    fontFamily: fonts.extrabold,
     color: colors.onSurface,
     letterSpacing: -1.5,
     lineHeight: 40,
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    fontWeight: '300',
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.55),
     lineHeight: 24,
   },
@@ -239,13 +239,13 @@ const styles = StyleSheet.create({
   },
   scoreValue: {
     fontSize: 34,
-    fontWeight: '800',
+    fontFamily: fonts.extrabold,
     color: colors.onSurface,
     letterSpacing: -1,
   },
   scoreLabel: {
     fontSize: 12,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.4),
     letterSpacing: 1,
     textTransform: 'uppercase',
@@ -273,6 +273,6 @@ const styles = StyleSheet.create({
   statText: {
     fontSize: 13,
     color: alpha(colors.white, 0.45),
-    fontWeight: '500',
+    fontFamily: fonts.medium,
   },
 });

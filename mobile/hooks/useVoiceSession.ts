@@ -208,7 +208,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirst
       case 'analysis_complete': {
         if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
         const dbId = msg.dbSessionId ?? 0;
-        s.finalizeStreamingSession(dbId, msg.data);
+        s.finalizeStreamingSession(dbId, msg.data, msg.data?.correctionIds);
         // Retrieve the finalized data from the store
         const finalized = store.getState().currentSessionData;
         if (finalized) {

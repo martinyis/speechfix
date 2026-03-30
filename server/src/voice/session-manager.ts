@@ -3,10 +3,15 @@ import { DeepgramClient, TranscriptResult } from './deepgram.js';
 import { generateResponse } from './response-generator.js';
 import type { ConversationMessage, ResponseMeta } from './response-generator.js';
 import { ElevenLabsTTS } from './tts.js';
+import { detectTurnHeuristic, detectTurnLLM } from './turn-detector.js';
 import type { AgentTypeHandler, AgentConfig, FullUserContext } from './handlers/types.js';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
+import { fetchAndConsumeGreeting, regenerateAllGreetings } from '../services/greeting-generator.js';
+import { hasLowConfidenceWords, correctTranscript, type WordWithConfidence } from '../services/transcript-corrector.js';
+
+const SPEECH_FINAL_DEBOUNCE_MS = 1200;
 
 export type SessionState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -17,9 +22,10 @@ export class VoiceSession {
   transcriptBuffer: string[] = [];
   conversationHistory: ConversationMessage[] = [];
   currentUtteranceBuffer = '';
+  private currentUtteranceWords: WordWithConfidence[] = [];
   activeAbortController: AbortController | null = null;
   startTime: number = 0;
-  private audioChunkCount = 0;
+  audioChunkCount = 0;
   private isSpeaking = false;
   private muted = false;
   private muteTranscriptBuffer: string[] = [];
@@ -37,6 +43,10 @@ export class VoiceSession {
   private formContext: Record<string, unknown> | null;
   private systemPrompt: string = '';
   private sessionEnding = false;
+  private speechFinalTimer: ReturnType<typeof setTimeout> | null = null;
+  private silenceTimer: ReturnType<typeof setTimeout> | null = null;
+  private silenceNudgeCount = 0;
+  private sessionMaxTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(ws: WebSocket, userId: number, handler: AgentTypeHandler, agentConfig: AgentConfig | null, formContext?: Record<string, unknown> | null) {
     this.sessionId = crypto.randomUUID();
@@ -51,42 +61,54 @@ export class VoiceSession {
     this.startTime = Date.now();
     this.state = 'listening';
 
-    // Fetch user context if handler needs it
-    let userContext: FullUserContext | undefined;
-    if (this.handler.needsUserContext) {
-      try {
-        const [user] = await db.select({
-          displayName: users.displayName,
-          context: users.context,
-          goals: users.goals,
-          contextNotes: users.contextNotes,
-        }).from(users).where(eq(users.id, this.userId));
-        if (user) {
-          userContext = {
-            displayName: user.displayName,
-            context: user.context,
-            goals: user.goals as string[] | null,
-            contextNotes: user.contextNotes as FullUserContext['contextNotes'],
-          };
-        }
-      } catch (err) {
-        console.error('[voice-session] Failed to fetch user profile:', err);
-      }
-    }
-
-    // Build system prompt via handler
-    this.systemPrompt = this.handler.buildSystemPrompt(this.agentConfig, userContext, this.formContext);
-
-    // Connect to Deepgram for streaming STT
+    // --- Parallel setup: fetch user context + greeting, connect Deepgram + ElevenLabs ---
     const deepgramKey = process.env.DEEPGRAM_API_KEY;
-    if (deepgramKey) {
+    const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
+    const voiceId = this.agentConfig?.voiceId || process.env.ELEVENLABS_VOICE_ID;
+
+    const contextAndGreetingPromise = (async () => {
+      let userContext: FullUserContext | undefined;
+      let preGeneratedGreeting: string | null = null;
+
+      if (this.handler.needsUserContext) {
+        try {
+          const [userResult, greeting] = await Promise.all([
+            db.select({
+              displayName: users.displayName,
+              context: users.context,
+              goals: users.goals,
+              contextNotes: users.contextNotes,
+            }).from(users).where(eq(users.id, this.userId)),
+            fetchAndConsumeGreeting(this.userId, this.agentConfig?.id ?? null),
+          ]);
+          if (userResult[0]) {
+            userContext = {
+              displayName: userResult[0].displayName,
+              context: userResult[0].context,
+              goals: userResult[0].goals as string[] | null,
+              contextNotes: userResult[0].contextNotes as FullUserContext['contextNotes'],
+            };
+          }
+          preGeneratedGreeting = greeting;
+        } catch (err) {
+          console.error('[voice-session] Failed to fetch user profile/greeting:', err);
+        }
+      }
+
+      return { userContext, preGeneratedGreeting };
+    })();
+
+    const deepgramPromise = (async () => {
+      if (!deepgramKey) {
+        console.warn('[voice-session] No DEEPGRAM_API_KEY, STT disabled');
+        return;
+      }
       this.deepgram = new DeepgramClient(deepgramKey, {
         onTranscript: (result) => this.onTranscript(result),
         onUtteranceEnd: () => this.onUtteranceEnd(),
         onError: (err) => console.error(`[voice-session] Deepgram error:`, err),
         onClose: () => console.log(`[voice-session] Deepgram connection closed`),
       });
-
       try {
         await this.deepgram.connect();
         console.log(`[voice-session] Deepgram connected for session ${this.sessionId}`);
@@ -94,19 +116,17 @@ export class VoiceSession {
         console.error(`[voice-session] Failed to connect Deepgram:`, err);
         this.deepgram = null;
       }
-    } else {
-      console.warn('[voice-session] No DEEPGRAM_API_KEY, STT disabled');
-    }
+    })();
 
-    // Connect to ElevenLabs for TTS - use agentConfig voiceId if available
-    const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
-    const voiceId = this.agentConfig?.voiceId || process.env.ELEVENLABS_VOICE_ID;
-    if (elevenLabsKey && voiceId) {
+    const ttsPromise = (async () => {
+      if (!elevenLabsKey || !voiceId) {
+        console.warn('[voice-session] No ELEVENLABS_API_KEY/VOICE_ID, TTS disabled');
+        return;
+      }
       this.tts = new ElevenLabsTTS(elevenLabsKey, voiceId, {
         onAudio: (base64Chunk) => {
-          // Forward TTS audio to client with turnId for proper stream identification
           if (this.isSpeaking) {
-            this.turnAudioBytes += Math.ceil(base64Chunk.length * 3 / 4); // base64 → raw bytes
+            this.turnAudioBytes += Math.ceil(base64Chunk.length * 3 / 4);
             this.sendToClient({ type: 'audio', data: base64Chunk, turnId: this.currentTurnId });
           }
         },
@@ -117,7 +137,6 @@ export class VoiceSession {
           console.error(`[voice-session] TTS error:`, err);
         },
       });
-
       try {
         await this.tts.connect();
         console.log(`[voice-session] ElevenLabs connected for session ${this.sessionId}`);
@@ -125,22 +144,52 @@ export class VoiceSession {
         console.error(`[voice-session] Failed to connect ElevenLabs:`, err);
         this.tts = null;
       }
-    } else {
-      console.warn('[voice-session] No ELEVENLABS_API_KEY/VOICE_ID, TTS disabled');
-    }
+    })();
+
+    // Wait for all parallel setup to complete
+    const [{ userContext, preGeneratedGreeting }] = await Promise.all([
+      contextAndGreetingPromise,
+      deepgramPromise,
+      ttsPromise,
+    ]);
+
+    // Build system prompt via handler
+    this.systemPrompt = this.handler.buildSystemPrompt(this.agentConfig, userContext, this.formContext);
 
     this.sendToClient({ type: 'ready', sessionId: this.sessionId });
     console.log(`[DEBUG] Sent 'ready' to client`);
 
-    // Generate AI greeting — don't process mic audio until greeting finishes
+    // --- Greeting: use pre-generated text or fall back to Claude ---
     console.log(`[DEBUG] Starting greeting generation`);
 
     const sentinel = '[Session started]';
     this.conversationHistory.push({ role: 'user', content: sentinel });
-    await this.generateAndSendResponse();
+
+    if (preGeneratedGreeting) {
+      console.log(`[DEBUG] Using pre-generated greeting: "${preGeneratedGreeting}"`);
+      await this.sendGreetingDirectly(preGeneratedGreeting);
+
+      // Fire-and-forget: regenerate greetings for next session
+      regenerateAllGreetings(this.userId).catch(err =>
+        console.error('[greeting] Background regeneration failed:', err)
+      );
+    } else {
+      console.log(`[DEBUG] No pre-generated greeting, falling back to Claude`);
+      await this.generateAndSendResponse();
+    }
 
     this.greetingDone = true;
     console.log(`[DEBUG] Greeting done, greetingDone=${this.greetingDone}, state=${this.state}, isSpeaking=${this.isSpeaking}`);
+
+    // Start max session duration timer (cost protection)
+    if (this.handler.maxSessionDurationMs) {
+      this.sessionMaxTimer = setTimeout(() => {
+        if (!this.sessionEnding) {
+          console.log(`[voice-session] Max duration reached, ending session`);
+          this.handleDone();
+        }
+      }, this.handler.maxSessionDurationMs);
+    }
   }
 
   handleAudio(base64Data: string) {
@@ -152,7 +201,7 @@ export class VoiceSession {
     // otherwise the user's mic picks up sound that interrupts the greeting.
     if (!this.greetingDone) {
       if (this.audioChunkCount % 50 === 1) {
-        console.log(`[DEBUG] Dropping audio chunk #${this.audioChunkCount} (greeting not done)`);
+        console.log(`[audio-pipe] ⏸ Dropping chunk #${this.audioChunkCount} (greeting not done)`);
       }
       return;
     }
@@ -160,28 +209,48 @@ export class VoiceSession {
     // Don't forward audio while AI is speaking — prevents echo from being transcribed.
     // Also skip for 800ms after AI finishes to catch trailing echo.
     if (this.isSpeaking || (this.speakingEndedAt && Date.now() - this.speakingEndedAt < 800)) {
+      if (this.audioChunkCount % 20 === 0) {
+        const reason = this.isSpeaking ? 'AI speaking' : `echo grace (${Date.now() - this.speakingEndedAt}ms since speak end)`;
+        console.log(`[audio-pipe] ⏸ Dropping chunk #${this.audioChunkCount} (${reason})`);
+      }
       return;
     }
 
     // Forward audio to Deepgram for transcription
     if (this.deepgram) {
       const buffer = Buffer.from(base64Data, 'base64');
+      if (this.audioChunkCount % 20 === 0) {
+        console.log(`[audio-pipe] ✅ Forwarding chunk #${this.audioChunkCount} to Deepgram: ${buffer.length} bytes`);
+      }
       this.deepgram.sendAudio(buffer);
-    }
-
-    if (this.audioChunkCount % 100 === 1) {
-      console.log(`[voice-session] ${this.sessionId} audio chunks: ${this.audioChunkCount}`);
+    } else {
+      if (this.audioChunkCount % 50 === 0) {
+        console.log(`[audio-pipe] ⚠️ No Deepgram client, chunk #${this.audioChunkCount} dropped`);
+      }
     }
   }
 
   private onTranscript(result: TranscriptResult) {
     // Audio is not forwarded to Deepgram while AI is speaking (echo prevention),
     // so we shouldn't get transcripts during speech. But guard just in case.
-    if (this.isSpeaking) return;
+    if (this.isSpeaking) {
+      console.log(`[audio-pipe] ⚠️ Transcript received while AI speaking (ignored): "${result.text}"`);
+      return;
+    }
+
+    // Log every transcript with word-level confidence
+    const wordDetails = result.words
+      .map(w => `"${w.word}"(${(w.confidence * 100).toFixed(0)}%)`)
+      .join(' ');
+    console.log(`[audio-pipe] 🎯 Transcript [final=${result.isFinal}, speechFinal=${result.speechFinal}, confidence=${(result.confidence * 100).toFixed(1)}%]: "${result.text}"`);
+    console.log(`[audio-pipe] 📝 Words: ${wordDetails}`);
 
     if (result.isFinal) {
       this.currentUtteranceBuffer += (this.currentUtteranceBuffer ? ' ' : '') + result.text;
-      console.log(`[voice-session] Final transcript: "${result.text}"`);
+      for (const w of result.words) {
+        this.currentUtteranceWords.push({ word: w.word, confidence: w.confidence });
+      }
+      console.log(`[audio-pipe] 📋 Utterance buffer now: "${this.currentUtteranceBuffer}"`);
     }
 
     this.sendToClient({
@@ -191,18 +260,43 @@ export class VoiceSession {
     });
 
     if (result.speechFinal) {
-      this.onSpeechFinal();
+      console.log(`[audio-pipe] 🔚 Speech final detected, starting ${SPEECH_FINAL_DEBOUNCE_MS}ms debounce`);
+      // Debounce: reset timer on each speechFinal so we wait for the user to finish
+      if (this.speechFinalTimer) clearTimeout(this.speechFinalTimer);
+      this.speechFinalTimer = setTimeout(() => {
+        this.speechFinalTimer = null;
+        this.onSpeechFinalDebounced();
+      }, SPEECH_FINAL_DEBOUNCE_MS);
     }
   }
 
   private async onSpeechFinal() {
     if (this.sessionEnding) return;
-    const utterance = this.currentUtteranceBuffer.trim();
+    this.clearSilenceTimer();
+    this.silenceNudgeCount = 0;
+
+    let utterance = this.currentUtteranceBuffer.trim();
+    const words = this.currentUtteranceWords;
+    this.currentUtteranceBuffer = '';
+    this.currentUtteranceWords = [];
+
     if (!utterance) return;
+
+    // Correct low-confidence words via LLM before they enter conversation history
+    if (words.length > 0 && hasLowConfidenceWords(words)) {
+      const lowWords = words.filter(w => w.confidence < 0.80);
+      console.log(`[transcript-correction] Low-confidence words detected: ${lowWords.map(w => `"${w.word}"(${(w.confidence * 100).toFixed(0)}%)`).join(', ')}`);
+      const corrected = await correctTranscript(utterance, words, this.conversationHistory);
+      if (corrected !== utterance) {
+        console.log(`[transcript-correction] Corrected: "${utterance}" → "${corrected}"`);
+        utterance = corrected;
+      } else {
+        console.log(`[transcript-correction] No changes needed`);
+      }
+    }
 
     console.log(`[voice-session] Speech final, utterance: "${utterance}"`);
     this.transcriptBuffer.push(utterance);
-    this.currentUtteranceBuffer = '';
 
     // Merge consecutive user messages to maintain role alternation (required by Anthropic API)
     const lastMsg = this.conversationHistory[this.conversationHistory.length - 1];
@@ -229,6 +323,42 @@ export class VoiceSession {
     }
   }
 
+  /** Debounced speech-final: runs turn detection before responding. */
+  private async onSpeechFinalDebounced() {
+    if (this.sessionEnding || this.isSpeaking) return;
+
+    const utterance = this.currentUtteranceBuffer.trim();
+    if (!utterance) return;
+
+    const decision = detectTurnHeuristic(utterance, this.conversationHistory);
+    console.log(`[turn-detector] heuristic: "${utterance}" → ${decision}`);
+
+    if (decision === 'respond') {
+      this.onSpeechFinal();
+      return;
+    }
+
+    if (decision === 'wait') {
+      console.log(`[turn-detector] waiting for more speech`);
+      return;
+    }
+
+    // uncertain → run LLM for a more nuanced decision
+    console.log(`[turn-detector] uncertain, running LLM detection`);
+    const context = this.conversationHistory
+      .slice(-4)
+      .map(m => `${m.role}: ${m.content}`)
+      .join('\n');
+    const llmDecision = await detectTurnLLM(utterance, context);
+    console.log(`[turn-detector] LLM: "${utterance}" → ${llmDecision}`);
+
+    if (llmDecision === 'respond') {
+      this.onSpeechFinal();
+    } else {
+      console.log(`[turn-detector] LLM says wait, keeping listener open`);
+    }
+  }
+
   /** Ensure TTS is connected, reconnecting if needed. */
   private async ensureTTSConnected(): Promise<boolean> {
     if (!this.tts) return false;
@@ -243,6 +373,40 @@ export class VoiceSession {
       console.error(`[voice-session] Failed to reconnect TTS:`, err);
       return false;
     }
+  }
+
+  /** Send pre-generated greeting text directly to TTS, bypassing Claude. */
+  private async sendGreetingDirectly(greetingText: string) {
+    this.currentTurnId++;
+    this.turnAudioBytes = 0;
+    this.state = 'speaking';
+    this.isSpeaking = true;
+    this.sendToClient({ type: 'turn_state', state: 'speaking', turnId: this.currentTurnId });
+
+    await this.ensureTTSConnected();
+    this.tts?.startTurn();
+
+    if (this.tts) {
+      this.tts.sendText(greetingText);
+      this.tts.flush();
+      await this.tts.waitForCompletion();
+    }
+
+    this.conversationHistory.push({ role: 'assistant', content: greetingText });
+
+    this.sendToClient({
+      type: 'audio_end',
+      turnId: this.currentTurnId,
+      totalAudioBytes: this.turnAudioBytes,
+    });
+
+    this.isSpeaking = false;
+    this.speakingEndedAt = Date.now();
+    this.state = 'listening';
+    this.sendToClient({ type: 'turn_state', state: 'listening', turnId: this.currentTurnId });
+    console.log(`[DEBUG] sendGreetingDirectly done, audioBytes=${this.turnAudioBytes}`);
+
+    this.startSilenceTimer();
   }
 
   private async generateAndSendResponse() {
@@ -335,20 +499,55 @@ export class VoiceSession {
     }
 
     // Voice-initiated session end: farewell audio already fully streamed
-    if (meta.toolCalls.includes('end_session')) {
-      console.log(`[voice-session] end_session tool called, ending session`);
+    if (meta.toolCalls.includes('end_session') || meta.toolCalls.includes('end_onboarding')) {
+      console.log(`[voice-session] ${meta.toolCalls.includes('end_onboarding') ? 'end_onboarding' : 'end_session'} tool called, ending session`);
       this.sendToClient({ type: 'session_ending' });
       await this.handleDone();
+      return;
+    }
+
+    // Start silence timer after AI finishes speaking (if handler opts in)
+    this.startSilenceTimer();
+  }
+
+  private startSilenceTimer() {
+    if (!this.handler.silenceTimeoutMs) return;
+    this.clearSilenceTimer();
+    this.silenceTimer = setTimeout(() => this.onSilenceTimeout(), this.handler.silenceTimeoutMs);
+  }
+
+  private clearSilenceTimer() {
+    if (this.silenceTimer) {
+      clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
+    }
+  }
+
+  private async onSilenceTimeout() {
+    if (this.sessionEnding || this.isSpeaking) return;
+    this.silenceNudgeCount++;
+    if (this.silenceNudgeCount >= 2) {
+      console.log(`[voice-session] Silence timeout (${this.silenceNudgeCount} nudges), ending session`);
+      await this.handleDone();
+    } else {
+      console.log(`[voice-session] Silence timeout, nudging user`);
+      this.conversationHistory.push({ role: 'user', content: '[User has been silent for 30 seconds]' });
+      await this.generateAndSendResponse();
     }
   }
 
   private onUtteranceEnd() {
     if (this.isSpeaking) return;
 
-    // Backup path: if speechFinal didn't fire, onSpeechFinal handles everything
-    // (pushing to buffers, clearing currentUtteranceBuffer, running turn detection).
+    // UtteranceEnd is the absolute backstop (2500ms silence).
+    // Clear any pending debounce and force-respond — user is definitely done.
+    if (this.speechFinalTimer) {
+      clearTimeout(this.speechFinalTimer);
+      this.speechFinalTimer = null;
+    }
+
     if (this.currentUtteranceBuffer.trim()) {
-      console.log(`[voice-session] Utterance end (backup): "${this.currentUtteranceBuffer.trim()}"`);
+      console.log(`[voice-session] Utterance end (backstop): "${this.currentUtteranceBuffer.trim()}"`);
       this.onSpeechFinal();
     }
   }
@@ -385,6 +584,7 @@ export class VoiceSession {
         this.conversationHistory.push({ role: 'user', content: utterance });
       }
       this.currentUtteranceBuffer = '';
+      this.currentUtteranceWords = [];
     }
 
     // Inject context so the AI knows what was said during mute
@@ -404,6 +604,10 @@ export class VoiceSession {
 
   handleInterrupt() {
     console.log(`[DEBUG] handleInterrupt() called, state=${this.state}, isSpeaking=${this.isSpeaking}`);
+    if (this.speechFinalTimer) {
+      clearTimeout(this.speechFinalTimer);
+      this.speechFinalTimer = null;
+    }
     if (this.activeAbortController) {
       this.activeAbortController.abort();
       this.activeAbortController = null;
@@ -440,6 +644,7 @@ export class VoiceSession {
     if (this.currentUtteranceBuffer.trim()) {
       this.transcriptBuffer.push(this.currentUtteranceBuffer.trim());
       this.currentUtteranceBuffer = '';
+      this.currentUtteranceWords = [];
     }
 
     const durationSeconds = Math.round((Date.now() - this.startTime) / 1000);
@@ -480,6 +685,7 @@ export class VoiceSession {
               fillerPositions: result.analysisResults?.fillerPositions ?? [],
               sessionInsights: result.analysisResults?.sessionInsights ?? [],
               clarityScore: result.clarityScore,
+              correctionIds: result.correctionIds ?? [],
             },
           });
         } catch (streamErr) {
@@ -544,6 +750,15 @@ export class VoiceSession {
   }
 
   cleanup() {
+    if (this.speechFinalTimer) {
+      clearTimeout(this.speechFinalTimer);
+      this.speechFinalTimer = null;
+    }
+    this.clearSilenceTimer();
+    if (this.sessionMaxTimer) {
+      clearTimeout(this.sessionMaxTimer);
+      this.sessionMaxTimer = null;
+    }
     this.deepgram?.close();
     this.deepgram = null;
 

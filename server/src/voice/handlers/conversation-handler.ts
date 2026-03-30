@@ -1,10 +1,10 @@
-import type Anthropic from '@anthropic-ai/sdk';
 import type { ConversationMessage } from '../response-generator.js';
 import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from './types.js';
+import type { ChatTool } from '../tools.js';
 import { END_SESSION_TOOL } from '../tools.js';
 import { IDENTITY_PROMPT } from '../prompts/identity.js';
-import { BEHAVIOR_PROMPT } from '../prompts/behavior.js';
-import { CONVERSATION_SESSION_PROMPT } from '../prompts/session-types/conversation.js';
+import { BEHAVIOR_PROMPT, CUSTOM_AGENT_BEHAVIOR_PROMPT } from '../prompts/behavior.js';
+import { REFLEXA_SESSION_PROMPT, CUSTOM_AGENT_SESSION_PROMPT } from '../prompts/session-types/conversation.js';
 import { buildUserContextPrompt } from '../prompts/context.js';
 import { analyzeSpeech, analyzeSpeechStreaming } from '../../services/analysis.js';
 import { generateSessionMetadata } from '../../services/title-generator.js';
@@ -12,6 +12,7 @@ import { extractConversationNotes } from '../../services/context-extractor.js';
 import { db } from '../../db/index.js';
 import { sessions, corrections, fillerWords, users } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
+import { regenerateAllGreetings } from '../../services/greeting-generator.js';
 
 export class ConversationHandler implements AgentTypeHandler {
   readonly needsUserContext = true;
@@ -19,34 +20,33 @@ export class ConversationHandler implements AgentTypeHandler {
   buildSystemPrompt(agentConfig: AgentConfig | null, userContext?: FullUserContext, _formContext?: Record<string, unknown> | null): string {
     const layers: string[] = [];
 
-    // Identity layer: custom agent prompt or default
     if (agentConfig) {
-      layers.push(agentConfig.systemPrompt);
+      // Custom agent path
+      layers.push(`Your name is ${agentConfig.name}.\n\n${agentConfig.systemPrompt}`);
+      layers.push(CUSTOM_AGENT_BEHAVIOR_PROMPT);
+      if (agentConfig.behaviorPrompt) {
+        layers.push(agentConfig.behaviorPrompt);
+      }
+      layers.push(CUSTOM_AGENT_SESSION_PROMPT);
+      const contextPrompt = buildUserContextPrompt(userContext, agentConfig.id);
+      if (contextPrompt) {
+        layers.push(contextPrompt);
+      }
     } else {
+      // Reflexa path
       layers.push(IDENTITY_PROMPT);
-    }
-
-    // Behavior layer: always include universal rules
-    layers.push(BEHAVIOR_PROMPT);
-
-    // Custom behavior additions from agent config
-    if (agentConfig?.behaviorPrompt) {
-      layers.push(agentConfig.behaviorPrompt);
-    }
-
-    // Session type layer
-    layers.push(CONVERSATION_SESSION_PROMPT);
-
-    // User context layer
-    const contextPrompt = buildUserContextPrompt(userContext);
-    if (contextPrompt) {
-      layers.push(contextPrompt);
+      layers.push(BEHAVIOR_PROMPT);
+      layers.push(REFLEXA_SESSION_PROMPT);
+      const contextPrompt = buildUserContextPrompt(userContext, null);
+      if (contextPrompt) {
+        layers.push(contextPrompt);
+      }
     }
 
     return layers.join('\n\n');
   }
 
-  getTools(): Anthropic.Messages.Tool[] {
+  getTools(): ChatTool[] {
     return [END_SESSION_TOOL];
   }
 
@@ -148,8 +148,13 @@ export class ConversationHandler implements AgentTypeHandler {
 
     // Write context notes back to user
     if (contextNotes.length > 0) {
-      await appendContextNotes(userId, contextNotes);
+      await appendContextNotes(userId, contextNotes, agentConfig?.id ?? null);
     }
+
+    // Fire-and-forget: regenerate greetings for next session
+    regenerateAllGreetings(userId).catch(err =>
+      console.error('[greeting] Regeneration failed:', err)
+    );
 
     return {
       type: 'analysis',
@@ -228,9 +233,10 @@ export class ConversationHandler implements AgentTypeHandler {
       },
     }).where(eq(sessions.id, session.id));
 
-    // Store corrections
+    // Store corrections and get back their IDs
+    let correctionIds: number[] = [];
     if (analysisResult.corrections.length > 0) {
-      await db.insert(corrections).values(
+      const inserted = await db.insert(corrections).values(
         analysisResult.corrections.map(c => ({
           sessionId: session.id,
           originalText: c.originalText,
@@ -241,7 +247,8 @@ export class ConversationHandler implements AgentTypeHandler {
           severity: c.severity,
           contextSnippet: c.contextSnippet || null,
         }))
-      );
+      ).returning();
+      correctionIds = inserted.map(r => r.id);
     }
 
     // Store filler words
@@ -259,13 +266,19 @@ export class ConversationHandler implements AgentTypeHandler {
 
     // Write context notes back to user
     if (contextNotes.length > 0) {
-      await appendContextNotes(userId, contextNotes);
+      await appendContextNotes(userId, contextNotes, agentConfig?.id ?? null);
     }
+
+    // Fire-and-forget: regenerate greetings for next session
+    regenerateAllGreetings(userId).catch(err =>
+      console.error('[greeting] Regeneration failed:', err)
+    );
 
     return {
       type: 'analysis',
       dbSessionId: session.id,
       clarityScore,
+      correctionIds,
       analysisResults: {
         sentences: userUtterances,
         corrections: analysisResult.corrections,
@@ -281,17 +294,17 @@ export class ConversationHandler implements AgentTypeHandler {
  * Appends context notes to a user's contextNotes array.
  * Keeps only the most recent 20 entries.
  */
-export async function appendContextNotes(userId: number, notes: string[]): Promise<void> {
+export async function appendContextNotes(userId: number, notes: string[], agentId?: number | null): Promise<void> {
   if (notes.length === 0) return;
 
   const [user] = await db.select({ contextNotes: users.contextNotes })
     .from(users)
     .where(eq(users.id, userId));
 
-  const existing = (user?.contextNotes as Array<{ date: string; notes: string[] }>) ?? [];
+  const existing = (user?.contextNotes as Array<{ date: string; notes: string[]; agentId?: number | null }>) ?? [];
 
   const today = new Date().toISOString().slice(0, 10);
-  existing.push({ date: today, notes });
+  existing.push({ date: today, notes, agentId: agentId ?? null });
 
   // Trim to last 20 entries
   const trimmed = existing.slice(-20);

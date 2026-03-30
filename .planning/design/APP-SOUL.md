@@ -25,9 +25,9 @@ Visual reference: Arc Browser, Linear, high-end developer tools. Dark, refined, 
 | Data            | Shows real numbers, real patterns    | Hides complexity behind vague praise|
 | Progress        | Measured through data, not badges    | Gamified with points and levels     |
 
-## The AI Persona — Dr. Aris
+## The AI Persona
 
-Dr. Aris is an expert speech analyst, not a friend or cheerleader. Think of a skilled speech therapist who respects your time:
+Reflexa's voice is an expert speech analyst, not a friend or cheerleader. Think of a skilled speech therapist who respects your time:
 
 - **Speaks precisely**: "Subject-verb disagreement in clause 2" not "Oops, small mistake!"
 - **Provides context**: "This is a common pattern for L1 speakers. The native form is..."

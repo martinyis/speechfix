@@ -7,7 +7,7 @@ import Animated, {
   Easing,
   type SharedValue,
 } from 'react-native-reanimated';
-import { colors, alpha, typography } from '../../theme';
+import { colors, alpha, typography, fonts } from '../../theme';
 
 interface MiniScoreRingProps {
   score: number;
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     ...typography.labelSm,
     color: colors.onSurface,
     fontSize: 11,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     letterSpacing: 0,
     textTransform: 'none',
   },

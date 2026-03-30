@@ -4,7 +4,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AISpeakingOrb } from './AISpeakingOrb';
 import type { AISpeakingOrbState } from './AISpeakingOrb';
-import { colors, alpha } from '../theme';
+import { colors, alpha, fonts } from '../theme';
 import { formatTime } from '../lib/formatters';
 import type { VoiceSessionState } from '../stores/sessionStore';
 
@@ -138,14 +138,14 @@ const styles = StyleSheet.create({
   },
   liveModeLabel: {
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: fonts.extrabold,
     letterSpacing: 2,
     color: colors.primary,
     textTransform: 'uppercase',
   },
   liveModeName: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.8),
   },
   timerPill: {
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
   },
   timerPillText: {
     fontSize: 14,
-    fontWeight: '800',
+    fontFamily: fonts.extrabold,
     letterSpacing: 2,
     color: colors.primary,
     fontVariant: ['tabular-nums'],
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   },
   secureText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     letterSpacing: 2.5,
     color: alpha(colors.white, 0.35),
     textTransform: 'uppercase',
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
   },
   controlLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.45),
   },
   endGlow: {
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   },
   endLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.error, 0.7),
   },
   analyzingHint: {
@@ -238,6 +238,7 @@ const styles = StyleSheet.create({
   },
   analyzingText: {
     fontSize: 15,
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.5),
   },
 });

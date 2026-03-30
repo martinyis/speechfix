@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, alpha } from '../theme';
+import { colors, alpha, fonts } from '../theme';
 
 interface SessionInsightCardProps {
   type: 'repetitive_word' | 'hedging_pattern' | 'discourse_pattern';
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 9,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: alpha(colors.white, 0.25),
     letterSpacing: 2,
     textTransform: 'uppercase',
@@ -144,18 +144,18 @@ const styles = StyleSheet.create({
   },
   impactText: {
     fontSize: 9,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.35),
   },
   insightTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: alpha(colors.white, 0.88),
     letterSpacing: -0.3,
   },
   description: {
     fontSize: 15,
-    fontWeight: '300',
+    fontFamily: fonts.regular,
     color: colors.onSurfaceVariant,
     lineHeight: 24,
     marginBottom: 20,
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
   },
   drillButtonText: {
     fontSize: 14,
-    fontWeight: '800',
+    fontFamily: fonts.extrabold,
     color: colors.black,
     letterSpacing: -0.2,
   },

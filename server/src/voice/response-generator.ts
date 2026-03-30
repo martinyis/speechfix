@@ -1,4 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
+import Groq from 'groq-sdk';
+import type { ChatTool } from './tools.js';
 
 export interface ConversationMessage {
   role: 'user' | 'assistant';
@@ -15,16 +16,15 @@ export interface ResponseMeta {
   toolCalls: string[];
 }
 
-const anthropic = new Anthropic();
+const groq = new Groq();
 
 export async function* generateResponse(
   conversationHistory: ConversationMessage[],
   abortSignal: AbortSignal | undefined,
   systemPrompt: string,
-  tools?: Anthropic.Messages.Tool[],
+  tools?: ChatTool[],
   meta?: ResponseMeta,
 ): AsyncGenerator<string> {
-  // Keep last 10 exchanges to limit context
   const recentHistory = conversationHistory.slice(-20);
 
   const brevityInstructions = [
@@ -35,34 +35,45 @@ export async function* generateResponse(
 
   const fullSystemPrompt = `${systemPrompt}\n\n${brevityInstructions}`;
 
-  const stream = anthropic.messages.stream({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 150,
-    system: [
-      {
-        type: 'text' as const,
-        text: fullSystemPrompt,
-        cache_control: { type: 'ephemeral' as const },
-      },
-    ],
-    messages: recentHistory.map(m => ({
-      role: m.role,
+  const messages = [
+    { role: 'system' as const, content: fullSystemPrompt },
+    ...recentHistory.map(m => ({
+      role: m.role as 'user' | 'assistant',
       content: m.content,
     })),
+  ];
+
+  const stream = await groq.chat.completions.create({
+    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    max_tokens: tools && tools.length > 0 ? 250 : 150,
+    messages,
+    stream: true,
     ...(tools && tools.length > 0
-      ? { tools, tool_choice: { type: 'auto' as const } }
+      ? { tools, tool_choice: 'auto' as const }
       : {}),
-  }, {
-    signal: abortSignal,
   });
 
   let buffer = '';
+  const toolCallChunks: Array<{ name: string }> = [];
 
-  for await (const event of stream) {
+  for await (const chunk of stream) {
     if (abortSignal?.aborted) return;
 
-    if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-      buffer += event.delta.text;
+    const delta = chunk.choices[0]?.delta;
+    if (!delta) continue;
+
+    // Collect tool calls
+    if (delta.tool_calls) {
+      for (const tc of delta.tool_calls) {
+        if (tc.function?.name) {
+          toolCallChunks.push({ name: tc.function.name });
+        }
+      }
+    }
+
+    // Stream text content
+    if (delta.content) {
+      buffer += delta.content;
 
       // Yield at sentence boundaries for TTS chunking
       const sentenceEnd = buffer.search(/[.!?]\s|[.!?]$/);
@@ -71,9 +82,7 @@ export async function* generateResponse(
         const chunk = buffer.slice(0, endPos).trim();
         buffer = buffer.slice(endPos).trimStart();
         if (chunk) yield chunk;
-      }
-      // Also yield on comma + enough chars for first chunk (lower latency)
-      else if (buffer.length > 60) {
+      } else if (buffer.length > 60) {
         const commaPos = buffer.lastIndexOf(', ');
         if (commaPos > 20) {
           const chunk = buffer.slice(0, commaPos + 1).trim();
@@ -89,15 +98,8 @@ export async function* generateResponse(
     yield buffer.trim();
   }
 
-  // Extract tool calls from the completed stream
+  // Populate tool calls from collected stream chunks
   if (meta) {
-    try {
-      const finalMessage = await stream.finalMessage();
-      meta.toolCalls = finalMessage.content
-        .filter((block): block is Anthropic.Messages.ToolUseBlock => block.type === 'tool_use')
-        .map(block => block.name);
-    } catch {
-      // Stream may have been aborted
-    }
+    meta.toolCalls = toolCallChunks.map(tc => tc.name);
   }
 }

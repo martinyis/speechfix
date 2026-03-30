@@ -14,7 +14,7 @@ import { ScreenHeader, EmptyState } from '../../components/ui';
 import { CorrectionFilterChips } from '../../components/CorrectionFilterChips';
 import { PracticeTaskCard } from '../../components/PracticeTaskCard';
 import { usePracticeTasks } from '../../hooks/usePracticeTasks';
-import { colors, alpha, spacing, layout } from '../../theme';
+import { colors, alpha, spacing, layout, fonts } from '../../theme';
 import type { CorrectionFilter } from '../../types/session';
 
 const INITIAL_LIMIT = 20;
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: alpha(colors.white, 0.25),
     letterSpacing: 1.2,
     paddingHorizontal: layout.screenPadding,
@@ -225,12 +225,12 @@ const styles = StyleSheet.create({
   },
   showMoreText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.35),
   },
   showMoreAction: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.primary,
   },
   inlinEmpty: {
@@ -240,11 +240,12 @@ const styles = StyleSheet.create({
   },
   inlineEmptyTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.onSurface,
   },
   inlineEmptySubtitle: {
     fontSize: 13,
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.35),
     textAlign: 'center',
     maxWidth: 260,
@@ -256,7 +257,7 @@ const styles = StyleSheet.create({
     marginLeft: 35,
   },
   sectionCount: {
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.15),
     letterSpacing: 0,
     textTransform: 'none',
@@ -274,7 +275,7 @@ const styles = StyleSheet.create({
   },
   practicedToggleText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.3),
   },
 });

@@ -7,7 +7,7 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-import { colors, alpha, typography, spacing } from '../../theme';
+import { colors, alpha, typography, spacing, fonts } from '../../theme';
 import type { FeaturedPattern } from './mockData';
 
 interface FeaturedPatternCardProps {
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   },
   trendText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: colors.severityPolish,
   },
 });

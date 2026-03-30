@@ -29,7 +29,7 @@ import { useAgentStore, getSelectedAgentDisplay } from '../../stores/agentStore'
 import { useAgents } from '../../hooks/useAgents';
 import { useSessions } from '../../hooks/useSessions';
 import { useVoiceSession } from '../../hooks/useVoiceSession';
-import { colors, alpha } from '../../theme';
+import { colors, alpha, fonts } from '../../theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   },
   hintText: {
     fontSize: 11,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.6),
     letterSpacing: 2.5,
     textTransform: 'uppercase',

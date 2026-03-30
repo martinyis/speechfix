@@ -12,7 +12,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { Canvas, Circle, BlurMask } from '@shopify/react-native-skia';
-import { colors, alpha } from '../theme';
+import { colors, alpha, fonts } from '../theme';
 
 interface Props {
   visible: boolean;
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 17,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: colors.onSurface,
     letterSpacing: -0.3,
   },
@@ -319,6 +319,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: alpha(colors.white, 0.4),
     marginTop: 2,
-    fontWeight: '400',
+    fontFamily: fonts.regular,
   },
 });

@@ -12,7 +12,7 @@ import { useFocusEffect } from 'expo-router';
 import { SessionRowVariantC as SessionRow } from '../components/session-variants/VariantC';
 import { ScreenHeader, EmptyState } from '../components/ui';
 import { useSessions } from '../hooks/useSessions';
-import { colors, alpha } from '../theme';
+import { colors, alpha, fonts } from '../theme';
 import type { SessionListItem } from '../types/session';
 
 // ---------------------------------------------------------------------------
@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
   },
   dateLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: alpha(colors.white, 0.3),
     letterSpacing: 1.5,
     textTransform: 'uppercase',

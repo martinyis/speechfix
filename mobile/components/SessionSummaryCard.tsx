@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, alpha } from '../theme';
+import { colors, alpha, fonts } from '../theme';
 import type { FillerWord } from '../types/session';
 
 interface SessionSummaryCardProps {
@@ -144,10 +144,9 @@ const styles = StyleSheet.create({
   },
   scoreValue: {
     fontSize: 28,
-    fontWeight: '800',
     color: colors.onSurface,
     letterSpacing: -1,
-    fontFamily: 'Manrope',
+    fontFamily: fonts.extrabold,
     minWidth: 62,
   },
   segmentsContainer: {
@@ -205,11 +204,12 @@ const styles = StyleSheet.create({
   },
   severityText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     letterSpacing: 0.2,
   },
   dot: {
     fontSize: 12,
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.15),
     marginHorizontal: 4,
   },
@@ -222,12 +222,12 @@ const styles = StyleSheet.create({
   },
   fillerText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.3),
   },
   fillerRate: {
     fontSize: 11,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: alpha(colors.white, 0.2),
   },
   highBadge: {
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   },
   highBadgeText: {
     fontSize: 9,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.severityError,
     letterSpacing: 0.3,
   },

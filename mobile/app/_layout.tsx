@@ -4,9 +4,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator } from 'react-native';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { colors } from '../theme';
 import { useAuthStore } from '../stores/authStore';
+
+SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
@@ -15,34 +18,58 @@ export default function RootLayout() {
   const segments = useSegments();
   const navigationState = useRootNavigationState();
 
+  const [fontsLoaded] = useFonts({
+    'MonaSans-Regular': require('../assets/fonts/MonaSans-Regular.ttf'),
+    'MonaSans-Medium': require('../assets/fonts/MonaSans-Medium.ttf'),
+    'MonaSans-SemiBold': require('../assets/fonts/MonaSans-SemiBold.ttf'),
+    'MonaSans-Bold': require('../assets/fonts/MonaSans-Bold.ttf'),
+    'MonaSans-ExtraBold': require('../assets/fonts/MonaSans-ExtraBold.ttf'),
+  });
+
   useEffect(() => {
     loadToken();
   }, []);
 
   useEffect(() => {
-    if (!isReady || !navigationState?.key) return;
-
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboarding = segments[0] === '(onboarding)';
 
+    console.log('[nav-guard] fired:', {
+      token: !!token,
+      inAuth: inAuthGroup,
+      inOnboarding,
+      isSigningUp,
+      isReady,
+      onboardingComplete: user?.onboardingComplete,
+      segments: segments.join('/'),
+      navReady: !!navigationState?.key,
+    });
+
+    if (!isReady || !navigationState?.key) return;
+
     if (!token && !inAuthGroup) {
+      console.log('[nav-guard] ACTION: redirecting to /(auth)/login — no token');
       router.replace('/(auth)/login');
     } else if (token && inAuthGroup && isSigningUp) {
+      console.log('[nav-guard] ACTION: redirecting to /(onboarding) — signing up');
       router.replace('/(onboarding)');
     } else if (token && inAuthGroup && !isSigningUp) {
+      console.log('[nav-guard] ACTION: redirecting to /(tabs) from auth');
       router.replace('/(tabs)');
     } else if (token && inOnboarding && !isSigningUp) {
-      console.log('[onboarding] Root layout redirecting to tabs — isSigningUp:', isSigningUp);
+      console.log('[nav-guard] ACTION: redirecting to /(tabs) from onboarding — isSigningUp is false');
       router.replace('/(tabs)');
     }
   }, [token, user, isReady, isSigningUp, segments, navigationState]);
 
-  if (!isReady) {
-    return (
-      <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
+  useEffect(() => {
+    if (isReady && fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [isReady, fontsLoaded]);
+
+  if (!isReady || !fontsLoaded) {
+    return null;
   }
 
   return (

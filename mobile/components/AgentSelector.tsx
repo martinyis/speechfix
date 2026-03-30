@@ -13,7 +13,7 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
 } from 'react-native-reanimated';
-import { colors, alpha } from '../theme';
+import { colors, alpha, fonts } from '../theme';
 import { AgentAvatar } from './AgentAvatar';
 import type { Agent } from '../types/session';
 
@@ -332,12 +332,12 @@ const styles = StyleSheet.create({
   },
   rowName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.onSurface,
   },
   rowSubtitle: {
     fontSize: 11,
-    fontWeight: '400',
+    fontFamily: fonts.regular,
     color: colors.onSurfaceVariant,
     marginTop: 1,
   },
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
   },
   createText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: colors.primary,
   },
 });

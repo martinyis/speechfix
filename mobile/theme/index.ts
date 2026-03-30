@@ -50,87 +50,99 @@ export const colors = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Fonts
+// ---------------------------------------------------------------------------
+
+export const fonts = {
+  regular: 'MonaSans-Regular',
+  medium: 'MonaSans-Medium',
+  semibold: 'MonaSans-SemiBold',
+  bold: 'MonaSans-Bold',
+  extrabold: 'MonaSans-ExtraBold',
+} as const;
+
+/** Shorthand: returns `{ fontFamily }` for the given weight key */
+export function font(weight: keyof typeof fonts = 'regular'): { fontFamily: string } {
+  return { fontFamily: fonts[weight] };
+}
+
+// ---------------------------------------------------------------------------
 // Typography
 // ---------------------------------------------------------------------------
 
 export const typography = {
-  // Display — Manrope 800, extra large for hero numbers
+  // Display — ExtraBold, extra large for hero numbers
   displayLg: {
     fontSize: 44,
-    fontWeight: '800' as const,
+    fontFamily: fonts.extrabold,
     letterSpacing: -1.5,
-    fontFamily: 'Manrope',
   },
   displayMd: {
     fontSize: 36,
-    fontWeight: '800' as const,
+    fontFamily: fonts.extrabold,
     letterSpacing: -1.25,
-    fontFamily: 'Manrope',
   },
 
-  // Headlines — Manrope 800, tight tracking
+  // Headlines — ExtraBold, tight tracking
   headlineLg: {
     fontSize: 32,
-    fontWeight: '800' as const,
+    fontFamily: fonts.extrabold,
     letterSpacing: -1,
-    fontFamily: 'Manrope',
   },
   headlineMd: {
     fontSize: 24,
-    fontWeight: '800' as const,
+    fontFamily: fonts.extrabold,
     letterSpacing: -0.75,
-    fontFamily: 'Manrope',
   },
   headlineSm: {
     fontSize: 20,
-    fontWeight: '800' as const,
+    fontFamily: fonts.extrabold,
     letterSpacing: -0.5,
-    fontFamily: 'Manrope',
   },
 
-  // Body — Inter / system, 400-500
+  // Body — Regular / Medium
   bodyLg: {
     fontSize: 17,
-    fontWeight: '400' as const,
+    fontFamily: fonts.regular,
     letterSpacing: 0,
   },
   bodyMd: {
     fontSize: 15,
-    fontWeight: '400' as const,
+    fontFamily: fonts.regular,
     letterSpacing: 0,
   },
   bodySm: {
     fontSize: 13,
-    fontWeight: '400' as const,
+    fontFamily: fonts.regular,
     letterSpacing: 0,
   },
   bodyMdMedium: {
     fontSize: 15,
-    fontWeight: '500' as const,
+    fontFamily: fonts.medium,
     letterSpacing: 0,
   },
   bodySmMedium: {
     fontSize: 13,
-    fontWeight: '500' as const,
+    fontFamily: fonts.medium,
     letterSpacing: 0,
   },
 
-  // Labels — Inter / system, 600-700, wide tracking, uppercase
+  // Labels — Bold / SemiBold, wide tracking, uppercase
   labelLg: {
     fontSize: 14,
-    fontWeight: '700' as const,
+    fontFamily: fonts.bold,
     letterSpacing: 1.2,
     textTransform: 'uppercase' as const,
   },
   labelMd: {
     fontSize: 12,
-    fontWeight: '600' as const,
+    fontFamily: fonts.semibold,
     letterSpacing: 1,
     textTransform: 'uppercase' as const,
   },
   labelSm: {
     fontSize: 10,
-    fontWeight: '700' as const,
+    fontFamily: fonts.bold,
     letterSpacing: 0.8,
     textTransform: 'uppercase' as const,
   },

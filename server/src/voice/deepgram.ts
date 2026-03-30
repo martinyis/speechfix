@@ -35,8 +35,8 @@ export class DeepgramClient {
         channels: '1',
         language: 'en',
         interim_results: 'true',
-        utterance_end_ms: '1500',
-        endpointing: '400',
+        utterance_end_ms: '2500',
+        endpointing: '800',
         smart_format: 'true',
         filler_words: 'true',
         punctuate: 'true',
@@ -84,9 +84,13 @@ export class DeepgramClient {
     });
   }
 
+  private sendCount = 0;
   sendAudio(pcmBuffer: Buffer) {
     if (this.ws?.readyState === WebSocket.OPEN) {
+      this.sendCount++;
       this.ws.send(pcmBuffer);
+    } else {
+      console.warn(`[deepgram] ⚠️ Cannot send audio, ws state=${this.ws?.readyState}`);
     }
   }
 

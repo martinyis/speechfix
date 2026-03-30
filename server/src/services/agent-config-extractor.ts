@@ -8,7 +8,7 @@ export interface ExtractedAgentConfig {
   behaviorPrompt: string | null;
 }
 
-const SYSTEM_PROMPT = `You extract an AI agent configuration from a conversation where a user described the agent they want to create. The agent will be used as a conversation partner in a speech practice app for non-native English speakers.
+const SYSTEM_PROMPT = `You extract an AI agent configuration from a conversation where a user described the agent they want to create. The agent will be used as a conversation partner in a chat app.
 
 Extract:
 1. "name": The agent's name as stated by the user. Use natural casing. If no name was given, invent a fitting one based on the described personality.
@@ -19,6 +19,7 @@ Extract:
    - What they're like in conversation (topics they gravitate toward, how they respond)
    - Any specific character traits the user described
    Keep it 3-8 sentences. Make it vivid and specific enough to produce a consistent character.
+   IMPORTANT: Do NOT mention anything about helping with English, speech improvement, language learning, or practice. The agent is purely a conversational character.
 
 3. "behaviorPrompt": Optional additional conversation rules specific to this agent. Only include if the user described specific behavioral patterns like "always challenges my opinions" or "steers conversation toward professional topics." Set to null if no special behavioral rules were described. Do NOT repeat rules that apply to all agents (like keeping responses short).
 

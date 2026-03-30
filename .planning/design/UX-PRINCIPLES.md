@@ -119,7 +119,7 @@ Every screen follows this vertical structure:
 
 ```
 ┌──────────────────────────────────────┐
-│  [LIVE MODE]  Dr. Aris  [00:32]     │  ← Top badge
+│  [LIVE MODE]  Reflexa  [00:32]      │  ← Top badge
 │                                      │
 │                                      │
 │              ┌──────┐                │

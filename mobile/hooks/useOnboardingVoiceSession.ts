@@ -6,7 +6,7 @@ import {
 } from '@mykin-ai/expo-audio-stream';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSessionStore } from '../stores/sessionStore';
-import { wsUrl } from '../lib/api';
+import { wsUrl, authFetch } from '../lib/api';
 
 const PCM_BYTES_PER_SEC = 32000;
 
@@ -34,6 +34,7 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
   const store = useSessionStore;
 
   const cleanup = useCallback(async () => {
+    console.log('[onboarding-ws] cleanup called (alreadyCleaned:', cleanedUpRef.current, ')');
     if (cleanedUpRef.current) return;
     cleanedUpRef.current = true;
 
@@ -82,6 +83,8 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
   }, [cleanup, onError]);
 
   const handleMessage = useCallback((msg: any) => {
+    const { type, data, ...rest } = msg;
+    console.log('[onboarding-ws] msg:', { type, ...rest, hasData: !!data });
     const s = store.getState();
 
     switch (msg.type) {
@@ -207,12 +210,23 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
     };
     ws.onerror = () => {
       console.error('[onboarding] WebSocket error');
-      onError("Couldn't connect. Check your connection and try again.");
-      cleanup();
-      s.endVoiceSession();
+      if (!doneRef.current && !cleanedUpRef.current) {
+        // Silently complete onboarding on error — don't block the user
+        authFetch('/onboarding/skip', { method: 'POST' }).catch(() => {});
+        cleanup();
+        store.getState().endVoiceSession();
+        onComplete(null, null, null);
+      }
     };
     ws.onclose = (event) => {
       console.warn('[onboarding] WebSocket closed', { code: event.code, reason: event.reason, wasDone: doneRef.current });
+      if (!doneRef.current && !cleanedUpRef.current) {
+        // Session wasn't finished — silently complete onboarding
+        authFetch('/onboarding/skip', { method: 'POST' }).catch(() => {});
+        cleanup();
+        store.getState().endVoiceSession();
+        onComplete(null, null, null);
+      }
     };
 
     appStateSubRef.current = AppState.addEventListener('change', (nextState) => {

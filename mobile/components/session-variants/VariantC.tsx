@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { colors, alpha, spacing, typography, borderRadius } from '../../theme';
+import { colors, alpha, spacing, typography, borderRadius, fonts } from '../../theme';
 import { formatTimeOfDay, formatDurationLong } from '../../lib/formatters';
 import { AgentAvatar } from '../AgentAvatar';
 import type { SessionListItem, TopicCategory } from '../../types/session';
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     fontSize: 11,
-    fontWeight: '400',
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.25),
   },
 
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   },
   bubbleMeta: {
     fontSize: 11,
-    fontWeight: '400',
+    fontFamily: fonts.regular,
     color: alpha(colors.white, 0.3),
     marginTop: 2,
   },
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   },
   dotCount: {
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     letterSpacing: -0.2,
   },
 
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
   },
   scoreText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     letterSpacing: -0.3,
   },
 });
