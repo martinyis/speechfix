@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { ConversationMessage } from '../voice/response-generator.js';
 
 const anthropic = new Anthropic();
-const CORRECTION_TIMEOUT_MS = 800;
+const CORRECTION_TIMEOUT_MS = 3000;
 const CONFIDENCE_THRESHOLD = 0.80;
 
 export interface WordWithConfidence {
@@ -62,7 +62,7 @@ Transcript with uncertain words:
     // Strip quotes the model might wrap around the response
     return text.replace(/^["']|["']$/g, '');
   } catch (err: any) {
-    if (err.name === 'AbortError') {
+    if (err.name === 'AbortError' || err.name === 'APIUserAbortError') {
       console.log(`[transcript-correction] Timeout (${CORRECTION_TIMEOUT_MS}ms), using original`);
     } else {
       console.error(`[transcript-correction] Error:`, err);

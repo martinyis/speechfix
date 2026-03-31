@@ -77,6 +77,7 @@ export function usePracticeRecording() {
   const elapsedRef = useRef(0);
 
   const cleanupRecording = useCallback(async () => {
+    console.log(`[PracticeRec] cleanupRecording() — isRecording: ${isRecordingRef.current}, hasTimer: ${!!timerRef.current}, hasSubscription: ${!!subscriptionRef.current}`);
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -84,7 +85,11 @@ export function usePracticeRecording() {
     subscriptionRef.current?.remove();
     subscriptionRef.current = null;
     if (isRecordingRef.current) {
-      try { await ExpoPlayAudioStream.stopRecording(); } catch {}
+      console.log(`[PracticeRec] cleanupRecording() — stopping ExpoPlayAudioStream...`);
+      try { await ExpoPlayAudioStream.stopRecording(); } catch (e) {
+        console.warn('[PracticeRec] cleanupRecording() — stopRecording error:', e);
+      }
+      console.log(`[PracticeRec] cleanupRecording() — ExpoPlayAudioStream stopped, chunks at this point: ${audioChunksRef.current.length}`);
       isRecordingRef.current = false;
     }
   }, []);
@@ -94,21 +99,30 @@ export function usePracticeRecording() {
     mode: PracticeMode,
     scenario?: string,
   ) => {
-    console.log(`[PracticeRec] submitRecording() — correctionId: ${correctionId}, mode: ${mode}`);
+    const t0 = Date.now();
+    console.log(`[PracticeRec] ========== SUBMIT RECORDING ==========`);
+    console.log(`[PracticeRec] submit() t=0ms — correctionId: ${correctionId}, mode: ${mode}, scenario: ${scenario ? 'yes' : 'no'}`);
     setState('evaluating');
 
     const chunks = audioChunksRef.current;
-    console.log(`[PracticeRec] Chunks: ${chunks.length}, elapsed: ${elapsedRef.current}s`);
+    const estimatedDurationMs = chunks.length * 100; // each chunk ~100ms at interval=100
+    console.log(`[PracticeRec] submit() — chunks: ${chunks.length}, elapsed: ${elapsedRef.current}s, estimated audio duration: ${estimatedDurationMs}ms`);
+
     if (chunks.length === 0 || elapsedRef.current < 1) {
-      console.warn('[PracticeRec] Recording too short — aborting');
+      console.warn(`[PracticeRec] submit() — ABORTING: too short (chunks=${chunks.length}, elapsed=${elapsedRef.current}s)`);
       setError('Recording too short. Hold to record.');
       setState('idle');
       return;
     }
 
+    // Log first and last chunk sizes to detect truncation
+    console.log(`[PracticeRec] submit() — first chunk size: ${chunks[0]?.length ?? 0}, last chunk size: ${chunks[chunks.length - 1]?.length ?? 0}`);
+
     const audioBase64 = chunks.join('');
     audioChunksRef.current = [];
-    console.log(`[PracticeRec] Audio base64 length: ${audioBase64.length}`);
+    const estimatedPCMBytes = Math.floor((audioBase64.length * 3) / 4);
+    const estimatedPCMDurationSec = estimatedPCMBytes / (16000 * 2); // 16kHz, 16-bit = 2 bytes/sample
+    console.log(`[PracticeRec] submit() — base64 length: ${audioBase64.length}, PCM bytes (est): ${estimatedPCMBytes}, PCM duration (est): ${estimatedPCMDurationSec.toFixed(2)}s`);
 
     try {
       const token = useAuthStore.getState().token;
@@ -128,7 +142,7 @@ export function usePracticeRecording() {
         name: 'recording.pcm',
       } as any);
 
-      console.log(`[PracticeRec] POSTing to ${API_BASE_URL}/practice/evaluate`);
+      console.log(`[PracticeRec] submit() t=${Date.now() - t0}ms — POSTing to ${API_BASE_URL}/practice/evaluate`);
       const res = await fetch(`${API_BASE_URL}/practice/evaluate`, {
         method: 'POST',
         headers: {
@@ -137,42 +151,47 @@ export function usePracticeRecording() {
         body: formData,
       });
 
-      console.log(`[PracticeRec] Response status: ${res.status}`);
+      console.log(`[PracticeRec] submit() t=${Date.now() - t0}ms — response status: ${res.status}`);
       if (!res.ok) {
         const errorBody = await res.text();
-        console.error(`[PracticeRec] Evaluation failed: ${res.status} — ${errorBody}`);
+        console.error(`[PracticeRec] submit() — evaluation FAILED: ${res.status} — ${errorBody}`);
         throw new Error('Evaluation failed');
       }
 
       const data: PracticeResult = await res.json();
-      console.log('[PracticeRec] Result:', JSON.stringify(data));
+      console.log(`[PracticeRec] submit() t=${Date.now() - t0}ms — result: passed=${data.passed}, transcript="${data.transcript}"`);
+      console.log(`[PracticeRec] submit() — full result: ${JSON.stringify(data)}`);
       setResult(data);
       setState('result');
     } catch (err) {
-      console.error('[PracticeRec] Submit error:', err);
+      console.error(`[PracticeRec] submit() t=${Date.now() - t0}ms — ERROR:`, err);
       setError('Could not evaluate recording. Try again.');
       setState('idle');
     }
+    console.log(`[PracticeRec] ========== SUBMIT COMPLETE — total: ${Date.now() - t0}ms ==========`);
   }, []);
 
   const start = useCallback(async () => {
-    console.log('[PracticeRec] start() called');
+    const t0 = Date.now();
+    console.log(`[PracticeRec] ========== START() CALLED ==========`);
+    console.log(`[PracticeRec] start() t=0ms — current state: ${state}`);
     setError(null);
     setResult(null);
     audioChunksRef.current = [];
     elapsedRef.current = 0;
     setElapsedSeconds(0);
 
-    console.log('[PracticeRec] Requesting mic permission...');
+    console.log(`[PracticeRec] start() t=${Date.now() - t0}ms — requesting mic permission...`);
     const { granted } = await ExpoPlayAudioStream.requestPermissionsAsync();
-    console.log('[PracticeRec] Permission granted:', granted);
+    console.log(`[PracticeRec] start() t=${Date.now() - t0}ms — permission granted: ${granted}`);
     if (!granted) {
       setError('Microphone permission is required');
       return;
     }
 
     try {
-      console.log('[PracticeRec] Starting ExpoPlayAudioStream.startRecording...');
+      console.log(`[PracticeRec] start() t=${Date.now() - t0}ms — calling ExpoPlayAudioStream.startRecording...`);
+      let firstChunkTime: number | null = null;
       const { subscription } = await ExpoPlayAudioStream.startRecording({
         sampleRate: 16000,
         channels: 1,
@@ -180,9 +199,16 @@ export function usePracticeRecording() {
         interval: 100,
         onAudioStream: async (event: any) => {
           if (event.data) {
+            // Drop the very first chunk — it always contains mic initialization
+            // noise (RMS=1.000) that corrupts transcription
+            if (firstChunkTime === null) {
+              firstChunkTime = Date.now();
+              console.log(`[PracticeRec] DROPPING first chunk (mic init noise) — t=${firstChunkTime - t0}ms, size=${event.data.length}, RMS=${computeRMS(event.data).toFixed(3)}`);
+              return;
+            }
             audioChunksRef.current.push(event.data);
-            if (audioChunksRef.current.length % 10 === 1) {
-              console.log(`[PracticeRec] Audio chunks: ${audioChunksRef.current.length}, latest size: ${event.data.length}`);
+            if (audioChunksRef.current.length <= 5 || audioChunksRef.current.length % 10 === 0) {
+              console.log(`[PracticeRec] chunk #${audioChunksRef.current.length} — size=${event.data.length}, t=${Date.now() - t0}ms, RMS=${computeRMS(event.data).toFixed(3)}`);
             }
             // Extract real-time audio level for visualizer
             try {
@@ -194,24 +220,26 @@ export function usePracticeRecording() {
           }
         },
       });
+      console.log(`[PracticeRec] start() t=${Date.now() - t0}ms — startRecording resolved, subscription: ${!!subscription}`);
       isRecordingRef.current = true;
-      console.log('[PracticeRec] Recording started, subscription:', !!subscription);
       if (subscription) {
         subscriptionRef.current = subscription;
       }
 
       setState('recording');
-      console.log('[PracticeRec] State set to recording');
+      console.log(`[PracticeRec] start() t=${Date.now() - t0}ms — state set to 'recording'`);
 
       timerRef.current = setInterval(() => {
         elapsedRef.current += 1;
         setElapsedSeconds(elapsedRef.current);
+        console.log(`[PracticeRec] timer tick — elapsed=${elapsedRef.current}s, chunks=${audioChunksRef.current.length}`);
         if (elapsedRef.current >= MAX_RECORDING_SECONDS) {
           // Auto-stop handled by the component calling stop()
         }
       }, 1000);
+      console.log(`[PracticeRec] ========== START() COMPLETE — total: ${Date.now() - t0}ms ==========`);
     } catch (err) {
-      console.error('[PracticeRec] Failed to start microphone:', err);
+      console.error(`[PracticeRec] start() t=${Date.now() - t0}ms — FAILED:`, err);
       setError('Failed to start microphone');
     }
   }, []);
@@ -221,11 +249,17 @@ export function usePracticeRecording() {
     mode: PracticeMode,
     scenario?: string,
   ) => {
-    console.log(`[PracticeRec] stop() called — chunks: ${audioChunksRef.current.length}, elapsed: ${elapsedRef.current}s`);
+    const t0 = Date.now();
+    console.log(`[PracticeRec] ========== STOP() CALLED ==========`);
+    console.log(`[PracticeRec] stop() t=0ms — chunks: ${audioChunksRef.current.length}, elapsed: ${elapsedRef.current}s, state: ${state}`);
     audioLevel.value = 0;
     smoothedRef.current = 0;
+    console.log(`[PracticeRec] stop() t=${Date.now() - t0}ms — calling cleanupRecording...`);
     await cleanupRecording();
+    console.log(`[PracticeRec] stop() t=${Date.now() - t0}ms — cleanup done, chunks after cleanup: ${audioChunksRef.current.length}`);
+    console.log(`[PracticeRec] stop() t=${Date.now() - t0}ms — calling submitRecording...`);
     await submitRecording(correctionId, mode, scenario);
+    console.log(`[PracticeRec] ========== STOP() COMPLETE — total: ${Date.now() - t0}ms ==========`);
   }, [cleanupRecording, submitRecording, audioLevel]);
 
   const reset = useCallback(() => {

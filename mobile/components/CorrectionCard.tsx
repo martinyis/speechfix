@@ -1,26 +1,25 @@
 import { useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSpring,
   interpolate,
   Easing,
 } from 'react-native-reanimated';
+
 import * as Haptics from 'expo-haptics';
 import { colors, alpha, fonts } from '../theme';
 
 interface CorrectionCardProps {
-  id?: number;
   sentence: string;
   originalText: string;
   correctedText: string;
   explanation: string | null;
   correctionType: string;
   severity: 'error' | 'improvement' | 'polish';
+  practiced?: boolean;
 }
 
 const SEVERITY_COLOR: Record<string, string> = {
@@ -42,8 +41,6 @@ const TIMING_CONFIG = {
   duration: EXPAND_DURATION,
   easing: Easing.out(Easing.cubic),
 };
-
-const SPRING_CONFIG = { damping: 15, stiffness: 300 };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,22 +103,20 @@ function buildInlineSegments(
 // ---------------------------------------------------------------------------
 
 export function CorrectionCard({
-  id,
   sentence,
   originalText,
   correctedText,
   explanation,
   correctionType,
   severity,
+  practiced,
 }: CorrectionCardProps) {
   const severityColor = SEVERITY_COLOR[severity] ?? colors.severityError;
   const icon = SEVERITY_ICON[severity] ?? 'close-circle';
   const hasExplanation = !!explanation;
-  const hasPractice = id != null;
 
   // Animation shared values
   const expanded = useSharedValue(0);
-  const micScale = useSharedValue(1);
   const isExpanded = useRef(false);
 
   const segments = buildInlineSegments(sentence, originalText, correctedText);
@@ -140,14 +135,6 @@ export function CorrectionCard({
     ],
   }));
 
-  const micAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: micScale.value }],
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: interpolate(micScale.value, [0.85, 1], [0.4, 0]),
-    shadowRadius: interpolate(micScale.value, [0.85, 1], [12, 0]),
-  }));
-
   // --- Handlers ---
 
   const toggleExpand = useCallback(() => {
@@ -156,22 +143,6 @@ export function CorrectionCard({
     expanded.value = withTiming(next ? 1 : 0, TIMING_CONFIG);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [expanded]);
-
-  const onMicPressIn = useCallback(() => {
-    micScale.value = withSpring(0.85, SPRING_CONFIG);
-  }, [micScale]);
-
-  const onMicPressOut = useCallback(() => {
-    micScale.value = withSpring(1, SPRING_CONFIG);
-  }, [micScale]);
-
-  const onMicPress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push({
-      pathname: '/practice-session',
-      params: { correctionId: String(id), mode: 'say_it_right' },
-    });
-  }, [id]);
 
   // --- Render ---
 
@@ -245,25 +216,19 @@ export function CorrectionCard({
           )}
         </View>
 
-        {/* Row 2: correction type + mic button */}
-        {(correctionType || hasPractice) ? (
+        {/* Row 2: correction type + practiced badge */}
+        {(correctionType || practiced) ? (
           <View style={styles.row2}>
             {correctionType ? (
               <Text style={styles.correctionType}>{correctionType}</Text>
             ) : (
               <View style={{ flex: 1 }} />
             )}
-            {hasPractice && (
-              <Pressable
-                onPress={onMicPress}
-                onPressIn={onMicPressIn}
-                onPressOut={onMicPressOut}
-                hitSlop={6}
-              >
-                <Animated.View style={[styles.micButton, micAnimStyle]}>
-                  <Ionicons name="mic" size={14} color={colors.primary} />
-                </Animated.View>
-              </Pressable>
+            {practiced && (
+              <View style={styles.practicedBadge}>
+                <Ionicons name="checkmark" size={10} color={colors.severityPolish} />
+                <Text style={styles.practicedText}>Practiced</Text>
+              </View>
             )}
           </View>
         ) : null}
@@ -368,17 +333,21 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     color: alpha(colors.white, 0.2),
   },
-  micButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: alpha(colors.primary, 0.1),
-    borderWidth: 1,
-    borderColor: alpha(colors.primary, 0.2),
+  practicedBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: alpha(colors.severityPolish, 0.1),
   },
-
+  practicedText: {
+    fontSize: 10,
+    fontFamily: fonts.semibold,
+    color: alpha(colors.severityPolish, 0.7),
+    letterSpacing: 0.3,
+  },
   // Expandable explanation
   explanationRow: {
     flexDirection: 'row',

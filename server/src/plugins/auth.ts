@@ -12,8 +12,10 @@ async function authPlugin(fastify: FastifyInstance) {
   fastify.decorateRequest('user', null as unknown as JwtPayload);
 
   fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
-    const publicPaths = ['/health', '/auth/register', '/auth/login', '/intro-audio', '/voices'];
-    if (publicPaths.some(p => request.url.startsWith(p))) {
+    const publicPrefixes = ['/health', '/auth/register', '/auth/login', '/intro-audio', '/voices'];
+    const publicExact = ['/jobs/run-pattern-analysis'];
+    const urlPath = request.url.split('?')[0];
+    if (publicPrefixes.some(p => request.url.startsWith(p)) || publicExact.includes(urlPath)) {
       return;
     }
 

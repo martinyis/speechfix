@@ -10,6 +10,7 @@ export const users = pgTable('users', {
   goals: jsonb('goals'),
   contextNotes: jsonb('context_notes').default([]),
   onboardingComplete: boolean('onboarding_complete').default(false).notNull(),
+  analysisFlags: jsonb('analysis_flags').default({ grammar: true, fillers: true, patterns: true }).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -52,6 +53,7 @@ export const corrections = pgTable('corrections', {
   sentenceIndex: integer('sentence_index').notNull().default(0),
   severity: text('severity').notNull().default('error'),
   contextSnippet: text('context_snippet'),
+  scenario: text('scenario'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -69,6 +71,17 @@ export const agentGreetings = pgTable('agent_greetings', {
   agentId: integer('agent_id').references(() => agents.id, { onDelete: 'cascade' }),
   greetingText: text('greeting_text').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const speechPatterns = pgTable('speech_patterns', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  type: text('type').notNull(),
+  identifier: text('identifier'),
+  data: jsonb('data').notNull(),
+  sessionsAnalyzed: jsonb('sessions_analyzed').default([]).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 export const practiceAttempts = pgTable('practice_attempts', {

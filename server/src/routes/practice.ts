@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { corrections, sessions, practiceAttempts } from '../db/schema.js';
 import { eq, sql, and } from 'drizzle-orm';
-import { transcribe } from '../services/transcription.js';
+import { transcribeRawPCM } from '../services/transcription.js';
 import {
   evaluateSayItRight,
   evaluateUseItNaturally,
@@ -28,6 +28,7 @@ export async function practiceRoutes(fastify: FastifyInstance) {
         c.correction_type,
         c.severity,
         c.context_snippet,
+        c.scenario,
         c.created_at,
         s.created_at AS session_date,
         BOOL_OR(pa.passed) AS practiced,
@@ -51,6 +52,7 @@ export async function practiceRoutes(fastify: FastifyInstance) {
       correctionType: row.correction_type,
       severity: row.severity,
       contextSnippet: row.context_snippet,
+      scenario: row.scenario ?? null,
       practiced: row.practiced ?? false,
       lastPracticedAt: row.last_practiced_at ?? null,
       practiceCount: row.practice_count ?? 0,
@@ -97,33 +99,36 @@ export async function practiceRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'scenario is required for use_it_naturally mode' });
     }
 
-    // Verify correction belongs to user
-    const [correction] = await db
-      .select({
-        id: corrections.id,
-        originalText: corrections.originalText,
-        correctedText: corrections.correctedText,
-        explanation: corrections.explanation,
-        correctionType: corrections.correctionType,
-      })
-      .from(corrections)
-      .innerJoin(sessions, eq(corrections.sessionId, sessions.id))
-      .where(and(eq(corrections.id, correctionId), eq(sessions.userId, userId)));
-
-    if (!correction) {
-      return reply.code(404).send({ error: 'Correction not found' });
-    }
-
-    const tempPath = path.join('/tmp', `${randomUUID()}.m4a`);
+    const tempPath = path.join('/tmp', `${randomUUID()}.pcm`);
     const buffer = await data.toBuffer();
     console.log(`[Practice/evaluate] Audio buffer size: ${buffer.length} bytes, writing to ${tempPath}`);
     await writeFile(tempPath, buffer);
 
     try {
-      // Transcribe audio
-      console.log('[Practice/evaluate] Transcribing...');
-      const transcription = await transcribe(tempPath);
-      console.log('[Practice/evaluate] Transcription result:', JSON.stringify(transcription));
+      // Run correction lookup and transcription in parallel
+      const [correctionRow, transcription] = await Promise.all([
+        db
+          .select({
+            id: corrections.id,
+            originalText: corrections.originalText,
+            correctedText: corrections.correctedText,
+            explanation: corrections.explanation,
+            correctionType: corrections.correctionType,
+          })
+          .from(corrections)
+          .innerJoin(sessions, eq(corrections.sessionId, sessions.id))
+          .where(and(eq(corrections.id, correctionId), eq(sessions.userId, userId)))
+          .then(rows => rows[0] ?? null),
+        transcribeRawPCM(tempPath).then(result => {
+          console.log('[Practice/evaluate] Transcription result:', JSON.stringify(result));
+          return result;
+        }),
+      ]);
+
+      const correction = correctionRow;
+      if (!correction) {
+        return reply.code(404).send({ error: 'Correction not found' });
+      }
 
       if (!transcription.text) {
         console.warn('[Practice/evaluate] No speech detected');
@@ -180,13 +185,14 @@ export async function practiceRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'correctionId query parameter is required' });
     }
 
-    // Verify correction belongs to user
+    // Verify correction belongs to user and check for pre-generated scenario
     const [correction] = await db
       .select({
         originalText: corrections.originalText,
         correctedText: corrections.correctedText,
         explanation: corrections.explanation,
         correctionType: corrections.correctionType,
+        scenario: corrections.scenario,
       })
       .from(corrections)
       .innerJoin(sessions, eq(corrections.sessionId, sessions.id))
@@ -194,6 +200,11 @@ export async function practiceRoutes(fastify: FastifyInstance) {
 
     if (!correction) {
       return reply.code(404).send({ error: 'Correction not found' });
+    }
+
+    // Return pre-generated scenario if available, otherwise generate on-demand
+    if (correction.scenario) {
+      return { scenario: correction.scenario };
     }
 
     const scenario = await generateScenario({

@@ -40,9 +40,11 @@ interface UseVoiceSessionCallbacks {
   onAgentCreated?: (agent: Agent) => void;
   onFirstCorrection?: () => void;
   agentId?: number | null;
+  mode?: string;
+  formContext?: Record<string, unknown>;
 }
 
-export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirstCorrection, agentId }: UseVoiceSessionCallbacks) {
+export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirstCorrection, agentId, mode, formContext }: UseVoiceSessionCallbacks) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscriptionRef = useRef<{ remove(): void } | null>(null);
   const isStoppingRef = useRef(false);
@@ -284,11 +286,17 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirst
     // Allow iOS AVAudioSession to fully initialize before audio arrives
     await new Promise(resolve => setTimeout(resolve, 400));
 
-    // Connect WebSocket — append agent ID if selected
+    // Connect WebSocket — append agent ID, mode, or formContext if provided
     const selectedAgent = agentId ?? useAgentStore.getState().selectedAgentId;
     let url = wsUrl('/voice-session');
     if (selectedAgent) {
       url += `&agent=${selectedAgent}`;
+    }
+    if (mode) {
+      url += `&mode=${encodeURIComponent(mode)}`;
+    }
+    if (formContext) {
+      url += `&formContext=${encodeURIComponent(JSON.stringify(formContext))}`;
     }
     const ws = new WebSocket(url);
     wsRef.current = ws;
@@ -318,7 +326,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirst
         stop();
       }
     });
-  }, [handleMessage, cleanup, onError]);
+  }, [handleMessage, cleanup, onError, mode, formContext]);
 
   const stop = useCallback(async () => {
     if (isStoppingRef.current) return;

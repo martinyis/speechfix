@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,15 +14,17 @@ import Animated, {
   useAnimatedScrollHandler,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 
 import { useSessionStore } from '../stores/sessionStore';
 import { useSession } from '../hooks/useSession';
+import { usePracticeTasks } from '../hooks/usePracticeTasks';
 import { SessionSummaryCard } from '../components/SessionSummaryCard';
 import { StickySessionBar } from '../components/StickySessionBar';
 import { CorrectionFilterChips } from '../components/CorrectionFilterChips';
 import { CorrectionCard } from '../components/CorrectionCard';
 import { AnalyzingBanner } from '../components/AnalyzingBanner';
-import { ScreenHeader, EmptyState } from '../components/ui';
+import { ScreenHeader, EmptyState, GlassIconPillButton } from '../components/ui';
 import { formatDuration } from '../lib/formatters';
 import { colors, alpha, fonts } from '../theme';
 import type { SessionDetail, CorrectionFilter } from '../types/session';
@@ -67,6 +69,36 @@ export default function SessionDetailScreen() {
   const session: SessionDetail | null | undefined = isFresh
     ? storeData
     : fetchedData;
+
+  // Practice tasks for floating button
+  const { data: allTasks, refetch: refetchPracticeTasks } = usePracticeTasks();
+  const unpracticedCount = useMemo(() => {
+    if (!allTasks || !resolvedSessionId) return 0;
+    return allTasks.filter(t => t.sessionId === resolvedSessionId && !t.practiced).length;
+  }, [allTasks, resolvedSessionId]);
+
+  const practicedIds = useMemo(() => {
+    if (!allTasks) return new Set<number>();
+    return new Set(allTasks.filter(t => t.practiced).map(t => t.correctionId));
+  }, [allTasks]);
+
+  // Refetch practice tasks when screen regains focus
+  useFocusEffect(
+    useCallback(() => {
+      refetchPracticeTasks();
+    }, [refetchPracticeTasks]),
+  );
+
+  // Refetch practice tasks when streaming ends (corrections now exist in DB)
+  const wasStreamingRef = useRef(isStreaming);
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming) {
+      // Small delay to ensure DB writes have settled
+      const timer = setTimeout(() => refetchPracticeTasks(), 500);
+      return () => clearTimeout(timer);
+    }
+    wasStreamingRef.current = isStreaming;
+  }, [isStreaming, refetchPracticeTasks]);
 
   // Compute summary counts
   const counts = useMemo(() => {
@@ -266,13 +298,13 @@ export default function SessionDetailScreen() {
                 const card = (
                   <CorrectionCard
                     key={key}
-                    id={c.id}
                     sentence={sentence}
                     originalText={c.originalText}
                     correctedText={c.correctedText}
                     explanation={c.explanation}
                     correctionType={c.correctionType}
                     severity={c.severity}
+                    practiced={c.id != null && practicedIds.has(c.id)}
                   />
                 );
                 if (isFresh) {
@@ -316,9 +348,27 @@ export default function SessionDetailScreen() {
           )}
         </View>
 
-        {/* Bottom padding */}
-        <View style={{ height: insets.bottom + 60 }} />
+        {/* Bottom padding — extra space when floating button visible */}
+        <View style={{ height: insets.bottom + (unpracticedCount > 0 && !isStreaming ? 120 : 60) }} />
       </Animated.ScrollView>
+
+      {/* Floating Practice button */}
+      {unpracticedCount > 0 && !isStreaming && (
+        <View style={[styles.floatingButton, { bottom: insets.bottom + 16 }]}>
+          <GlassIconPillButton
+            label={`Practice (${unpracticedCount})`}
+            icon="fitness-outline"
+            variant="primary"
+            fullWidth
+            onPress={() => {
+              router.push({
+                pathname: '/practice-session',
+                params: { sessionId: String(resolvedSessionId), mode: 'say_it_right' },
+              });
+            }}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -388,5 +438,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: fonts.semibold,
     color: colors.primary,
+  },
+
+  // Floating practice button
+  floatingButton: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
   },
 });

@@ -103,6 +103,23 @@ export default function PracticeScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Filler Word Coach CTA */}
+        <Pressable
+          style={styles.fillerCoachCard}
+          onPress={() => router.push('/filler-coach')}
+        >
+          <View style={styles.fillerCoachIcon}>
+            <Ionicons name="chatbubbles-outline" size={22} color={colors.primary} />
+          </View>
+          <View style={styles.fillerCoachContent}>
+            <Text style={styles.fillerCoachTitle}>Filler Word Coach</Text>
+            <Text style={styles.fillerCoachSub}>
+              Practice reducing "um", "like", and other fillers in live conversation
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={alpha(colors.white, 0.2)} />
+        </Pressable>
+
         {/* Filter chips */}
         <View style={styles.filterWrap}>
           <CorrectionFilterChips
@@ -199,6 +216,42 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  fillerCoachCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginHorizontal: layout.screenPadding,
+    marginBottom: spacing.lg,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: alpha(colors.white, 0.04),
+    borderWidth: 1,
+    borderColor: alpha(colors.primary, 0.15),
+  },
+  fillerCoachIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: alpha(colors.primary, 0.12),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fillerCoachContent: {
+    flex: 1,
+    gap: 2,
+  },
+  fillerCoachTitle: {
+    fontSize: 15,
+    fontFamily: fonts.semibold,
+    color: colors.onSurface,
+  },
+  fillerCoachSub: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: alpha(colors.white, 0.35),
+    lineHeight: 17,
   },
   filterWrap: {
     marginBottom: spacing.lg,

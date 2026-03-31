@@ -1,10 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { transcribe } from '../services/transcription.js';
-import { analyzeSpeech } from '../services/analysis.js';
+import { runAnalysis } from '../analysis/index.js';
 import { generateSessionMetadata } from '../services/title-generator.js';
+import { getFillerSummary } from '../voice/prompts/filler-context.js';
 import { db } from '../db/index.js';
 import { sessions, corrections, fillerWords, agents } from '../db/schema.js';
 import { eq, desc, sql, and } from 'drizzle-orm';
+import { generateAndStoreScenarios } from '../services/practice-evaluator.js';
 import { writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import path from 'path';
@@ -47,7 +49,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
 
       // Run analysis and title generation in parallel
       const [analysisResult, metadata] = await Promise.all([
-        analyzeSpeech(result.sentences),
+        runAnalysis(request.user.userId, { sentences: result.sentences, mode: 'recording' }),
         generateSessionMetadata(result.text),
       ]);
 
@@ -78,7 +80,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
 
       // Store corrections in database (with sentenceIndex for frontend matching)
       if (analysisResult.corrections.length > 0) {
-        await db.insert(corrections).values(
+        const inserted = await db.insert(corrections).values(
           analysisResult.corrections.map(c => ({
             sessionId: session.id,
             originalText: c.originalText,
@@ -89,6 +91,11 @@ export async function sessionRoutes(fastify: FastifyInstance) {
             severity: c.severity,
             contextSnippet: c.contextSnippet || null,
           }))
+        ).returning();
+
+        // Fire-and-forget: pre-generate practice scenarios
+        generateAndStoreScenarios(inserted.map(r => r.id)).catch(err =>
+          console.error('[sessions] Scenario pre-generation failed:', err)
         );
       }
 
@@ -181,5 +188,11 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         sessionInsights,
       },
     };
+  });
+
+  // Get aggregated filler word summary for the user
+  fastify.get('/filler-summary', async (request) => {
+    const summary = await getFillerSummary(request.user.userId);
+    return summary;
   });
 }

@@ -15,6 +15,7 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
       .select({
         onboardingComplete: users.onboardingComplete,
         displayName: users.displayName,
+        analysisFlags: users.analysisFlags,
       })
       .from(users)
       .where(eq(users.id, request.user.userId));
@@ -22,6 +23,7 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
     return {
       onboardingComplete: user?.onboardingComplete ?? false,
       displayName: user?.displayName ?? null,
+      analysisFlags: user?.analysisFlags ?? { grammar: true, fillers: true, patterns: true },
     };
   });
 
@@ -48,5 +50,30 @@ export async function onboardingRoutes(fastify: FastifyInstance) {
     }).where(eq(users.id, request.user.userId));
 
     return { success: true };
+  });
+
+  const analysisFlagsSchema = z.object({
+    grammar: z.boolean().optional(),
+    fillers: z.boolean().optional(),
+    patterns: z.boolean().optional(),
+  });
+
+  fastify.patch('/settings/analysis-flags', async (request, reply) => {
+    const parsed = analysisFlagsSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    const [user] = await db
+      .select({ analysisFlags: users.analysisFlags })
+      .from(users)
+      .where(eq(users.id, request.user.userId));
+
+    const current = (user?.analysisFlags as Record<string, boolean>) ?? { grammar: true, fillers: true, patterns: true };
+    const updated = { ...current, ...parsed.data };
+
+    await db.update(users).set({ analysisFlags: updated }).where(eq(users.id, request.user.userId));
+
+    return { analysisFlags: updated };
   });
 }

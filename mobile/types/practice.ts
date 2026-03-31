@@ -8,6 +8,7 @@ export interface PracticeTask {
   correctionType: string;
   severity: 'error' | 'improvement' | 'polish';
   contextSnippet: string | null;
+  scenario: string | null;
   practiced: boolean;
   lastPracticedAt: string | null;
   practiceCount: number;

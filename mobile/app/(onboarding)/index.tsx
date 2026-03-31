@@ -268,7 +268,7 @@ export default function IntroAgentScreen() {
 
           {/* Top fade — iOS picker style vignette */}
           <LinearGradient
-            colors={[colors.background, alpha(colors.background, 0.85), alpha(colors.background, 0.3), alpha(colors.background, 0)]}
+            colors={[alpha(colors.background, 0.7), alpha(colors.background, 0.5), alpha(colors.background, 0.15), alpha(colors.background, 0)]}
             locations={[0, 0.3, 0.7, 1]}
             style={styles.gradientTop}
             pointerEvents="none"

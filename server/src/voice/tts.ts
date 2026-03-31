@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import { TTS_MODEL } from './voice-config.js';
 
 export interface TTSCallbacks {
   onAudio: (base64Chunk: string) => void;
@@ -6,13 +7,13 @@ export interface TTSCallbacks {
   onError: (error: Error) => void;
 }
 
-export class ElevenLabsTTS {
+export class CartesiaTTS {
   private ws: WebSocket | null = null;
   private callbacks: TTSCallbacks;
   private apiKey: string;
   private voiceId: string;
-  private currentTurnId = 0;
-  private activeTurnId = 0;
+  private currentContextId: string = '';
+  private activeContextId: string = '';
 
   private audioChunkCount = 0;
   private lastAudioChunkTime = 0;
@@ -29,32 +30,16 @@ export class ElevenLabsTTS {
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       const params = new URLSearchParams({
-        model_id: 'eleven_multilingual_v2',
-        output_format: 'pcm_24000',
-        inactivity_timeout: '60',
+        api_key: this.apiKey,
+        cartesia_version: '2025-04-16',
       });
 
-      const url = `wss://api.elevenlabs.io/v1/text-to-speech/${this.voiceId}/stream-input?${params.toString()}`;
+      const url = `wss://api.cartesia.ai/tts/websocket?${params.toString()}`;
 
       this.ws = new WebSocket(url);
 
       this.ws.on('open', () => {
-        console.log('[tts] Connected to ElevenLabs');
-
-        // Send initialization message
-        this.ws!.send(JSON.stringify({
-          text: ' ',
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            speed: 1.0,
-          },
-          generation_config: {
-            chunk_length_schedule: [80, 120, 200, 260],
-          },
-          'xi-api-key': this.apiKey,
-        }));
-
+        console.log('[tts] Connected to Cartesia');
         resolve();
       });
 
@@ -87,8 +72,17 @@ export class ElevenLabsTTS {
   sendText(text: string): boolean {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
-        text: text + ' ',
-        try_trigger_generation: true,
+        model_id: TTS_MODEL,
+        transcript: text,
+        voice: { mode: 'id', id: this.voiceId },
+        output_format: {
+          container: 'raw',
+          encoding: 'pcm_s16le',
+          sample_rate: 24000,
+        },
+        context_id: this.activeContextId,
+        continue: true,
+        language: 'en',
       }));
       return true;
     }
@@ -97,22 +91,32 @@ export class ElevenLabsTTS {
 
   /**
    * Signal end of input for this generation.
-   * Sends EOS (empty text) which tells ElevenLabs to generate remaining audio and send isFinal.
-   * The connection will close after this — that's expected.
+   * Sends continue: false which tells Cartesia to finalize audio for this context.
    */
   flush() {
     this.flushed = true;
     if (this.ws?.readyState === WebSocket.OPEN) {
-      // Empty string = end of stream signal for ElevenLabs
-      this.ws.send(JSON.stringify({ text: '' }));
+      this.ws.send(JSON.stringify({
+        model_id: TTS_MODEL,
+        transcript: '',
+        voice: { mode: 'id', id: this.voiceId },
+        output_format: {
+          container: 'raw',
+          encoding: 'pcm_s16le',
+          sample_rate: 24000,
+        },
+        context_id: this.activeContextId,
+        continue: false,
+        language: 'en',
+      }));
     }
-    // Start monitoring for audio silence (fallback if isFinal doesn't arrive)
+    // Start monitoring for audio silence (fallback if done doesn't arrive)
     this.startSilenceCheck();
   }
 
   /**
    * Wait for TTS generation to complete.
-   * Resolves when: isFinal received, OR 2000ms of audio silence after flush, OR timeout.
+   * Resolves when: done received for this context, OR 2000ms of audio silence after flush, OR timeout.
    */
   waitForCompletion(timeoutMs = 5000): Promise<void> {
     return new Promise((resolve) => {
@@ -129,12 +133,19 @@ export class ElevenLabsTTS {
   }
 
   abort() {
-    this.currentTurnId++;
+    const oldContextId = this.activeContextId;
+    // Generate new context to ignore stale audio
+    this.currentContextId = crypto.randomUUID();
     this.stopSilenceCheck();
-    // Send EOS to clear buffer
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ text: '' }));
+
+    // Send cancel for the old context
+    if (this.ws?.readyState === WebSocket.OPEN && oldContextId) {
+      this.ws.send(JSON.stringify({
+        context_id: oldContextId,
+        cancel: true,
+      }));
     }
+
     if (this.completionResolve) {
       this.completionResolve();
       this.completionResolve = null;
@@ -143,13 +154,14 @@ export class ElevenLabsTTS {
   }
 
   startTurn(): number {
-    this.currentTurnId++;
-    this.activeTurnId = this.currentTurnId;
+    this.currentContextId = crypto.randomUUID();
+    this.activeContextId = this.currentContextId;
     this.audioChunkCount = 0;
     this.lastAudioChunkTime = 0;
     this.flushed = false;
     this.stopSilenceCheck();
-    return this.activeTurnId;
+    // Return a numeric turn ID for compatibility with session-manager
+    return 0;
   }
 
   close() {
@@ -192,30 +204,31 @@ export class ElevenLabsTTS {
   }
 
   private handleMessage(message: any) {
-    if (message.audio) {
+    // Only process messages for the active context
+    if (message.context_id && message.context_id !== this.activeContextId) {
+      return;
+    }
+
+    if (message.type === 'chunk' && message.data) {
       this.audioChunkCount++;
       this.lastAudioChunkTime = Date.now();
 
       if (this.audioChunkCount <= 3) {
-        console.log(`[tts] Received audio chunk #${this.audioChunkCount}, active=${this.activeTurnId}, current=${this.currentTurnId}, len=${message.audio.length}`);
+        console.log(`[tts] Received audio chunk #${this.audioChunkCount}, context=${this.activeContextId.slice(0, 8)}, len=${message.data.length}`);
       }
 
-      // Only forward audio for the active turn
-      if (this.activeTurnId === this.currentTurnId) {
-        this.callbacks.onAudio(message.audio);
-      }
+      this.callbacks.onAudio(message.data);
     }
 
-    if (message.isFinal) {
-      console.log(`[tts] Received isFinal, total audio chunks: ${this.audioChunkCount}`);
-      if (this.activeTurnId === this.currentTurnId) {
-        this.callbacks.onDone();
-        this.resolveCompletion();
-      }
+    if (message.type === 'done') {
+      console.log(`[tts] Received done, total audio chunks: ${this.audioChunkCount}`);
+      this.callbacks.onDone();
+      this.resolveCompletion();
     }
 
-    if (message.error) {
-      console.error(`[tts] ElevenLabs error:`, message);
+    if (message.type === 'error') {
+      console.error(`[tts] Cartesia error:`, message.error || message);
+      this.callbacks.onError(new Error(message.error || 'Cartesia TTS error'));
     }
   }
 }

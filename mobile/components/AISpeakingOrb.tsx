@@ -37,7 +37,7 @@ export function AISpeakingOrb({ state }: AISpeakingOrbProps) {
 
   // Bloom canvas dimensions
   const BLOOM_W = screenWidth;
-  const BLOOM_H = screenHeight * 0.75;
+  const BLOOM_H = screenHeight * 1.0;
   const bloomCx = BLOOM_W / 2;
   const bloomCy = BLOOM_H / 2;
   const bloomRadius = Math.sqrt(bloomCx * bloomCx + bloomCy * bloomCy);
@@ -167,7 +167,7 @@ export function AISpeakingOrb({ state }: AISpeakingOrbProps) {
                 'rgba(50, 10, 100, 0.06)',
                 'transparent',
               ]}
-              positions={[0, 0.18, 0.38, 0.65, 1]}
+              positions={[0, 0.20, 0.45, 0.72, 1]}
             />
           </Rect>
 

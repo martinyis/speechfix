@@ -6,13 +6,14 @@ import { IDENTITY_PROMPT } from '../prompts/identity.js';
 import { BEHAVIOR_PROMPT, CUSTOM_AGENT_BEHAVIOR_PROMPT } from '../prompts/behavior.js';
 import { REFLEXA_SESSION_PROMPT, CUSTOM_AGENT_SESSION_PROMPT } from '../prompts/session-types/conversation.js';
 import { buildUserContextPrompt } from '../prompts/context.js';
-import { analyzeSpeech, analyzeSpeechStreaming } from '../../services/analysis.js';
+import { runAnalysis, runAnalysisStreaming } from '../../analysis/index.js';
 import { generateSessionMetadata } from '../../services/title-generator.js';
 import { extractConversationNotes } from '../../services/context-extractor.js';
 import { db } from '../../db/index.js';
 import { sessions, corrections, fillerWords, users } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { regenerateAllGreetings } from '../../services/greeting-generator.js';
+import { generateAndStoreScenarios } from '../../services/practice-evaluator.js';
 
 export class ConversationHandler implements AgentTypeHandler {
   readonly needsUserContext = true;
@@ -73,7 +74,7 @@ export class ConversationHandler implements AgentTypeHandler {
 
     // Run speech analysis, title generation, and context extraction in parallel
     const [analysisResult, metadata, contextNotes] = await Promise.all([
-      analyzeSpeech(userUtterances, 'conversation', conversationHistory),
+      runAnalysis(userId, { sentences: userUtterances, mode: 'conversation', conversationHistory }),
       generateSessionMetadata(fullTranscription, conversationHistory),
       extractConversationNotes(conversationHistory),
     ]);
@@ -119,7 +120,7 @@ export class ConversationHandler implements AgentTypeHandler {
 
     // Store corrections
     if (analysisResult.corrections.length > 0) {
-      await db.insert(corrections).values(
+      const inserted = await db.insert(corrections).values(
         analysisResult.corrections.map(c => ({
           sessionId: session.id,
           originalText: c.originalText,
@@ -130,6 +131,11 @@ export class ConversationHandler implements AgentTypeHandler {
           severity: c.severity,
           contextSnippet: c.contextSnippet || null,
         }))
+      ).returning();
+
+      // Fire-and-forget: pre-generate practice scenarios
+      generateAndStoreScenarios(inserted.map(r => r.id)).catch(err =>
+        console.error('[conversation-handler] Scenario pre-generation failed:', err)
       );
     }
 
@@ -189,7 +195,7 @@ export class ConversationHandler implements AgentTypeHandler {
 
     // Run streaming analysis, title generation, and context extraction in parallel
     const [analysisResult, metadata, contextNotes] = await Promise.all([
-      analyzeSpeechStreaming(userUtterances, 'conversation', conversationHistory, onCorrection),
+      runAnalysisStreaming(userId, { sentences: userUtterances, mode: 'conversation', conversationHistory }, onCorrection),
       generateSessionMetadata(fullTranscription, conversationHistory),
       extractConversationNotes(conversationHistory),
     ]);
@@ -249,6 +255,11 @@ export class ConversationHandler implements AgentTypeHandler {
         }))
       ).returning();
       correctionIds = inserted.map(r => r.id);
+
+      // Fire-and-forget: pre-generate practice scenarios
+      generateAndStoreScenarios(correctionIds).catch(err =>
+        console.error('[conversation-handler] Scenario pre-generation failed:', err)
+      );
     }
 
     // Store filler words

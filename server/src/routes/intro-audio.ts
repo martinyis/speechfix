@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { pcmToWav } from '../utils/audio.js';
+import { DEFAULT_VOICE_ID } from '../voice/voice-config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = join(__dirname, '..', '..', '.cache');
@@ -65,30 +66,32 @@ async function ensureAudioCached(): Promise<{ meta: CachedMeta; wavPath: string 
     }
   }
 
-  // Generate TTS via ElevenLabs REST API
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID;
-  if (!apiKey || !voiceId) {
-    console.error('[intro-audio] ElevenLabs not configured');
+  // Generate TTS via Cartesia REST API
+  const apiKey = process.env.CARTESIA_API_KEY;
+  if (!apiKey) {
+    console.error('[intro-audio] Cartesia not configured');
     return null;
   }
 
   try {
     const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=pcm_24000`,
+      'https://api.cartesia.ai/tts/bytes',
       {
         method: 'POST',
         headers: {
-          'xi-api-key': apiKey,
+          'Authorization': `Bearer ${apiKey}`,
+          'Cartesia-Version': '2025-04-16',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          text: FULL_SCRIPT,
-          model_id: 'eleven_multilingual_v2',
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            speed: 1.0,
+          model_id: 'sonic',
+          transcript: FULL_SCRIPT,
+          voice: { mode: 'id', id: DEFAULT_VOICE_ID },
+          language: 'en',
+          output_format: {
+            container: 'raw',
+            encoding: 'pcm_s16le',
+            sample_rate: 24000,
           },
         }),
       },
@@ -96,7 +99,7 @@ async function ensureAudioCached(): Promise<{ meta: CachedMeta; wavPath: string 
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[intro-audio] ElevenLabs error:', response.status, errorText);
+      console.error('[intro-audio] Cartesia error:', response.status, errorText);
       return null;
     }
 

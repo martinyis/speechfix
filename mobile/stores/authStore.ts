@@ -4,12 +4,19 @@ import { API_BASE_URL } from '../lib/api';
 
 const TOKEN_KEY = 'auth_token';
 
+interface AnalysisFlags {
+  grammar: boolean;
+  fillers: boolean;
+  patterns: boolean;
+}
+
 interface User {
   id: number;
   email: string;
   name: string | null;
   displayName: string | null;
   onboardingComplete: boolean;
+  analysisFlags: AnalysisFlags;
 }
 
 interface AuthStore {
@@ -23,6 +30,7 @@ interface AuthStore {
   loadToken: () => Promise<void>;
   setOnboardingComplete: () => void;
   setSigningUp: (value: boolean) => void;
+  updateAnalysisFlags: (flags: Partial<AnalysisFlags>) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthStore>((set) => ({
@@ -54,6 +62,35 @@ export const useAuthStore = create<AuthStore>((set) => ({
     set({ isSigningUp: value });
   },
 
+  updateAnalysisFlags: async (flags) => {
+    const prev = useAuthStore.getState().user?.analysisFlags;
+    // Optimistic update
+    set((state) => ({
+      user: state.user
+        ? { ...state.user, analysisFlags: { ...state.user.analysisFlags, ...flags } }
+        : null,
+    }));
+    try {
+      const token = useAuthStore.getState().token;
+      const res = await fetch(`${API_BASE_URL}/settings/analysis-flags`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(flags),
+      });
+      if (!res.ok) throw new Error('Failed to update');
+    } catch {
+      // Rollback on failure
+      if (prev) {
+        set((state) => ({
+          user: state.user ? { ...state.user, analysisFlags: prev } : null,
+        }));
+      }
+    }
+  },
+
   loadToken: async () => {
     try {
       const token = await SecureStore.getItemAsync(TOKEN_KEY);
@@ -68,6 +105,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
             name: null,
             displayName: null,
             onboardingComplete: true,
+            analysisFlags: { grammar: true, fillers: true, patterns: true },
           },
           isReady: false,
         });
@@ -85,6 +123,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
                     ...state.user,
                     onboardingComplete: data.onboardingComplete,
                     displayName: data.displayName ?? state.user.displayName,
+                    analysisFlags: data.analysisFlags ?? state.user.analysisFlags,
                   }
                 : null,
               isReady: true,

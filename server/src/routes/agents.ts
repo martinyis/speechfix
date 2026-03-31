@@ -7,6 +7,7 @@ import { db } from '../db/index.js';
 import { agents } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { pcmToWav } from '../utils/audio.js';
+import { AVAILABLE_VOICES } from '../voice/voice-config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VOICE_SAMPLE_CACHE_DIR = join(__dirname, '..', '..', '.cache', 'voice-samples');
@@ -38,16 +39,6 @@ function buildAgentSystemPrompt({ name, description, focusArea, conversationStyl
   return lines.join('\n');
 }
 
-const AVAILABLE_VOICES = [
-  { id: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily', gender: 'female', description: 'Warm, conversational' },
-  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', gender: 'female', description: 'Professional, calm' },
-  { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', gender: 'male', description: 'Well-rounded, casual' },
-  { id: 'VR6AewLTigWG4xSOukaG', name: 'Arnold', gender: 'male', description: 'Deep, confident' },
-  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', gender: 'female', description: 'Soft, articulate' },
-  { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', gender: 'male', description: 'Authoritative, clear' },
-  { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli', gender: 'female', description: 'Young, bubbly' },
-  { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh', gender: 'male', description: 'Natural, friendly' },
-];
 
 export async function agentRoutes(fastify: FastifyInstance) {
   // List user's agents
@@ -214,28 +205,31 @@ export async function agentRoutes(fastify: FastifyInstance) {
         .send(wav);
     }
 
-    // Generate via ElevenLabs
-    const apiKey = process.env.ELEVENLABS_API_KEY;
+    // Generate via Cartesia
+    const apiKey = process.env.CARTESIA_API_KEY;
     if (!apiKey) {
-      return reply.code(500).send({ error: 'ElevenLabs not configured' });
+      return reply.code(500).send({ error: 'Cartesia not configured' });
     }
 
     try {
       const response = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=pcm_24000`,
+        'https://api.cartesia.ai/tts/bytes',
         {
           method: 'POST',
           headers: {
-            'xi-api-key': apiKey,
+            'Authorization': `Bearer ${apiKey}`,
+            'Cartesia-Version': '2025-04-16',
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            text: "Hi there, I'm your conversation partner. Let's practice speaking together.",
-            model_id: 'eleven_multilingual_v2',
-            voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.75,
-              speed: 1.0,
+            model_id: 'sonic',
+            transcript: "Hi there, I'm your conversation partner. Let's practice speaking together.",
+            voice: { mode: 'id', id: voiceId },
+            language: 'en',
+            output_format: {
+              container: 'raw',
+              encoding: 'pcm_s16le',
+              sample_rate: 24000,
             },
           }),
         },
@@ -243,7 +237,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
       if (!response.ok) {
         const errorText = await response.text();
-        fastify.log.error(`[voice-sample] ElevenLabs error: ${response.status} ${errorText}`);
+        fastify.log.error(`[voice-sample] Cartesia error: ${response.status} ${errorText}`);
         return reply.code(502).send({ error: 'Failed to generate voice sample' });
       }
 

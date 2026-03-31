@@ -1,9 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
+import Groq from 'groq-sdk';
 import { db } from '../db/index.js';
 import { agentGreetings, agents, users, sessions } from '../db/schema.js';
 import { eq, and, desc, isNull } from 'drizzle-orm';
 
-const anthropic = new Anthropic();
+const groq = new Groq();
 
 function getTimeOfDay(): string {
   const hour = new Date().getHours();
@@ -140,18 +140,21 @@ export async function generateGreeting(userId: number, agentId?: number | null):
   const ctx = await fetchGreetingContext(userId, agentId);
   const prompt = buildGreetingPrompt(ctx);
 
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const response = await groq.chat.completions.create({
+    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
     max_tokens: 80,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [
+      { role: 'system', content: prompt },
+      { role: 'user', content: 'Generate the greeting now.' },
+    ],
   });
 
-  const textBlock = response.content.find(b => b.type === 'text');
-  if (!textBlock || textBlock.type !== 'text') {
+  const text = response.choices[0]?.message?.content;
+  if (!text) {
     throw new Error('No text in greeting response');
   }
 
-  return textBlock.text.trim();
+  return text.trim();
 }
 
 export async function regenerateAllGreetings(userId: number): Promise<void> {

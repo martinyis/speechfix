@@ -5,6 +5,7 @@ import type { AgentConfig } from '../voice/handlers/types.js';
 import { db } from '../db/index.js';
 import { agents } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
+import { buildFillerHistoryPrompt } from '../voice/prompts/filler-context.js';
 
 export async function voiceSessionRoute(fastify: FastifyInstance) {
   fastify.get('/voice-session', { websocket: true }, async (socket, req) => {
@@ -48,6 +49,17 @@ export async function voiceSessionRoute(fastify: FastifyInstance) {
         formContext = JSON.parse(formContextParam);
       } catch {
         // ignore invalid JSON
+      }
+    }
+
+    // Pre-fetch filler history for filler-coach mode
+    if (mode === 'filler-coach') {
+      const fillerHistory = await buildFillerHistoryPrompt(req.user.userId);
+      formContext = formContext ?? {};
+      formContext.fillerHistory = fillerHistory;
+      // Default target words if not provided by client
+      if (!formContext.targetWords) {
+        formContext.targetWords = 'um, uh, like, you know';
       }
     }
 

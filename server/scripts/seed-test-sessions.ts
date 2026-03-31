@@ -1,7 +1,26 @@
 import 'dotenv/config';
 import { db } from '../src/db/index.js';
 import { sessions, corrections, fillerWords } from '../src/db/schema.js';
-import { analyzeSpeech } from '../src/services/analysis.js';
+import { GrammarAnalyzer } from '../src/analysis/analyzers/grammar.js';
+import { FillerAnalyzer } from '../src/analysis/analyzers/fillers.js';
+import type { AnalysisResult } from '../src/analysis/types.js';
+
+const grammarAnalyzer = new GrammarAnalyzer();
+const fillerAnalyzer = new FillerAnalyzer();
+
+async function analyzeSpeech(sentences: string[]): Promise<AnalysisResult> {
+  const input = { sentences, mode: 'recording' as const };
+  const [grammar, fillers] = await Promise.all([
+    grammarAnalyzer.analyze(input),
+    fillerAnalyzer.analyze(input),
+  ]);
+  return {
+    corrections: grammar.corrections,
+    fillerWords: fillers.fillerWords,
+    fillerPositions: fillers.fillerPositions,
+    sessionInsights: grammar.sessionInsights,
+  };
+}
 
 const TEST_TEXTS = [
   // Session 1

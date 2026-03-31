@@ -283,6 +283,9 @@ export default function AgentCreateScreen() {
   const [isCreating, setIsCreating] = useState(false);
   const [avatarSeed, setAvatarSeed] = useState<AvatarId | null>(null);
 
+  // Success phase voice selection
+  const [successVoiceId, setSuccessVoiceId] = useState<string | null>(null);
+
   // Voice session state from store
   const voiceState = useSessionStore((s) => s.voiceSessionState);
   const elapsedTime = useSessionStore((s) => s.elapsedTime);
@@ -301,10 +304,11 @@ export default function AgentCreateScreen() {
   const handleAgentCreated = useCallback(
     (agent: Agent) => {
       setCreatedAgent(agent);
+      setSuccessVoiceId(agent.voiceId ?? voiceId);
       queryClient.invalidateQueries({ queryKey: ['agents'] });
       setPhase('success');
     },
-    [queryClient],
+    [queryClient, voiceId],
   );
 
   const handleError = useCallback((message: string) => {
@@ -340,6 +344,7 @@ export default function AgentCreateScreen() {
       useAgentStore.getState().addAgent(agent);
       queryClient.invalidateQueries({ queryKey: ['agents'] });
       setCreatedAgent(agent);
+      setSuccessVoiceId(agent.voiceId ?? voiceId);
       setPhase('success');
     } catch {
       Alert.alert('Error', 'Failed to create agent. Please try again.');
@@ -570,31 +575,65 @@ export default function AgentCreateScreen() {
   }
 
   // ── Success Phase ────────────────────────────────────────────────────
+  const handleSuccessVoiceSelect = async (newVoiceId: string | null) => {
+    setSuccessVoiceId(newVoiceId);
+    if (createdAgent && newVoiceId) {
+      try {
+        await authFetch(`/agents/${createdAgent.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ voiceId: newVoiceId }),
+        });
+        queryClient.invalidateQueries({ queryKey: ['agents'] });
+      } catch {
+        // Silently fail — voice can be changed later
+      }
+    }
+  };
+
   return (
     <View style={[styles.successContainer, { paddingBottom: insets.bottom + 24 }]}>
-      <View style={styles.successContent}>
-        <Ionicons name="checkmark-circle" size={64} color={colors.primary} />
-        <Text style={styles.successTitle}>
-          {createdAgent?.name ?? 'Agent'} is ready
-        </Text>
-      </View>
+      <ScrollView
+        contentContainerStyle={styles.successScroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.successHeader}>
+          <Ionicons name="checkmark-circle" size={64} color={colors.primary} />
+          <Text style={styles.successTitle}>
+            {createdAgent?.name ?? 'Agent'} is ready
+          </Text>
+        </View>
 
-      <View style={styles.successButtons}>
-        <GlassIconPillButton
-          variant="primary"
-          label="Start Practicing Now"
-          icon="play"
-          onPress={handleStartPracticing}
-          fullWidth
-        />
-        <GlassIconPillButton
-          variant="secondary"
-          label="Back to Agents"
-          icon="arrow-back"
-          onPress={() => router.back()}
-          fullWidth
-        />
-      </View>
+        <View style={styles.successVoiceSection}>
+          <Text style={styles.successVoiceLabel}>CHOOSE A VOICE</Text>
+          <VoicePicker
+            voices={voices}
+            selectedVoiceId={successVoiceId}
+            onSelect={handleSuccessVoiceSelect}
+            previewVoiceId={voicePreview.activeVoiceId}
+            previewPlaying={voicePreview.isPlaying}
+            previewLoading={voicePreview.isLoading}
+            onTogglePreview={voicePreview.toggle}
+          />
+        </View>
+
+        <View style={styles.successButtons}>
+          <GlassIconPillButton
+            variant="primary"
+            label="Start Practicing Now"
+            icon="play"
+            onPress={handleStartPracticing}
+            fullWidth
+          />
+          <GlassIconPillButton
+            variant="secondary"
+            label="Back to Agents"
+            icon="arrow-back"
+            onPress={() => router.back()}
+            fullWidth
+          />
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -765,19 +804,29 @@ const styles = StyleSheet.create({
   successContainer: {
     flex: 1,
     backgroundColor: colors.background,
-    justifyContent: 'center',
-    paddingHorizontal: layout.screenPadding,
   },
-  successContent: {
-    flex: 1,
+  successScroll: {
+    paddingHorizontal: layout.screenPadding,
+    paddingTop: 80,
+    paddingBottom: 24,
+  },
+  successHeader: {
     alignItems: 'center',
-    justifyContent: 'center',
     gap: spacing.lg,
+    marginBottom: spacing.xxl,
   },
   successTitle: {
     ...typography.headlineMd,
     color: colors.onSurface,
     textAlign: 'center',
+  },
+  successVoiceSection: {
+    marginBottom: spacing.xxl,
+  },
+  successVoiceLabel: {
+    ...typography.labelSm,
+    color: alpha(colors.white, 0.4),
+    marginBottom: spacing.sm,
   },
   successButtons: {
     gap: spacing.md,

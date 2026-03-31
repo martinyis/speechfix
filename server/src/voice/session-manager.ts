@@ -2,8 +2,9 @@ import { WebSocket } from 'ws';
 import { DeepgramClient, TranscriptResult } from './deepgram.js';
 import { generateResponse } from './response-generator.js';
 import type { ConversationMessage, ResponseMeta } from './response-generator.js';
-import { ElevenLabsTTS } from './tts.js';
+import { CartesiaTTS } from './tts.js';
 import { detectTurnHeuristic, detectTurnLLM } from './turn-detector.js';
+import { DEFAULT_VOICE_ID } from './voice-config.js';
 import type { AgentTypeHandler, AgentConfig, FullUserContext } from './handlers/types.js';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
@@ -36,7 +37,7 @@ export class VoiceSession {
   private turnCount = 0;
 
   private deepgram: DeepgramClient | null = null;
-  private tts: ElevenLabsTTS | null = null;
+  private tts: CartesiaTTS | null = null;
   private userId: number;
   private handler: AgentTypeHandler;
   private agentConfig: AgentConfig | null;
@@ -61,10 +62,10 @@ export class VoiceSession {
     this.startTime = Date.now();
     this.state = 'listening';
 
-    // --- Parallel setup: fetch user context + greeting, connect Deepgram + ElevenLabs ---
+    // --- Parallel setup: fetch user context + greeting, connect Deepgram + Cartesia ---
     const deepgramKey = process.env.DEEPGRAM_API_KEY;
-    const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
-    const voiceId = this.agentConfig?.voiceId || process.env.ELEVENLABS_VOICE_ID;
+    const cartesiaKey = process.env.CARTESIA_API_KEY;
+    const voiceId = this.agentConfig?.voiceId || DEFAULT_VOICE_ID;
 
     const contextAndGreetingPromise = (async () => {
       let userContext: FullUserContext | undefined;
@@ -119,11 +120,11 @@ export class VoiceSession {
     })();
 
     const ttsPromise = (async () => {
-      if (!elevenLabsKey || !voiceId) {
-        console.warn('[voice-session] No ELEVENLABS_API_KEY/VOICE_ID, TTS disabled');
+      if (!cartesiaKey || !voiceId) {
+        console.warn('[voice-session] No CARTESIA_API_KEY/VOICE_ID, TTS disabled');
         return;
       }
-      this.tts = new ElevenLabsTTS(elevenLabsKey, voiceId, {
+      this.tts = new CartesiaTTS(cartesiaKey, voiceId, {
         onAudio: (base64Chunk) => {
           if (this.isSpeaking) {
             this.turnAudioBytes += Math.ceil(base64Chunk.length * 3 / 4);
@@ -139,9 +140,9 @@ export class VoiceSession {
       });
       try {
         await this.tts.connect();
-        console.log(`[voice-session] ElevenLabs connected for session ${this.sessionId}`);
+        console.log(`[voice-session] Cartesia connected for session ${this.sessionId}`);
       } catch (err) {
-        console.error(`[voice-session] Failed to connect ElevenLabs:`, err);
+        console.error(`[voice-session] Failed to connect Cartesia:`, err);
         this.tts = null;
       }
     })();
@@ -722,6 +723,7 @@ export class VoiceSession {
 
     switch (result.type) {
       case 'analysis':
+      case 'filler-practice':
         this.sendToClient({
           type: 'session_end',
           sessionId: this.sessionId,

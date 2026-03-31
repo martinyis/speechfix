@@ -33,7 +33,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     const [user] = await db.insert(users).values({ email, passwordHash, name }).returning();
 
     const token = signToken({ userId: user.id, email: user.email });
-    return { token, user: { id: user.id, email: user.email, name: user.name, displayName: user.displayName, onboardingComplete: user.onboardingComplete } };
+    return { token, user: { id: user.id, email: user.email, name: user.name, displayName: user.displayName, onboardingComplete: user.onboardingComplete, analysisFlags: user.analysisFlags } };
   });
 
   fastify.post('/auth/login', async (request, reply) => {
@@ -54,6 +54,6 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
 
     const token = signToken({ userId: user.id, email: user.email });
-    return { token, user: { id: user.id, email: user.email, name: user.name, displayName: user.displayName, onboardingComplete: user.onboardingComplete } };
+    return { token, user: { id: user.id, email: user.email, name: user.name, displayName: user.displayName, onboardingComplete: user.onboardingComplete, analysisFlags: user.analysisFlags } };
   });
 }

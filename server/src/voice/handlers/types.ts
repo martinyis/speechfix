@@ -16,7 +16,7 @@ export interface FullUserContext extends UserContext {
 }
 
 export interface SessionEndResult {
-  type: 'analysis' | 'onboarding' | 'agent-created';
+  type: 'analysis' | 'onboarding' | 'agent-created' | 'filler-practice';
   dbSessionId?: number;
   clarityScore?: number;
   correctionIds?: number[];

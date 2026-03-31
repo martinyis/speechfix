@@ -11,8 +11,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated, {
+  useSharedValue,
   useAnimatedStyle,
   withTiming,
+  interpolate,
+  Easing,
   FadeIn,
   FadeInDown,
 } from 'react-native-reanimated';
@@ -32,25 +35,26 @@ const SEVERITY_COLOR: Record<string, string> = {
 };
 
 export default function PracticeSessionScreen() {
-  const { correctionId, mode: modeParam, fromList } = useLocalSearchParams<{
-    correctionId: string;
+  const { correctionId, mode: modeParam, fromList, sessionId } = useLocalSearchParams<{
+    correctionId?: string;
     mode?: string;
     fromList?: string;
+    sessionId?: string;
   }>();
   const insets = useSafeAreaInsets();
   const isFromList = fromList === 'true';
+  const isFromSession = !!sessionId;
 
   const [mode, setMode] = useState<PracticeMode>(
     (modeParam as PracticeMode) || 'say_it_right',
   );
   const [currentCorrectionId, setCurrentCorrectionId] = useState(Number(correctionId));
   const [scenario, setScenario] = useState<string | null>(null);
-  const [scenarioLoading, setScenarioLoading] = useState(false);
-  const scenarioCacheRef = useRef<Record<number, string>>({});
   const [answerRevealed, setAnswerRevealed] = useState(false);
   const [sessionQueue, setSessionQueue] = useState<number[]>([]);
   const [queueIndex, setQueueIndex] = useState(0);
   const requeueCountRef = useRef<Record<number, number>>({});
+  const [completionState, setCompletionState] = useState<'session_complete' | 'all_complete' | null>(null);
 
   const { data: tasks, refetch: refetchTasks } = usePracticeTasks();
   const recording = usePracticeRecording();
@@ -60,65 +64,75 @@ export default function PracticeSessionScreen() {
     return tasks?.find((t) => t.correctionId === currentCorrectionId) ?? null;
   }, [tasks, currentCorrectionId]);
 
-  // Fetch scenario when switching to "use_it_naturally" mode
+  // Load scenario from pre-generated task data, fallback to API if null
   useEffect(() => {
     if (mode !== 'use_it_naturally' || !currentCorrectionId) return;
-    const cached = scenarioCacheRef.current[currentCorrectionId];
-    if (cached) {
-      setScenario(cached);
+
+    if (task?.scenario) {
+      setScenario(task.scenario);
       return;
     }
 
-    setScenarioLoading(true);
+    // Fallback: fetch on-demand if scenario wasn't pre-generated
     authFetch(`/practice/scenario?correctionId=${currentCorrectionId}`)
       .then((res) => res.json())
       .then((data) => {
-        const s = data.scenario || 'Describe something that happened to you recently.';
-        scenarioCacheRef.current[currentCorrectionId] = s;
-        setScenario(s);
+        setScenario(data.scenario || 'Describe something that happened to you recently.');
       })
       .catch(() => {
         setScenario('Describe something that happened to you recently.');
-      })
-      .finally(() => setScenarioLoading(false));
-  }, [mode, currentCorrectionId]);
+      });
+  }, [mode, currentCorrectionId, task?.scenario]);
 
-  // Build session queue on mount for fromList mode
+  // Build session queue on mount for fromList or fromSession mode
   useEffect(() => {
-    if (isFromList && tasks && sessionQueue.length === 0) {
-      const unpracticed = tasks.filter((t) => !t.practiced).map((t) => t.correctionId);
+    if ((isFromList || isFromSession) && tasks && sessionQueue.length === 0) {
+      const unpracticed = isFromSession
+        ? tasks.filter((t) => t.sessionId === Number(sessionId) && !t.practiced).map((t) => t.correctionId)
+        : tasks.filter((t) => !t.practiced).map((t) => t.correctionId);
       if (unpracticed.length > 0) {
         setSessionQueue(unpracticed);
         setCurrentCorrectionId(unpracticed[0]);
       }
     }
-  }, [isFromList, tasks]);
+  }, [isFromList, isFromSession, tasks]);
 
-  // Find next unpracticed task
+  // Find next unpracticed task (for fallback / use_it_naturally navigation)
   const nextTask = useMemo(() => {
-    if (!tasks || !isFromList) return null;
+    if (!tasks || (!isFromList && !isFromSession)) return null;
     const unpracticed = tasks.filter((t) => !t.practiced && t.correctionId !== currentCorrectionId);
     return unpracticed.length > 0 ? unpracticed[0] : null;
-  }, [tasks, currentCorrectionId, isFromList]);
+  }, [tasks, currentCorrectionId, isFromList, isFromSession]);
 
   // Handlers
   const handleStartRecording = useCallback(async () => {
-    console.log('[PracticeSession] Record button pressed — state:', recording.state);
+    const t0 = Date.now();
+    console.log(`[PracticeSession] >>>>>> RECORD BUTTON PRESSED (START) <<<<<<`);
+    console.log(`[PracticeSession] handleStartRecording — mode: "${mode}", correctionId: ${currentCorrectionId}, recording.state: "${recording.state}"`);
+    console.log(`[PracticeSession] handleStartRecording — task original: "${task?.originalText}", corrected: "${task?.correctedText}"`);
+    if (mode === 'use_it_naturally') {
+      console.log(`[PracticeSession] handleStartRecording — scenario: "${scenario}"`);
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    console.log(`[PracticeSession] handleStartRecording — t=${Date.now() - t0}ms — calling recording.start()...`);
     await recording.start();
-    console.log('[PracticeSession] recording.start() resolved — state:', recording.state);
-  }, [recording]);
+    console.log(`[PracticeSession] handleStartRecording — t=${Date.now() - t0}ms — recording.start() resolved, recording.state: "${recording.state}"`);
+  }, [recording, mode, currentCorrectionId, task, scenario]);
 
   const handleStopRecording = useCallback(async () => {
-    console.log('[PracticeSession] Stop button pressed — state:', recording.state, 'elapsed:', recording.elapsedSeconds);
+    const t0 = Date.now();
+    console.log(`[PracticeSession] >>>>>> STOP BUTTON PRESSED <<<<<<`);
+    console.log(`[PracticeSession] handleStopRecording — mode: "${mode}", correctionId: ${currentCorrectionId}, recording.state: "${recording.state}", elapsed: ${recording.elapsedSeconds}s`);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    console.log(`[PracticeSession] handleStopRecording — t=${Date.now() - t0}ms — calling recording.stop()...`);
     await recording.stop(currentCorrectionId, mode, scenario ?? undefined);
-    console.log('[PracticeSession] recording.stop() resolved');
+    console.log(`[PracticeSession] handleStopRecording — t=${Date.now() - t0}ms — recording.stop() resolved`);
   }, [recording, currentCorrectionId, mode, scenario]);
 
   // Auto-stop at max duration
   useEffect(() => {
     if (recording.state === 'recording' && recording.elapsedSeconds >= 15) {
+      console.log(`[PracticeSession] AUTO-STOP triggered — elapsed: ${recording.elapsedSeconds}s`);
       handleStopRecording();
     }
   }, [recording.state, recording.elapsedSeconds, handleStopRecording]);
@@ -133,8 +147,34 @@ export default function PracticeSessionScreen() {
     router.back();
   }, [refetchTasks]);
 
+  const handleQueueExhausted = useCallback(async () => {
+    const freshTasks = await refetchTasks();
+    const fresh = freshTasks.data;
+    if (!fresh) {
+      handleDone();
+      return;
+    }
+
+    if (isFromSession) {
+      // Check if other sessions have unpracticed corrections
+      const otherUnpracticed = fresh.filter(
+        (t) => t.sessionId !== Number(sessionId) && !t.practiced,
+      );
+      setCompletionState(otherUnpracticed.length > 0 ? 'session_complete' : 'all_complete');
+    } else if (isFromList) {
+      const remaining = fresh.filter((t) => !t.practiced);
+      if (remaining.length > 0) {
+        setCompletionState('session_complete');
+      } else {
+        setCompletionState('all_complete');
+      }
+    } else {
+      handleDone();
+    }
+  }, [refetchTasks, isFromSession, isFromList, sessionId, handleDone]);
+
   const handleNext = useCallback(() => {
-    // Queue-based navigation for say_it_right from list
+    // Queue-based navigation for say_it_right from list or session
     if (mode === 'say_it_right' && sessionQueue.length > 0) {
       const currentId = sessionQueue[queueIndex];
       const passed = recording.result?.passed;
@@ -157,7 +197,7 @@ export default function PracticeSessionScreen() {
         setAnswerRevealed(false);
         setScenario(null);
       } else {
-        handleDone();
+        handleQueueExhausted();
       }
       return;
     }
@@ -170,7 +210,7 @@ export default function PracticeSessionScreen() {
     } else {
       handleDone();
     }
-  }, [mode, sessionQueue, queueIndex, recording, nextTask, handleDone]);
+  }, [mode, sessionQueue, queueIndex, recording, nextTask, handleDone, handleQueueExhausted]);
 
   const handleSkip = useCallback(() => {
     // Queue-based skip for say_it_right — always re-queue
@@ -195,7 +235,7 @@ export default function PracticeSessionScreen() {
         setAnswerRevealed(false);
         setScenario(null);
       } else {
-        handleDone();
+        handleQueueExhausted();
       }
       return;
     }
@@ -208,7 +248,7 @@ export default function PracticeSessionScreen() {
     } else {
       handleDone();
     }
-  }, [mode, sessionQueue, queueIndex, recording, nextTask, handleDone]);
+  }, [mode, sessionQueue, queueIndex, recording, nextTask, handleDone, handleQueueExhausted]);
 
   // Haptics on result
   useEffect(() => {
@@ -223,6 +263,36 @@ export default function PracticeSessionScreen() {
 
   const severityColor = task ? (SEVERITY_COLOR[task.severity] ?? colors.severityError) : colors.severityError;
 
+  // Collapsable explanation state
+  const [explanationExpanded, setExplanationExpanded] = useState(false);
+  const explanationAnim = useSharedValue(0);
+
+  const toggleExplanation = useCallback(() => {
+    const next = !explanationExpanded;
+    setExplanationExpanded(next);
+    explanationAnim.value = withTiming(next ? 1 : 0, {
+      duration: 250,
+      easing: Easing.out(Easing.cubic),
+    });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [explanationExpanded, explanationAnim]);
+
+  const explanationBodyStyle = useAnimatedStyle(() => ({
+    height: interpolate(explanationAnim.value, [0, 1], [0, 60]),
+    opacity: interpolate(explanationAnim.value, [0, 0.4, 1], [0, 0, 1]),
+    overflow: 'hidden' as const,
+  }));
+
+  const explanationChevronStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${interpolate(explanationAnim.value, [0, 1], [0, 180])}deg` }],
+  }));
+
+  // Reset explanation state when switching corrections
+  useEffect(() => {
+    setExplanationExpanded(false);
+    explanationAnim.value = 0;
+  }, [currentCorrectionId]);
+
   // Dim content during recording
   const contentOpacity = useAnimatedStyle(() => ({
     opacity: withTiming(recording.state === 'recording' ? 0.6 : 1, { duration: 200 }),
@@ -235,6 +305,69 @@ export default function PracticeSessionScreen() {
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
+      </View>
+    );
+  }
+
+  // -- Celebration screen --
+  if (completionState) {
+    return (
+      <View style={styles.container}>
+        <ScreenHeader variant="back" />
+        <Animated.View style={styles.celebrationContainer} entering={FadeIn.duration(300)}>
+          {completionState === 'session_complete' ? (
+            <>
+              <Animated.View entering={FadeInDown.duration(400).delay(100)}>
+                <Ionicons name="trophy" size={64} color={colors.primary} />
+              </Animated.View>
+              <Text style={styles.celebrationTitle}>Session Complete</Text>
+              <Text style={styles.celebrationSubtitle}>
+                All corrections in this session have been practiced.
+              </Text>
+              <View style={styles.celebrationActions}>
+                <GlassIconPillButton
+                  label="Practice Next Session"
+                  icon="arrow-forward"
+                  variant="primary"
+                  fullWidth
+                  onPress={() => {
+                    router.replace('/(tabs)/practice');
+                  }}
+                />
+                <GlassIconPillButton
+                  label="Done"
+                  icon="checkmark"
+                  variant="secondary"
+                  fullWidth
+                  onPress={() => {
+                    router.back();
+                  }}
+                />
+              </View>
+            </>
+          ) : (
+            <>
+              <Animated.View entering={FadeInDown.duration(400).delay(100)}>
+                <Ionicons name="checkmark-circle" size={64} color={colors.severityPolish} />
+              </Animated.View>
+              <Text style={styles.celebrationTitle}>All Caught Up</Text>
+              <Text style={styles.celebrationSubtitle}>
+                Every correction has been practiced.
+              </Text>
+              <View style={styles.celebrationActions}>
+                <GlassIconPillButton
+                  label="New Session"
+                  icon="mic"
+                  variant="primary"
+                  fullWidth
+                  onPress={() => {
+                    router.replace('/(tabs)');
+                  }}
+                />
+              </View>
+            </>
+          )}
+        </Animated.View>
       </View>
     );
   }
@@ -278,7 +411,7 @@ export default function PracticeSessionScreen() {
                 <Text style={styles.resultTitle}>Nailed it</Text>
                 <Text style={styles.resultFeedback}>{recording.result.feedback}</Text>
                 <View style={styles.resultActions}>
-                  {isFromList && nextTask ? (
+                  {(isFromSession || isFromList) && nextTask ? (
                     <GlassIconPillButton label="Next" icon="arrow-forward" variant="primary" onPress={handleNext} fullWidth />
                   ) : (
                     <GlassIconPillButton label="Done" icon="checkmark" variant="primary" onPress={handleDone} fullWidth />
@@ -301,7 +434,7 @@ export default function PracticeSessionScreen() {
                 ) : null}
                 <View style={styles.resultActions}>
                   <GlassIconPillButton label="Try Again" icon="refresh" variant="primary" onPress={handleTryAgain} fullWidth />
-                  {isFromList && (
+                  {(isFromList || isFromSession) && (
                     <GlassIconPillButton label="Skip" icon="arrow-forward" variant="secondary" onPress={handleSkip} fullWidth />
                   )}
                 </View>
@@ -318,35 +451,68 @@ export default function PracticeSessionScreen() {
             ]}>
               {mode === 'say_it_right' ? (
                 <>
-                  {/* Original text with error words underlined */}
+                  {/* Full sentence with error portion underlined */}
                   <View style={styles.originalWrap}>
                     <Text style={styles.sectionLabel}>YOUR ORIGINAL</Text>
                     <Text style={styles.originalFullText}>
-                      {wordDiff(task.originalText, task.correctedText).map((seg, i) => (
-                        <Text
-                          key={i}
-                          style={
-                            seg.type === 'equal'
-                              ? undefined
-                              : [styles.errorUnderline, { textDecorationColor: severityColor }]
+                      {(() => {
+                        const ctx = task.contextSnippet;
+                        if (ctx) {
+                          const idx = ctx.toLowerCase().indexOf(task.originalText.toLowerCase());
+                          if (idx >= 0) {
+                            const before = ctx.slice(0, idx);
+                            const match = ctx.slice(idx, idx + task.originalText.length);
+                            const after = ctx.slice(idx + task.originalText.length);
+                            return (
+                              <>
+                                {before ? <Text>{before}</Text> : null}
+                                <Text style={[styles.errorUnderline, { textDecorationColor: severityColor }]}>
+                                  {match}
+                                </Text>
+                                {after ? <Text>{after}</Text> : null}
+                              </>
+                            );
                           }
-                        >
-                          {i > 0 ? ' ' : ''}{seg.text}
-                        </Text>
-                      ))}
+                        }
+                        // Fallback: wordDiff on originalText
+                        return wordDiff(task.originalText, task.correctedText).map((seg, i) => (
+                          <Text
+                            key={i}
+                            style={
+                              seg.type === 'equal'
+                                ? undefined
+                                : [styles.errorUnderline, { textDecorationColor: severityColor }]
+                            }
+                          >
+                            {i > 0 ? ' ' : ''}{seg.text}
+                          </Text>
+                        ));
+                      })()}
                     </Text>
                   </View>
 
-                  {/* Hint area — explanation + correction type */}
+                  {/* Collapsable explanation + correction type */}
                   <View style={styles.hintArea}>
-                    {task.explanation ? (
-                      <Text style={styles.hintText}>{task.explanation}</Text>
-                    ) : null}
-                    <View style={styles.correctionTypePill}>
-                      <Text style={[styles.correctionTypePillText, { color: severityColor }]}>
-                        {formatCorrectionTypeLabel(task.correctionType)}
-                      </Text>
+                    <View style={styles.hintRow}>
+                      <View style={styles.correctionTypePill}>
+                        <Text style={[styles.correctionTypePillText, { color: severityColor }]}>
+                          {formatCorrectionTypeLabel(task.correctionType)}
+                        </Text>
+                      </View>
+                      {task.explanation ? (
+                        <Pressable onPress={toggleExplanation} hitSlop={8} style={styles.explainToggle}>
+                          <Text style={styles.explainToggleText}>Why?</Text>
+                          <Animated.View style={explanationChevronStyle}>
+                            <Ionicons name="chevron-down" size={12} color={alpha(colors.white, 0.3)} />
+                          </Animated.View>
+                        </Pressable>
+                      ) : null}
                     </View>
+                    {task.explanation ? (
+                      <Animated.View style={explanationBodyStyle}>
+                        <Text style={styles.hintText}>{task.explanation}</Text>
+                      </Animated.View>
+                    ) : null}
                   </View>
 
                   {/* Instruction */}
@@ -405,42 +571,91 @@ export default function PracticeSessionScreen() {
                           variant="primary"
                           onPress={handleTryAgain}
                         />
-                        <GlassIconPillButton
-                          label="Next"
-                          icon="arrow-forward"
-                          variant="secondary"
-                          onPress={handleNext}
-                        />
+                        {(isFromSession || (isFromList && nextTask)) && (
+                          <GlassIconPillButton
+                            label="Next"
+                            icon="arrow-forward"
+                            variant="secondary"
+                            onPress={handleNext}
+                          />
+                        )}
+                        {!isFromSession && !isFromList && (
+                          <GlassIconPillButton
+                            label="Done"
+                            icon="checkmark"
+                            variant="secondary"
+                            onPress={handleDone}
+                          />
+                        )}
                       </View>
                     </Animated.View>
                   )}
                 </>
               ) : (
                 <>
-                  {/* Compact inline correction */}
+                  {/* Full sentence with error underlined + collapsable explanation */}
                   <View style={styles.correctionContext}>
                     <Text style={styles.sectionLabel}>CORRECTION</Text>
-                    <View style={styles.inlineCorrection}>
-                      <Text style={styles.inlineOriginal}>{task.originalText}</Text>
-                      <Ionicons name="arrow-forward" size={12} color={alpha(colors.white, 0.15)} />
-                      <Text style={styles.inlineCorrected}>{task.correctedText}</Text>
+                    <Text style={styles.originalFullText}>
+                      {(() => {
+                        const ctx = task.contextSnippet;
+                        if (ctx) {
+                          const idx = ctx.toLowerCase().indexOf(task.originalText.toLowerCase());
+                          if (idx >= 0) {
+                            const before = ctx.slice(0, idx);
+                            const match = ctx.slice(idx, idx + task.originalText.length);
+                            const after = ctx.slice(idx + task.originalText.length);
+                            return (
+                              <>
+                                {before ? <Text>{before}</Text> : null}
+                                <Text style={[styles.errorUnderline, { textDecorationColor: severityColor }]}>
+                                  {match}
+                                </Text>
+                                {after ? <Text>{after}</Text> : null}
+                              </>
+                            );
+                          }
+                        }
+                        // Fallback: inline original → corrected
+                        return (
+                          <>
+                            <Text style={styles.inlineOriginal}>{task.originalText}</Text>
+                            <Text style={{ color: alpha(colors.white, 0.15) }}> {'→'} </Text>
+                            <Text style={styles.inlineCorrected}>{task.correctedText}</Text>
+                          </>
+                        );
+                      })()}
+                    </Text>
+
+                    <View style={styles.hintRow}>
+                      <View style={styles.correctionTypePill}>
+                        <Text style={[styles.correctionTypePillText, { color: severityColor }]}>
+                          {formatCorrectionTypeLabel(task.correctionType)}
+                        </Text>
+                      </View>
+                      {task.explanation ? (
+                        <Pressable onPress={toggleExplanation} hitSlop={8} style={styles.explainToggle}>
+                          <Text style={styles.explainToggleText}>Why?</Text>
+                          <Animated.View style={explanationChevronStyle}>
+                            <Ionicons name="chevron-down" size={12} color={alpha(colors.white, 0.3)} />
+                          </Animated.View>
+                        </Pressable>
+                      ) : null}
                     </View>
-                    {task.explanation && (
-                      <Text style={styles.ruleText}>{task.explanation}</Text>
-                    )}
+                    {task.explanation ? (
+                      <Animated.View style={explanationBodyStyle}>
+                        <Text style={styles.ruleText}>{task.explanation}</Text>
+                      </Animated.View>
+                    ) : null}
                   </View>
 
                   {/* Scenario — the star */}
                   <View style={styles.scenarioWrap}>
                     <Text style={styles.sectionLabel}>RESPOND TO THIS</Text>
-                    {scenarioLoading ? (
-                      <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: 12 }} />
-                    ) : (
-                      <View style={styles.targetRow}>
-                        <View style={[styles.accentBar, { backgroundColor: severityColor }]} />
-                        <Text style={styles.scenarioText}>{scenario ?? '...'}</Text>
-                      </View>
-                    )}
+                    <View style={styles.targetRow}>
+                      <View style={[styles.accentBar, { backgroundColor: severityColor }]} />
+                      <Text style={styles.scenarioText}>{scenario ?? '...'}</Text>
+                    </View>
                     <Text style={styles.scenarioHint}>
                       Answer in your own words — use the corrected form naturally
                     </Text>
@@ -549,6 +764,24 @@ const styles = StyleSheet.create({
   hintArea: {
     gap: 10,
   },
+  hintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  explainToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  explainToggleText: {
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    color: alpha(colors.white, 0.3),
+  },
   hintText: {
     fontSize: 14,
     fontFamily: fonts.medium,
@@ -604,13 +837,8 @@ const styles = StyleSheet.create({
   },
 
   // Use It Naturally — correction context
-  correctionContext: {},
-  inlineCorrection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-    marginBottom: 8,
+  correctionContext: {
+    gap: 10,
   },
   inlineOriginal: {
     fontSize: 14,
@@ -747,5 +975,36 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginTop: 4,
+  },
+
+  // Celebration
+  celebrationContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: layout.screenPadding,
+    gap: spacing.md,
+  },
+  celebrationTitle: {
+    fontSize: 26,
+    fontFamily: fonts.extrabold,
+    color: colors.onSurface,
+    letterSpacing: -0.5,
+    marginTop: spacing.sm,
+  },
+  celebrationSubtitle: {
+    fontSize: 15,
+    fontFamily: fonts.regular,
+    color: alpha(colors.white, 0.45),
+    textAlign: 'center',
+    lineHeight: 22,
+    maxWidth: 280,
+  },
+  celebrationActions: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xl,
+    width: '100%',
+    maxWidth: 300,
   },
 });
