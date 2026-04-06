@@ -17,6 +17,7 @@ interface SessionStore {
 
   // Streaming analysis state
   isStreamingAnalysis: boolean;
+  isInsightsReady: boolean;
   streamingCorrections: Correction[];
 
   // Voice session state (controls Home screen mode)
@@ -37,6 +38,13 @@ interface SessionStore {
 
   // Streaming actions
   startStreamingAnalysis: () => void;
+  setInsightsReady: (dbSessionId: number, data: {
+    score?: number | null;
+    insights?: any[];
+    fillerWords?: any[];
+    fillerPositions?: any[];
+    metrics?: any;
+  }) => void;
   addStreamingCorrection: (correction: Correction) => void;
   finalizeStreamingSession: (dbSessionId: number, data: {
     sentences?: string[];
@@ -44,6 +52,7 @@ interface SessionStore {
     fillerPositions?: any[];
     sessionInsights?: any[];
     clarityScore?: number;
+    score?: number | null;
   }, correctionIds?: number[]) => void;
 }
 
@@ -51,6 +60,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   currentSessionId: null,
   currentSessionData: null,
   isStreamingAnalysis: false,
+  isInsightsReady: false,
   streamingCorrections: [],
   isVoiceSessionActive: false,
   voiceSessionState: 'connecting',
@@ -70,6 +80,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       elapsedTime: 0,
       isMuted: false,
       isStreamingAnalysis: false,
+      isInsightsReady: false,
       streamingCorrections: [],
     }),
 
@@ -92,6 +103,31 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     set((s) => ({ elapsedTime: s.elapsedTime + 1 })),
 
   resetElapsedTime: () => set({ elapsedTime: 0 }),
+
+  setInsightsReady: (dbSessionId, data) => {
+    const state = get();
+    set({
+      isInsightsReady: true,
+      isStreamingAnalysis: true,
+      currentSessionId: dbSessionId,
+      currentSessionData: {
+        id: dbSessionId,
+        transcription: '',
+        durationSeconds: state.elapsedTime,
+        createdAt: new Date().toISOString(),
+        sentences: [],
+        corrections: state.streamingCorrections,
+        fillerWords: (data.fillerWords ?? []).map((f: any, i: number) => ({
+          id: i,
+          sessionId: dbSessionId,
+          word: f.word,
+          count: f.count,
+        })),
+        fillerPositions: data.fillerPositions ?? [],
+        sessionInsights: data.insights ?? [],
+      },
+    });
+  },
 
   startStreamingAnalysis: () =>
     set((s) => ({

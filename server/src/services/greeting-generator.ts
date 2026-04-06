@@ -1,7 +1,7 @@
 import Groq from 'groq-sdk';
 import { db } from '../db/index.js';
 import { agentGreetings, agents, users, sessions } from '../db/schema.js';
-import { eq, and, desc, isNull } from 'drizzle-orm';
+import { eq, and, desc, isNull, sql } from 'drizzle-orm';
 
 const groq = new Groq();
 
@@ -24,14 +24,26 @@ interface GreetingContext {
   agentId?: number | null;
   agentName?: string;
   agentSystemPrompt?: string;
+  agentMode?: string;
 }
 
-async function fetchGreetingContext(userId: number, agentId?: number | null): Promise<GreetingContext> {
+async function fetchGreetingContext(userId: number, agentId: number | null, mode: string): Promise<GreetingContext> {
   const [user] = await db.select({
     displayName: users.displayName,
     goals: users.goals,
     contextNotes: users.contextNotes,
   }).from(users).where(eq(users.id, userId));
+
+  // Filler coach doesn't need session history or agent details
+  if (mode === 'filler-coach') {
+    return {
+      displayName: user?.displayName ?? null,
+      goals: null,
+      contextNotes: null,
+      lastSession: null,
+      agentId: null,
+    };
+  }
 
   // Fetch most recent session (optionally scoped to agent)
   const sessionQuery = agentId
@@ -50,14 +62,17 @@ async function fetchGreetingContext(userId: number, agentId?: number | null): Pr
   // Fetch agent details if scoped
   let agentName: string | undefined;
   let agentSystemPrompt: string | undefined;
+  let agentMode: string | undefined;
   if (agentId) {
     const [agent] = await db.select({
       name: agents.name,
       systemPrompt: agents.systemPrompt,
+      agentMode: agents.agentMode,
     }).from(agents).where(eq(agents.id, agentId));
     if (agent) {
       agentName = agent.name;
       agentSystemPrompt = agent.systemPrompt;
+      agentMode = agent.agentMode;
     }
   }
 
@@ -73,28 +88,47 @@ async function fetchGreetingContext(userId: number, agentId?: number | null): Pr
     agentId: agentId ?? null,
     agentName,
     agentSystemPrompt,
+    agentMode,
   };
 }
 
-function buildGreetingPrompt(ctx: GreetingContext): string {
+function buildGreetingPrompt(ctx: GreetingContext, mode: string): string {
+  if (mode === 'filler-coach') {
+    return buildFillerCoachGreetingPrompt(ctx);
+  }
+
   const lines: string[] = [];
   const isCustomAgent = ctx.agentId !== undefined && ctx.agentId !== null;
 
+  const isRoleplay = isCustomAgent && ctx.agentMode === 'roleplay';
+
   if (isCustomAgent && ctx.agentSystemPrompt) {
-    lines.push(`You are "${ctx.agentName}", a custom conversational AI. Your identity: ${ctx.agentSystemPrompt.slice(0, 300)}`);
-    lines.push('Stay in character for this greeting.');
+    if (isRoleplay) {
+      lines.push(`You are "${ctx.agentName}". ${ctx.agentSystemPrompt}`);
+      lines.push('Generate your opening line as this character would naturally start the interaction.');
+      lines.push('Rules:');
+      lines.push('- Speak ONLY as your character. Do NOT introduce yourself or explain what you do.');
+      lines.push('- Do NOT describe the scenario or your role. Just begin the interaction.');
+      lines.push('- Be immersive. One sentence, maybe two.');
+      lines.push('- Output ONLY the greeting text.');
+    } else {
+      lines.push(`You are "${ctx.agentName}". ${ctx.agentSystemPrompt}`);
+      lines.push('Stay in character for this greeting.');
+    }
   } else {
     lines.push('You are Reflexa, a conversational AI. You are precise, warm but not bubbly.');
   }
 
-  lines.push('');
-  lines.push('Generate a 1-2 sentence greeting for the start of a voice conversation session.');
-  lines.push('Rules:');
-  lines.push('- Be direct and precise, not bubbly or scripted.');
-  lines.push('- Never introduce yourself to returning users. They know who you are.');
-  lines.push('- End with an implicit or explicit invitation to speak.');
-  lines.push('- If you know their name, use it naturally (not every time).');
-  lines.push('- Output ONLY the greeting text. No quotes, no labels, no explanation.');
+  if (!isRoleplay) {
+    lines.push('');
+    lines.push('Generate a 1-2 sentence greeting for the start of a voice conversation session.');
+    lines.push('Rules:');
+    lines.push('- Be direct and precise, not bubbly or scripted.');
+    lines.push('- Never introduce yourself to returning users. They know who you are.');
+    lines.push('- End with an implicit or explicit invitation to speak.');
+    lines.push('- If you know their name, use it naturally (not every time).');
+    lines.push('- Output ONLY the greeting text. No quotes, no labels, no explanation.');
+  }
 
   lines.push('');
   lines.push(`Time of day: ${getTimeOfDay()}`);
@@ -136,9 +170,29 @@ function buildGreetingPrompt(ctx: GreetingContext): string {
   return lines.join('\n');
 }
 
-export async function generateGreeting(userId: number, agentId?: number | null): Promise<string> {
-  const ctx = await fetchGreetingContext(userId, agentId);
-  const prompt = buildGreetingPrompt(ctx);
+function buildFillerCoachGreetingPrompt(ctx: GreetingContext): string {
+  const lines: string[] = [];
+  lines.push('You are a speech coach in the Reflexa app. You help users reduce filler words.');
+  lines.push('You are direct, encouraging, and never judgmental.');
+  lines.push('');
+  lines.push('Generate a 1-2 sentence greeting for a filler word coaching session.');
+  lines.push('Rules:');
+  lines.push('- Be warm but direct. No bubbly language.');
+  lines.push('- Invite them to start talking naturally.');
+  lines.push('- Do NOT mention specific target words (those are session-specific and you don\'t know them yet).');
+  lines.push('- Output ONLY the greeting text. No quotes, no labels, no explanation.');
+
+  if (ctx.displayName) {
+    lines.push('');
+    lines.push(`User's name: ${ctx.displayName}`);
+  }
+
+  return lines.join('\n');
+}
+
+async function generateGreeting(userId: number, agentId: number | null, mode: string): Promise<string> {
+  const ctx = await fetchGreetingContext(userId, agentId, mode);
+  const prompt = buildGreetingPrompt(ctx, mode);
 
   const response = await groq.chat.completions.create({
     model: 'meta-llama/llama-4-scout-17b-16e-instruct',
@@ -157,57 +211,115 @@ export async function generateGreeting(userId: number, agentId?: number | null):
   return text.trim();
 }
 
-export async function regenerateAllGreetings(userId: number): Promise<void> {
-  // Fetch all agents for this user
-  const userAgents = await db.select({ id: agents.id })
-    .from(agents)
-    .where(eq(agents.userId, userId));
-
-  // Generate greeting for Reflexa (agentId=null) + each custom agent
-  const agentIds: (number | null)[] = [null, ...userAgents.map(a => a.id)];
-
-  await Promise.all(agentIds.map(async (agentId) => {
-    try {
-      const text = await generateGreeting(userId, agentId);
-      await upsertGreeting(userId, agentId, text);
-    } catch (err) {
-      console.error(`[greeting] Failed to generate for agent ${agentId}:`, err);
-    }
-  }));
-
-  console.log(`[greeting] Regenerated ${agentIds.length} greetings for user ${userId}`);
+async function upsertGreeting(userId: number, agentId: number | null, mode: string, text: string): Promise<void> {
+  // Use raw SQL for upsert since the unique index uses COALESCE expression
+  // ON CONFLICT ON CONSTRAINT doesn't work with indexes, so use the index directly
+  await db.execute(sql`
+    INSERT INTO agent_greetings (user_id, agent_id, mode, greeting_text, created_at)
+    VALUES (${userId}, ${agentId}, ${mode}, ${text}, NOW())
+    ON CONFLICT (user_id, COALESCE(agent_id, 0), mode)
+    DO UPDATE SET greeting_text = EXCLUDED.greeting_text, created_at = NOW()
+  `);
 }
 
-export async function generateGreetingForAgent(userId: number, agentId: number): Promise<void> {
-  const text = await generateGreeting(userId, agentId);
-  await upsertGreeting(userId, agentId, text);
-  console.log(`[greeting] Generated initial greeting for agent ${agentId}`);
-}
-
-async function upsertGreeting(userId: number, agentId: number | null, text: string): Promise<void> {
-  // Delete existing greeting for this user+agent combo, then insert new one
-  const deleteCondition = agentId
-    ? and(eq(agentGreetings.userId, userId), eq(agentGreetings.agentId, agentId))
-    : and(eq(agentGreetings.userId, userId), isNull(agentGreetings.agentId));
-
-  await db.delete(agentGreetings).where(deleteCondition);
-  await db.insert(agentGreetings).values({ userId, agentId, greetingText: text });
-}
-
-export async function fetchAndConsumeGreeting(userId: number, agentId: number | null): Promise<string | null> {
+/**
+ * Fetch a greeting without deleting it. After reading, fire-and-forget a replacement.
+ * The old greeting stays in DB as fallback while replacement generates.
+ */
+export async function fetchGreeting(userId: number, agentId: number | null, mode = 'conversation'): Promise<string | null> {
   const condition = agentId
-    ? and(eq(agentGreetings.userId, userId), eq(agentGreetings.agentId, agentId))
-    : and(eq(agentGreetings.userId, userId), isNull(agentGreetings.agentId));
+    ? and(eq(agentGreetings.userId, userId), eq(agentGreetings.agentId, agentId), eq(agentGreetings.mode, mode))
+    : and(eq(agentGreetings.userId, userId), isNull(agentGreetings.agentId), eq(agentGreetings.mode, mode));
 
-  const [greeting] = await db.select({ id: agentGreetings.id, greetingText: agentGreetings.greetingText })
+  const [greeting] = await db.select({ greetingText: agentGreetings.greetingText })
     .from(agentGreetings)
     .where(condition)
     .limit(1);
 
   if (!greeting) return null;
 
-  // Delete the consumed greeting
-  await db.delete(agentGreetings).where(eq(agentGreetings.id, greeting.id));
+  // Fire-and-forget: replace with a fresh greeting for next session
+  replaceGreeting(userId, agentId, mode).catch(err =>
+    console.error(`[greeting] Background replacement failed for agent=${agentId} mode=${mode}:`, err)
+  );
 
   return greeting.greetingText;
+}
+
+async function replaceGreeting(userId: number, agentId: number | null, mode: string): Promise<void> {
+  const text = await generateGreeting(userId, agentId, mode);
+  await upsertGreeting(userId, agentId, mode, text);
+  console.log(`[greeting] Replaced greeting for agent=${agentId} mode=${mode}`);
+}
+
+/**
+ * Idempotent: ensures all required greetings exist for a user.
+ * Call anywhere, anytime — only generates what's missing.
+ */
+export async function ensureGreetingsExist(userId: number): Promise<void> {
+  // 1. Fetch all user's agents
+  const userAgents = await db.select({ id: agents.id }).from(agents).where(eq(agents.userId, userId));
+
+  // 2. Fetch all existing greetings for this user
+  const existing = await db.select({ agentId: agentGreetings.agentId, mode: agentGreetings.mode })
+    .from(agentGreetings).where(eq(agentGreetings.userId, userId));
+
+  // 3. Build set of what SHOULD exist
+  const needed: { agentId: number | null; mode: string }[] = [
+    { agentId: null, mode: 'conversation' },      // Reflexa
+    { agentId: null, mode: 'filler-coach' },       // Filler coach
+    ...userAgents.map(a => ({ agentId: a.id, mode: 'conversation' as string })),
+  ];
+
+  // 4. Find what's MISSING
+  const existingSet = new Set(existing.map(e => `${e.agentId ?? 'null'}:${e.mode}`));
+  const missing = needed.filter(n => !existingSet.has(`${n.agentId ?? 'null'}:${n.mode}`));
+
+  // 5. Generate missing greetings in parallel
+  if (missing.length > 0) {
+    console.log(`[greeting] ensureGreetingsExist: generating ${missing.length} missing greetings for user ${userId}`);
+    await Promise.all(missing.map(async ({ agentId, mode }) => {
+      try {
+        const text = await generateGreeting(userId, agentId, mode);
+        await upsertGreeting(userId, agentId, mode, text);
+      } catch (err) {
+        console.error(`[greeting] ensureGreetingsExist failed for agent=${agentId} mode=${mode}:`, err);
+      }
+    }));
+  }
+}
+
+/**
+ * Regenerate ALL greetings for a user (all agents + all modes).
+ */
+export async function regenerateAllGreetings(userId: number): Promise<void> {
+  const userAgents = await db.select({ id: agents.id })
+    .from(agents)
+    .where(eq(agents.userId, userId));
+
+  const jobs: { agentId: number | null; mode: string }[] = [
+    { agentId: null, mode: 'conversation' },
+    { agentId: null, mode: 'filler-coach' },
+    ...userAgents.map(a => ({ agentId: a.id, mode: 'conversation' as string })),
+  ];
+
+  await Promise.all(jobs.map(async ({ agentId, mode }) => {
+    try {
+      const text = await generateGreeting(userId, agentId, mode);
+      await upsertGreeting(userId, agentId, mode, text);
+    } catch (err) {
+      console.error(`[greeting] regen failed agent=${agentId} mode=${mode}:`, err);
+    }
+  }));
+
+  console.log(`[greeting] Regenerated ${jobs.length} greetings for user ${userId}`);
+}
+
+/**
+ * Generate and store a greeting for a specific agent.
+ */
+export async function generateGreetingForAgent(userId: number, agentId: number | null): Promise<void> {
+  const text = await generateGreeting(userId, agentId, 'conversation');
+  await upsertGreeting(userId, agentId, 'conversation', text);
+  console.log(`[greeting] Generated greeting for agent ${agentId}`);
 }

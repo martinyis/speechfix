@@ -2,10 +2,10 @@ import { ImageSourcePropType } from 'react-native';
 
 // ── Avatar IDs ──────────────────────────────────────────────────────────────
 
-export type AvatarId = 'reflexa' | 'f2' | 'f3' | 'f4' | 'f5' | 'm1' | 'm2' | 'm3' | 'm4';
+export type AvatarId = 'reflexa' | 'f2' | 'f3' | 'f4' | 'f5' | 'f6' | 'f7' | 'f8' | 'm1' | 'm2' | 'm3' | 'm4' | 'm5' | 'm6' | 'm7' | 'm8';
 
 export const ALL_AVATAR_IDS: AvatarId[] = [
-  'reflexa', 'f2', 'f3', 'f4', 'f5', 'm1', 'm2', 'm3', 'm4',
+  'reflexa', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8',
 ];
 
 export const DEFAULT_AVATAR_ID: AvatarId = 'reflexa';
@@ -22,6 +22,13 @@ const IMAGES: Record<AvatarId, ImageSourcePropType> = {
   m2: require('../assets/images/avatars/m2.png'),
   m3: require('../assets/images/avatars/m3.png'),
   m4: require('../assets/images/avatars/m4.png'),
+  m5: require('../assets/images/avatars/m5.png'),
+  m6: require('../assets/images/avatars/m6.png'),
+  m7: require('../assets/images/avatars/m7.png'),
+  m8: require('../assets/images/avatars/m8.png'),
+  f6: require('../assets/images/avatars/f6.png'),
+  f7: require('../assets/images/avatars/f7.png'),
+  f8: require('../assets/images/avatars/f8.png'),
 };
 
 export function getAvatarImage(id: AvatarId): ImageSourcePropType {
@@ -46,10 +53,36 @@ const GRADIENTS: Record<AvatarId, AvatarGradient> = {
   m2:      { colors: ['#34d399', '#059669', '#022c22'], start: { x: 0.1, y: 0 }, end: { x: 0.9, y: 1 } },
   m3:      { colors: ['#f97316', '#c2410c', '#431407'], start: { x: 0.1, y: 0 }, end: { x: 0.9, y: 1 } },
   m4:      { colors: ['#38bdf8', '#0369a1', '#082f49'], start: { x: 0.1, y: 0 }, end: { x: 0.9, y: 1 } },
+  m5:      { colors: ['#94a3b8', '#475569', '#0f172a'], start: { x: 0.1, y: 0 }, end: { x: 0.9, y: 1 } },
+  m6:      { colors: ['#fbbf24', '#b45309', '#451a03'], start: { x: 0.1, y: 0 }, end: { x: 0.9, y: 1 } },
+  m7:      { colors: ['#2dd4bf', '#0d9488', '#042f2e'], start: { x: 0.1, y: 0 }, end: { x: 0.9, y: 1 } },
+  m8:      { colors: ['#a3e635', '#65a30d', '#1a2e05'], start: { x: 0.1, y: 0 }, end: { x: 0.9, y: 1 } },
+  f6:      { colors: ['#fb7185', '#e11d48', '#4c0519'], start: { x: 0.1, y: 0 }, end: { x: 0.9, y: 1 } },
+  f7:      { colors: ['#e879f9', '#a21caf', '#4a044e'], start: { x: 0.1, y: 0 }, end: { x: 0.9, y: 1 } },
+  f8:      { colors: ['#f97171', '#dc2626', '#450a0a'], start: { x: 0.1, y: 0 }, end: { x: 0.9, y: 1 } },
 };
 
 export function getAvatarGradient(id: AvatarId): AvatarGradient {
   return GRADIENTS[id];
+}
+
+// ── System mode avatars ─────────────────────────────────────────────────────
+
+export const SYSTEM_MODE_AVATARS: Record<string, AvatarId> = {
+  conversation: 'reflexa',
+  onboarding: 'f5',
+  'filler-coach': 'm4',
+  'agent-creator': 'f3',
+};
+
+/**
+ * Resolve the avatar for a voice session.
+ * Priority: explicit agent seed → system mode map → reflexa fallback.
+ */
+export function getSessionAvatarId(mode?: string, agentAvatarSeed?: string | null): AvatarId {
+  if (agentAvatarSeed) return resolveAvatarId(agentAvatarSeed);
+  if (mode && SYSTEM_MODE_AVATARS[mode]) return SYSTEM_MODE_AVATARS[mode];
+  return DEFAULT_AVATAR_ID;
 }
 
 // ── Seed → AvatarId resolution ──────────────────────────────────────────────

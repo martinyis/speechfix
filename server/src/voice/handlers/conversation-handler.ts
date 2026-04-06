@@ -6,7 +6,8 @@ import { IDENTITY_PROMPT } from '../prompts/identity.js';
 import { BEHAVIOR_PROMPT, CUSTOM_AGENT_BEHAVIOR_PROMPT } from '../prompts/behavior.js';
 import { REFLEXA_SESSION_PROMPT, CUSTOM_AGENT_SESSION_PROMPT } from '../prompts/session-types/conversation.js';
 import { buildUserContextPrompt } from '../prompts/context.js';
-import { runAnalysis, runAnalysisStreaming } from '../../analysis/index.js';
+import { runAnalysis, runAnalysisStreaming, runAnalysisPhased } from '../../analysis/index.js';
+import type { PhasedInsightsPayload } from '../../analysis/types.js';
 import { generateSessionMetadata } from '../../services/title-generator.js';
 import { extractConversationNotes } from '../../services/context-extractor.js';
 import { db } from '../../db/index.js';
@@ -14,9 +15,12 @@ import { sessions, corrections, fillerWords, users } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { regenerateAllGreetings } from '../../services/greeting-generator.js';
 import { generateAndStoreScenarios } from '../../services/practice-evaluator.js';
+import { runPatternAnalysisForUser } from '../../jobs/patterns.js';
+import { generateSessionBriefInsights } from '../../services/session-insights-generator.js';
 
 export class ConversationHandler implements AgentTypeHandler {
   readonly needsUserContext = true;
+  readonly greetingStrategy = 'pregenerated' as const;
 
   buildSystemPrompt(agentConfig: AgentConfig | null, userContext?: FullUserContext, _formContext?: Record<string, unknown> | null): string {
     const layers: string[] = [];
@@ -67,6 +71,10 @@ export class ConversationHandler implements AgentTypeHandler {
 
     // Skip analysis if no speech was captured
     if (!fullTranscription.trim()) {
+      // Still regenerate greetings even if no speech
+      regenerateAllGreetings(userId).catch(err =>
+        console.error('[greeting] Regeneration failed (empty transcript):', err)
+      );
       return { type: 'analysis' };
     }
 
@@ -88,6 +96,18 @@ export class ConversationHandler implements AgentTypeHandler {
       ? Math.round((Math.max(0, totalSentences - sentencesWithCorrections) / totalSentences) * 100)
       : 100;
 
+    // Start brief insights generation in parallel with DB writes
+    const briefInsightsPromise = generateSessionBriefInsights({
+      sentences: userUtterances,
+      corrections: analysisResult.corrections,
+      fillerWords: analysisResult.fillerWords,
+      durationSeconds,
+      existingInsights: analysisResult.sessionInsights,
+    }).catch(err => {
+      console.error('[conversation-handler] Brief insights failed:', err);
+      return [];
+    });
+
     // Create session in DB
     const [session] = await db
       .insert(sessions)
@@ -108,12 +128,16 @@ export class ConversationHandler implements AgentTypeHandler {
 
     console.log(`[conversation-handler] Session stored in DB: ${session.id}`);
 
+    // Await brief insights before storing analysis JSON
+    const briefInsights = await briefInsightsPromise;
+    const allInsights = [...analysisResult.sessionInsights, ...briefInsights];
+
     // Store analysis JSON
     await db.update(sessions).set({
       analysis: {
         sentences: userUtterances,
         fillerPositions: analysisResult.fillerPositions,
-        sessionInsights: analysisResult.sessionInsights,
+        sessionInsights: allInsights,
         conversationContext: conversationHistory,
       },
     }).where(eq(sessions.id, session.id));
@@ -162,6 +186,11 @@ export class ConversationHandler implements AgentTypeHandler {
       console.error('[greeting] Regeneration failed:', err)
     );
 
+    // Fire-and-forget: auto pattern analysis
+    runPatternAnalysisForUser(userId).catch(err =>
+      console.error('[conversation-handler] Auto pattern analysis failed:', err)
+    );
+
     return {
       type: 'analysis',
       dbSessionId: session.id,
@@ -171,7 +200,7 @@ export class ConversationHandler implements AgentTypeHandler {
         corrections: analysisResult.corrections,
         fillerWords: analysisResult.fillerWords,
         fillerPositions: analysisResult.fillerPositions,
-        sessionInsights: analysisResult.sessionInsights,
+        sessionInsights: allInsights,
       },
     };
   }
@@ -184,67 +213,105 @@ export class ConversationHandler implements AgentTypeHandler {
     durationSeconds: number,
     onCorrection: (correction: any) => void,
     _formContext?: Record<string, unknown> | null,
+    onInsightsReady?: (payload: any, dbSessionId: number) => void,
   ): Promise<SessionEndResult> {
     const fullTranscription = transcriptBuffer.join(' ');
 
     if (!fullTranscription.trim()) {
+      regenerateAllGreetings(userId).catch(err =>
+        console.error('[greeting] Regeneration failed (empty transcript):', err)
+      );
       return { type: 'analysis' };
     }
 
     const userUtterances = transcriptBuffer;
 
-    // Run streaming analysis, title generation, and context extraction in parallel
-    const [analysisResult, metadata, contextNotes] = await Promise.all([
-      runAnalysisStreaming(userId, { sentences: userUtterances, mode: 'conversation', conversationHistory }, onCorrection),
-      generateSessionMetadata(fullTranscription, conversationHistory),
-      extractConversationNotes(conversationHistory),
-    ]);
+    // Start title generation and context extraction in parallel with phased analysis
+    const metadataPromise = generateSessionMetadata(fullTranscription, conversationHistory);
+    const contextNotesPromise = extractConversationNotes(conversationHistory);
 
-    // Compute clarity score
+    // State shared between phased callbacks
+    let dbSessionId = 0;
+    let phasedScore: number | null = null;
+    let allInsights: any[] = [];
+
+    // Run phased analysis: fillers → insights → grammar streaming
+    const analysisResult = await runAnalysisPhased(
+      userId,
+      { sentences: userUtterances, mode: 'conversation', conversationHistory },
+      durationSeconds,
+      // onPhasedInsights: fires after fillers + insights are ready, before grammar
+      async (phasedPayload: PhasedInsightsPayload) => {
+        phasedScore = phasedPayload.score;
+        allInsights = phasedPayload.insights;
+
+        // Wait for metadata so we can create the DB session
+        const metadata = await metadataPromise;
+
+        // Create session in DB
+        const [session] = await db
+          .insert(sessions)
+          .values({
+            userId,
+            agentId: agentConfig?.id ?? null,
+            type: 'voice',
+            status: 'completed',
+            transcription: fullTranscription,
+            durationSeconds,
+            conversationTranscript: conversationHistory,
+            title: metadata.title,
+            description: metadata.description,
+            topicCategory: metadata.topicCategory,
+            clarityScore: phasedScore ?? 100,
+          })
+          .returning();
+
+        dbSessionId = session.id;
+        console.log(`[conversation-handler] Phased: session stored in DB: ${dbSessionId}`);
+
+        // Store filler words
+        if (phasedPayload.fillerWords.length > 0) {
+          await db.insert(fillerWords).values(
+            phasedPayload.fillerWords.map(f => ({
+              sessionId: dbSessionId,
+              word: f.word,
+              count: f.count,
+            }))
+          );
+        }
+
+        // Store initial analysis JSON (insights + fillers, no corrections yet)
+        await db.update(sessions).set({
+          analysis: {
+            sentences: userUtterances,
+            fillerPositions: phasedPayload.fillerPositions,
+            sessionInsights: allInsights,
+            conversationContext: conversationHistory,
+          },
+        }).where(eq(sessions.id, dbSessionId));
+
+        // Notify client: insights are ready, navigate to session-detail
+        onInsightsReady?.(phasedPayload, dbSessionId);
+      },
+      // onCorrection: streams individual corrections to client
+      onCorrection,
+    );
+
+    // Compute clarity score from corrections
     const sentencesWithCorrections = new Set(
-      analysisResult.corrections.map((c) => c.sentenceIndex),
+      analysisResult.corrections.map(c => c.sentenceIndex),
     ).size;
     const totalSentences = userUtterances.length;
     const clarityScore = totalSentences > 0
       ? Math.round((Math.max(0, totalSentences - sentencesWithCorrections) / totalSentences) * 100)
       : 100;
 
-    // Create session in DB
-    const [session] = await db
-      .insert(sessions)
-      .values({
-        userId,
-        agentId: agentConfig?.id ?? null,
-        type: 'voice',
-        status: 'completed',
-        transcription: fullTranscription,
-        durationSeconds,
-        conversationTranscript: conversationHistory,
-        title: metadata.title,
-        description: metadata.description,
-        topicCategory: metadata.topicCategory,
-        clarityScore,
-      })
-      .returning();
-
-    console.log(`[conversation-handler] Streaming session stored in DB: ${session.id}`);
-
-    // Store analysis JSON
-    await db.update(sessions).set({
-      analysis: {
-        sentences: userUtterances,
-        fillerPositions: analysisResult.fillerPositions,
-        sessionInsights: analysisResult.sessionInsights,
-        conversationContext: conversationHistory,
-      },
-    }).where(eq(sessions.id, session.id));
-
     // Store corrections and get back their IDs
     let correctionIds: number[] = [];
-    if (analysisResult.corrections.length > 0) {
+    if (analysisResult.corrections.length > 0 && dbSessionId > 0) {
       const inserted = await db.insert(corrections).values(
         analysisResult.corrections.map(c => ({
-          sessionId: session.id,
+          sessionId: dbSessionId,
           originalText: c.originalText,
           correctedText: c.correctedText,
           explanation: c.explanation || null,
@@ -256,46 +323,55 @@ export class ConversationHandler implements AgentTypeHandler {
       ).returning();
       correctionIds = inserted.map(r => r.id);
 
-      // Fire-and-forget: pre-generate practice scenarios
       generateAndStoreScenarios(correctionIds).catch(err =>
         console.error('[conversation-handler] Scenario pre-generation failed:', err)
       );
     }
 
-    // Store filler words
-    if (analysisResult.fillerWords.length > 0) {
-      await db.insert(fillerWords).values(
-        analysisResult.fillerWords.map(f => ({
-          sessionId: session.id,
-          word: f.word,
-          count: f.count,
-        }))
-      );
+    // Add "Issues found" metric now that we know correction count
+    allInsights.push({ type: 'metric', description: 'Issues found', value: analysisResult.corrections.length });
+
+    // Update analysis JSON with final insights (now includes corrections count)
+    if (dbSessionId > 0) {
+      await db.update(sessions).set({
+        analysis: {
+          sentences: userUtterances,
+          fillerPositions: analysisResult.fillerPositions,
+          sessionInsights: allInsights,
+          conversationContext: conversationHistory,
+        },
+        clarityScore,
+      }).where(eq(sessions.id, dbSessionId));
     }
 
-    console.log(`[conversation-handler] Streaming analysis complete: ${analysisResult.corrections.length} corrections, ${analysisResult.fillerWords.length} filler types`);
+    console.log(`[conversation-handler] Phased analysis complete: ${analysisResult.corrections.length} corrections, ${analysisResult.fillerWords.length} filler types`);
 
-    // Write context notes back to user
+    // Write context notes
+    const contextNotes = await contextNotesPromise;
     if (contextNotes.length > 0) {
       await appendContextNotes(userId, contextNotes, agentConfig?.id ?? null);
     }
 
-    // Fire-and-forget: regenerate greetings for next session
+    // Fire-and-forget background tasks
     regenerateAllGreetings(userId).catch(err =>
       console.error('[greeting] Regeneration failed:', err)
+    );
+    runPatternAnalysisForUser(userId).catch(err =>
+      console.error('[conversation-handler] Auto pattern analysis failed:', err)
     );
 
     return {
       type: 'analysis',
-      dbSessionId: session.id,
+      dbSessionId,
       clarityScore,
+      score: phasedScore,
       correctionIds,
       analysisResults: {
         sentences: userUtterances,
         corrections: analysisResult.corrections,
         fillerWords: analysisResult.fillerWords,
         fillerPositions: analysisResult.fillerPositions,
-        sessionInsights: analysisResult.sessionInsights,
+        sessionInsights: allInsights,
       },
     };
   }

@@ -20,8 +20,30 @@ export interface FillerWordPosition {
 }
 
 export interface SessionInsight {
-  type: 'repetitive_word' | 'hedging_pattern' | 'discourse_pattern';
+  type:
+    | 'repetitive_word'
+    | 'hedging_pattern'
+    | 'discourse_pattern'
+    | 'quality_assessment'
+    | 'strength'
+    | 'focus_area'
+    | 'metric'
+    | 'score';
   description: string;
+  value?: string | number;
+}
+
+export interface PhasedInsightsPayload {
+  score: number | null;
+  insights: SessionInsight[];
+  fillerWords: FillerWordCount[];
+  fillerPositions: FillerWordPosition[];
+  metrics: {
+    wpm: number;
+    sentenceCount: number;
+    fillersPerMinute: number;
+    totalFillers: number;
+  };
 }
 
 export interface AnalysisResult {
@@ -39,11 +61,9 @@ export interface AnalysisFlags {
 
 export type PatternType =
   | 'overused_word'
-  | 'intensifier_overuse'
   | 'repetitive_starter'
   | 'crutch_phrase'
-  | 'hedging_trend'
-  | 'noncommittal_language'
+  | 'hedging'
   | 'negative_framing';
 
 export interface SpeechPattern {

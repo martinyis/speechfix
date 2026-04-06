@@ -6,6 +6,7 @@ export interface ExtractedAgentConfig {
   name: string;
   systemPrompt: string;
   behaviorPrompt: string | null;
+  agentMode: 'roleplay' | 'conversation';
 }
 
 const SYSTEM_PROMPT = `You extract an AI agent configuration from a conversation where a user described the agent they want to create. The agent will be used as a conversation partner in a chat app.
@@ -23,11 +24,17 @@ Extract:
 
 3. "behaviorPrompt": Optional additional conversation rules specific to this agent. Only include if the user described specific behavioral patterns like "always challenges my opinions" or "steers conversation toward professional topics." Set to null if no special behavioral rules were described. Do NOT repeat rules that apply to all agents (like keeping responses short).
 
+4. "agentMode": Either "roleplay" or "conversation".
+   - "roleplay": The user wants the agent to BE a character with a specific role that drives the interaction (interviewer, barista, debate opponent, teacher, customer service rep, doctor, coach running a session).
+   - "conversation": The user wants a conversation partner with a personality or style (a chill friend, someone who likes talking about tech, an encouraging buddy).
+   When in doubt, choose "roleplay" if the agent has a functional role that requires driving the conversation, "conversation" if it's purely a personality.
+
 Return ONLY valid JSON. No markdown, no commentary.
 {
   "name": "...",
   "systemPrompt": "...",
-  "behaviorPrompt": "..." or null
+  "behaviorPrompt": "..." or null,
+  "agentMode": "roleplay" or "conversation"
 }`;
 
 export async function extractAgentConfig(
@@ -59,10 +66,13 @@ export async function extractAgentConfig(
 
     const parsed = JSON.parse(jsonText);
 
+    const agentMode = parsed.agentMode === 'roleplay' ? 'roleplay' as const : 'conversation' as const;
+
     return {
       name: typeof parsed.name === 'string' ? parsed.name.slice(0, 255) : 'Custom Agent',
       systemPrompt: typeof parsed.systemPrompt === 'string' ? parsed.systemPrompt : '',
       behaviorPrompt: typeof parsed.behaviorPrompt === 'string' ? parsed.behaviorPrompt : null,
+      agentMode,
     };
   } catch (err) {
     console.error('[agent-config-extractor] Failed to extract config:', err);
@@ -70,6 +80,7 @@ export async function extractAgentConfig(
       name: 'Custom Agent',
       systemPrompt: 'You are a friendly conversation partner who enjoys discussing a wide range of topics.',
       behaviorPrompt: null,
+      agentMode: 'conversation',
     };
   }
 }

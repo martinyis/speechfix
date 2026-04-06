@@ -72,7 +72,7 @@ export default function HomeScreen() {
 
   // Voice session hook
   const { start, stop, toggleMute } = useVoiceSession({
-    onFirstCorrection: () => {
+    onInsightsReady: () => {
       if (!navigatedToDetailRef.current) {
         navigatedToDetailRef.current = true;
         router.push({
@@ -197,6 +197,9 @@ export default function HomeScreen() {
             isMuted={isMuted}
             onToggleMute={handleToggleMute}
             onStop={handleStop}
+            agentName={agentDisplay.name}
+            avatarSeed={agentDisplay.avatarSeed ?? null}
+            sessionMode="conversation"
           />
         </Animated.View>
       )}

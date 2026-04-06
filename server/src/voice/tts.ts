@@ -117,8 +117,9 @@ export class CartesiaTTS {
   /**
    * Wait for TTS generation to complete.
    * Resolves when: done received for this context, OR 2000ms of audio silence after flush, OR timeout.
+   * The timeout is a safety net only — normal completion comes from the "done" event or silence detection.
    */
-  waitForCompletion(timeoutMs = 5000): Promise<void> {
+  waitForCompletion(timeoutMs = 30000): Promise<void> {
     return new Promise((resolve) => {
       this.completionResolve = resolve;
 

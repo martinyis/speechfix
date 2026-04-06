@@ -1,11 +1,14 @@
+import { useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AISpeakingOrb } from './AISpeakingOrb';
+import { AgentAvatar } from './AgentAvatar';
 import type { AISpeakingOrbState } from './AISpeakingOrb';
 import { colors, alpha, fonts } from '../theme';
 import { formatTime } from '../lib/formatters';
+import { getSessionAvatarId } from '../lib/avatars';
 import type { VoiceSessionState } from '../stores/sessionStore';
 
 interface VoiceSessionOverlayProps {
@@ -16,6 +19,11 @@ interface VoiceSessionOverlayProps {
   onStop: () => void;
   mode?: 'session' | 'onboarding';
   agentName?: string;
+  hideHeader?: boolean;
+  /** Avatar seed for the active agent (null = system mode avatar). */
+  avatarSeed?: string | null;
+  /** Voice session mode key (e.g. 'conversation', 'filler-coach') for system avatar lookup. */
+  sessionMode?: string;
 }
 
 export function VoiceSessionOverlay({
@@ -26,8 +34,16 @@ export function VoiceSessionOverlay({
   onStop,
   mode = 'session',
   agentName,
+  hideHeader,
+  avatarSeed,
+  sessionMode,
 }: VoiceSessionOverlayProps) {
   const insets = useSafeAreaInsets();
+
+  const avatarId = useMemo(
+    () => getSessionAvatarId(sessionMode, avatarSeed),
+    [sessionMode, avatarSeed],
+  );
 
   // Map voiceState to orb state
   const orbState: AISpeakingOrbState =
@@ -38,26 +54,30 @@ export function VoiceSessionOverlay({
   return (
     <View style={[styles.overlay, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
       {/* Top: Badge row */}
-      <View style={styles.topBadgeRow}>
-        <View style={styles.liveBadge}>
-          <View style={styles.liveBadgeAvatar}>
-            <Ionicons name="person" size={18} color={alpha(colors.white, 0.6)} />
-          </View>
-          <View style={styles.liveBadgeText}>
-            <Text style={styles.liveModeLabel}>{mode === 'onboarding' ? 'ONBOARDING' : 'LIVE MODE'}</Text>
-            <Text style={styles.liveModeName}>{agentName ?? 'Reflexa'}</Text>
-          </View>
-          <View style={styles.timerPill}>
-            <Text style={styles.timerPillText}>{formatTime(elapsedTime)}</Text>
+      {!hideHeader && (
+        <View style={styles.topBadgeRow}>
+          <View style={styles.liveBadge}>
+            <View style={styles.liveBadgeAvatar}>
+              <AgentAvatar seed={avatarId} size={36} />
+            </View>
+            <View style={styles.liveBadgeText}>
+              <Text style={styles.liveModeLabel}>{mode === 'onboarding' ? 'ONBOARDING' : 'LIVE MODE'}</Text>
+              <Text style={styles.liveModeName}>{agentName ?? 'Reflexa'}</Text>
+            </View>
+            <View style={styles.timerPill}>
+              <Text style={styles.timerPillText}>{formatTime(elapsedTime)}</Text>
+            </View>
           </View>
         </View>
-      </View>
+      )}
 
       {/* Secure connection */}
-      <View style={styles.secureRow}>
-        <Ionicons name="cellular" size={12} color={alpha(colors.white, 0.4)} />
-        <Text style={styles.secureText}>SECURE CONNECTION</Text>
-      </View>
+      {!hideHeader && (
+        <View style={styles.secureRow}>
+          <Ionicons name="cellular" size={12} color={alpha(colors.white, 0.4)} />
+          <Text style={styles.secureText}>SECURE CONNECTION</Text>
+        </View>
+      )}
 
       {/* Center: Animated AI orb */}
       <AISpeakingOrb state={orbState} />

@@ -161,7 +161,7 @@ All shadows use black (`#000`) base for dark theme compatibility:
 
 ## Glass Presets
 
-The signature Vibrant Glass effect uses translucent white overlays on dark backgrounds:
+The Vibrant Glass effect uses translucent white overlays on dark backgrounds. **Use sparingly** — most content should sit directly on the dark background without a card wrapper. See UI-PATTERNS.md for when cards are appropriate.
 
 ### `glass.card` — Standard Glass Card
 
@@ -172,7 +172,7 @@ borderWidth:     1
 borderRadius:    16  (borderRadius.default)
 ```
 
-Use for: Session rows, correction cards, stat containers, any content card.
+Use for: Interactive tappable rows, expandable cards, self-contained units that need visual separation.
 
 ### `glass.cardElevated` — Elevated Glass Card
 
@@ -183,7 +183,7 @@ borderWidth:     1
 borderRadius:    16  (borderRadius.default)
 ```
 
-Use for: Active/selected cards, modal content, emphasized containers.
+Use for: Modals, overlays, the currently active/selected item. Not for general content.
 
 ### `glass.navBar` — Floating Navigation
 

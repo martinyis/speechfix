@@ -192,22 +192,20 @@ FILLER WORDS          2.3/min
 ## SessionRow
 
 **File**: `mobile/components/SessionRow.tsx`
-**Purpose**: Compact card for session history lists.
+**Purpose**: Compact tappable row for session history lists.
 
 ### Visual
 
 ```
-┌─────────────────────────────────────────────┐
-│  [◆]    2:45 PM              3 corrections  │
-│         3m 22s • 2 fillers                   │
-│         "I think the main problem with..."   │
-└─────────────────────────────────────────────┘
+[◆]    2:45 PM                    3 corrections
+       3m 22s • 2 fillers
+       "I think the main problem with..."
 ```
 
 - Left: rotated icon with gradient (3 variants: purple/blue, pink/purple, cyan/blue)
 - Center: time, duration, filler count, transcript snippet (italic)
 - Right: correction count or "Clean" badge
-- Glass card background
+- Glass card is acceptable here — each row is tappable and navigates to session detail
 
 ### Props
 
@@ -253,41 +251,40 @@ interface SessionRowProps {
 ### Visual
 
 ```
-│ ANALYSIS              ┌──────────┐
-│ Session               │   87%    │
-│ Analysis.             │  ◯◯◯◯◯  │
-│ 3 errors, 2 improve.. └──────────┘
-│
-│  ● 3 Errors  ● 2 Improvements  ● 1 Polish
+ANALYSIS                    87%
+Session                    ◯◯◯◯◯
+Analysis.
+3 errors, 2 improve..
+
+● 3 Errors  ● 2 Improvements  ● 1 Polish
 ```
 
 - Left side: decorative line, labels, headline
 - Right side: score ring (140px)
 - Bottom: stats row with severity dots and counts
+- Flat layout — no card wrapper needed
 
 ---
 
 ## SessionInsightCard
 
 **File**: `mobile/components/SessionInsightCard.tsx`
-**Purpose**: Card for deep pattern insights (repetitive words, hedging, discourse patterns).
+**Purpose**: Deep pattern insights (repetitive words, hedging, discourse patterns).
 
 ### Visual
 
 ```
-┌─────────────────────────────────────────┐
-│  DEEP INSIGHTS              [⚡ Impact]  │
-│                                         │
-│  [🔄]  Repetitive Word Usage            │
-│                                         │
-│  You used "basically" 7 times in this   │
-│  session. Consider varying your...      │
-│                                         │
-│  ┌──────────────────────────────────┐   │
-│  │     Generate Drill          →    │   │
-│  └──────────────────────────────────┘   │
-└─────────────────────────────────────────┘
+DEEP INSIGHTS                   [Impact]
+
+[icon]  Repetitive Word Usage
+
+You used "basically" 7 times in this
+session. Consider varying your...
+
+     [Generate Drill →]
 ```
+
+**Note**: Consider migrating away from card wrapper — insights can live as flat content sections with spacing and dividers.
 
 ### Types
 
@@ -333,11 +330,14 @@ interface SessionRowProps {
 import { colors, typography, spacing, borderRadius, glass, alpha, shadows } from '@/theme';
 ```
 
-### Glass Card Base
+### Glass Card (Use Sparingly)
+
+Only use for interactive, self-contained units (tappable rows, expandable cards). Default to flat layouts.
 
 ```typescript
+// Only when the element is interactive/tappable
 const styles = StyleSheet.create({
-  container: {
+  interactiveItem: {
     ...glass.card,
     padding: spacing.lg,
   },

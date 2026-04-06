@@ -17,48 +17,6 @@ interface VoicePickerProps extends VoicePreviewProps {
   compact?: boolean;
 }
 
-function PreviewButton({
-  voiceId,
-  isActive,
-  isPlaying,
-  isLoading,
-  onToggle,
-  size = 20,
-}: {
-  voiceId: string;
-  isActive: boolean;
-  isPlaying: boolean;
-  isLoading: boolean;
-  onToggle: (id: string) => void;
-  size?: number;
-}) {
-  if (isActive && isLoading) {
-    return (
-      <Pressable
-        onPress={() => onToggle(voiceId)}
-        hitSlop={8}
-        style={styles.previewButton}
-      >
-        <ActivityIndicator size="small" color={colors.primary} />
-      </Pressable>
-    );
-  }
-
-  return (
-    <Pressable
-      onPress={() => onToggle(voiceId)}
-      hitSlop={8}
-      style={styles.previewButton}
-    >
-      <Ionicons
-        name={isActive && isPlaying ? 'stop-circle' : 'play-circle'}
-        size={size}
-        color={isActive ? colors.primary : alpha(colors.white, 0.4)}
-      />
-    </Pressable>
-  );
-}
-
 export function VoicePicker({
   voices,
   selectedVoiceId,
@@ -69,33 +27,43 @@ export function VoicePicker({
   previewLoading = false,
   onTogglePreview,
 }: VoicePickerProps) {
+  const handlePress = (voiceId: string) => {
+    const isSelected = voiceId === selectedVoiceId;
+    if (!isSelected) {
+      // Select + start preview
+      onSelect(voiceId);
+      onTogglePreview?.(voiceId);
+    } else {
+      // Already selected — toggle preview (pause/resume)
+      onTogglePreview?.(voiceId);
+    }
+  };
+
   if (compact) {
     return (
       <View style={styles.chipRow}>
         {voices.map((voice) => {
           const selected = voice.id === selectedVoiceId;
           const isActive = voice.id === previewVoiceId;
+          const showPlaying = selected && isActive && previewPlaying;
+          const showLoading = selected && isActive && previewLoading && !previewPlaying;
           return (
             <Pressable
               key={voice.id}
               style={[styles.chip, selected && styles.chipSelected]}
-              onPress={() => onSelect(voice.id)}
+              onPress={() => handlePress(voice.id)}
             >
               <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
                 {voice.name}
               </Text>
-              {onTogglePreview && (
-                <PreviewButton
-                  voiceId={voice.id}
-                  isActive={isActive}
-                  isPlaying={previewPlaying}
-                  isLoading={previewLoading}
-                  onToggle={onTogglePreview}
-                  size={18}
-                />
+              {selected && showLoading && (
+                <ActivityIndicator size="small" color={colors.primary} />
               )}
-              {selected && !onTogglePreview && (
-                <Ionicons name="checkmark" size={14} color={colors.background} />
+              {selected && showPlaying && (
+                <Ionicons name="volume-high" size={14} color={colors.primary} />
+              )}
+              {selected && !showPlaying && !showLoading && (
+                <Ionicons name="checkmark" size={14} color={colors.primary} />
               )}
             </Pressable>
           );
@@ -109,11 +77,13 @@ export function VoicePicker({
       {voices.map((voice) => {
         const selected = voice.id === selectedVoiceId;
         const isActive = voice.id === previewVoiceId;
+        const showPlaying = selected && isActive && previewPlaying;
+        const showLoading = selected && isActive && previewLoading && !previewPlaying;
         return (
           <Pressable
             key={voice.id}
             style={[styles.card, selected && styles.cardSelected]}
-            onPress={() => onSelect(voice.id)}
+            onPress={() => handlePress(voice.id)}
           >
             <View style={styles.cardBody}>
               <View style={styles.nameRow}>
@@ -124,19 +94,15 @@ export function VoicePicker({
                 {voice.description}
               </Text>
             </View>
-            {onTogglePreview && (
-              <PreviewButton
-                voiceId={voice.id}
-                isActive={isActive}
-                isPlaying={previewPlaying}
-                isLoading={previewLoading}
-                onToggle={onTogglePreview}
-                size={24}
-              />
-            )}
             {selected && (
               <View style={styles.checkCircle}>
-                <Ionicons name="checkmark" size={16} color={colors.background} />
+                {showLoading ? (
+                  <ActivityIndicator size="small" color={colors.background} />
+                ) : showPlaying ? (
+                  <Ionicons name="volume-high" size={14} color={colors.background} />
+                ) : (
+                  <Ionicons name="checkmark" size={16} color={colors.background} />
+                )}
               </View>
             )}
           </Pressable>
@@ -194,10 +160,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.md,
-  },
-  previewButton: {
-    marginLeft: spacing.sm,
-    padding: 2,
   },
 
   // Compact chip variant

@@ -68,6 +68,7 @@ export default function VoiceSessionScreen() {
         onToggleMute={handleToggleMute}
         onStop={handleStop}
         mode="onboarding"
+        sessionMode="onboarding"
       />
     </View>
   );

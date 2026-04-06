@@ -48,8 +48,17 @@ export interface FillerWordPosition {
 }
 
 export interface SessionInsight {
-  type: 'repetitive_word' | 'hedging_pattern' | 'discourse_pattern';
+  type:
+    | 'repetitive_word'
+    | 'hedging_pattern'
+    | 'discourse_pattern'
+    | 'quality_assessment'
+    | 'strength'
+    | 'focus_area'
+    | 'metric'
+    | 'score';
   description: string;
+  value?: string | number;
 }
 
 export interface SessionDetail {

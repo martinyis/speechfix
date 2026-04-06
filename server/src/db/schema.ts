@@ -11,6 +11,7 @@ export const users = pgTable('users', {
   contextNotes: jsonb('context_notes').default([]),
   onboardingComplete: boolean('onboarding_complete').default(false).notNull(),
   analysisFlags: jsonb('analysis_flags').default({ grammar: true, fillers: true, patterns: true }).notNull(),
+  lastPatternAnalysisAt: timestamp('last_pattern_analysis_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -18,6 +19,7 @@ export const agents = pgTable('agents', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   type: text('type').notNull().default('conversation'),
+  agentMode: text('agent_mode').notNull().default('conversation'),
   name: varchar('name', { length: 255 }).notNull(),
   systemPrompt: text('system_prompt').notNull(),
   behaviorPrompt: text('behavior_prompt'),
@@ -69,6 +71,7 @@ export const agentGreetings = pgTable('agent_greetings', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   agentId: integer('agent_id').references(() => agents.id, { onDelete: 'cascade' }),
+  mode: varchar('mode', { length: 50 }).default('conversation').notNull(),
   greetingText: text('greeting_text').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
@@ -80,6 +83,10 @@ export const speechPatterns = pgTable('speech_patterns', {
   identifier: text('identifier'),
   data: jsonb('data').notNull(),
   sessionsAnalyzed: jsonb('sessions_analyzed').default([]).notNull(),
+  status: text('status').notNull().default('queued'),
+  queuePosition: integer('queue_position'),
+  completedAt: timestamp('completed_at'),
+  isReturning: boolean('is_returning').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -89,6 +96,35 @@ export const practiceAttempts = pgTable('practice_attempts', {
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   correctionId: integer('correction_id').references(() => corrections.id, { onDelete: 'cascade' }).notNull(),
   mode: text('mode').notNull(),
+  passed: boolean('passed').notNull(),
+  transcript: text('transcript').notNull(),
+  feedback: text('feedback'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const patternExercises = pgTable('pattern_exercises', {
+  id: serial('id').primaryKey(),
+  patternId: integer('pattern_id').references(() => speechPatterns.id, { onDelete: 'cascade' }).notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  originalSentence: text('original_sentence').notNull(),
+  targetWord: text('target_word'),
+  patternType: text('pattern_type').notNull(),
+  alternatives: jsonb('alternatives').default([]).notNull(),
+  highlightPhrases: jsonb('highlight_phrases'),
+  suggestedReframe: text('suggested_reframe'),
+  level: integer('level').notNull().default(1),
+  orderIndex: integer('order_index').notNull().default(0),
+  practiced: boolean('practiced').default(false).notNull(),
+  practiceCount: integer('practice_count').default(0).notNull(),
+  lastPracticedAt: timestamp('last_practiced_at'),
+  nextPracticeAt: timestamp('next_practice_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const patternPracticeAttempts = pgTable('pattern_practice_attempts', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  exerciseId: integer('exercise_id').references(() => patternExercises.id, { onDelete: 'cascade' }).notNull(),
   passed: boolean('passed').notNull(),
   transcript: text('transcript').notNull(),
   feedback: text('feedback'),

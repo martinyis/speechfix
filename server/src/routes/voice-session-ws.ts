@@ -16,8 +16,8 @@ export async function voiceSessionRoute(fastify: FastifyInstance) {
     let agentConfig: AgentConfig | null = null;
     let mode: SystemAgentMode | null = modeParam;
 
-    // Load agent from DB if agent ID provided
-    if (agentIdParam) {
+    // Load agent from DB if agent ID provided (but not when a system mode is explicitly set)
+    if (agentIdParam && !modeParam) {
       const agentId = Number(agentIdParam);
       const [row] = await db.select().from(agents)
         .where(and(
@@ -33,6 +33,7 @@ export async function voiceSessionRoute(fastify: FastifyInstance) {
       agentConfig = {
         id: row.id,
         type: row.type,
+        agentMode: row.agentMode,
         name: row.name,
         systemPrompt: row.systemPrompt,
         behaviorPrompt: row.behaviorPrompt,

@@ -35,7 +35,6 @@ const DOT_FADE_OUT = 150;
 const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
   index: { active: 'home', inactive: 'home-outline' },
   practice: { active: 'chatbubble', inactive: 'chatbubble-outline' },
-  patterns: { active: 'time', inactive: 'time-outline' },
   profile: { active: 'person', inactive: 'person-outline' },
 };
 
@@ -225,7 +224,6 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="practice" options={{ title: 'Practice' }} />
-      <Tabs.Screen name="patterns" options={{ title: 'Patterns' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>
   );

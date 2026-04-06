@@ -8,6 +8,7 @@ import { agents } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { pcmToWav } from '../utils/audio.js';
 import { AVAILABLE_VOICES } from '../voice/voice-config.js';
+import { generateGreetingForAgent } from '../services/greeting-generator.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VOICE_SAMPLE_CACHE_DIR = join(__dirname, '..', '..', '.cache', 'voice-samples');
@@ -18,6 +19,7 @@ const updateAgentSchema = z.object({
   behaviorPrompt: z.string().nullable().optional(),
   voiceId: z.string().max(255).nullable().optional(),
   avatarSeed: z.string().max(255).nullable().optional(),
+  agentMode: z.enum(['roleplay', 'conversation']).optional(),
 });
 
 const createAgentSchema = z.object({
@@ -47,6 +49,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       id: agents.id,
       name: agents.name,
       type: agents.type,
+      agentMode: agents.agentMode,
       voiceId: agents.voiceId,
       settings: agents.settings,
       createdAt: agents.createdAt,
@@ -79,6 +82,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
     const [agent] = await db.insert(agents).values({
       userId: request.user.userId,
       type: 'conversation',
+      agentMode: 'conversation',
       name: name || 'Custom Agent',
       systemPrompt,
       behaviorPrompt: customRules || null,
@@ -86,11 +90,15 @@ export async function agentRoutes(fastify: FastifyInstance) {
       settings: Object.keys(settings).length > 0 ? settings : {},
     }).returning();
 
+    // Generate greeting so it's ready when user starts a session
+    await generateGreetingForAgent(request.user.userId, agent.id);
+
     return {
       agent: {
         id: agent.id,
         name: agent.name,
         type: agent.type,
+        agentMode: agent.agentMode,
         voiceId: agent.voiceId,
         avatarSeed: avatarSeed ?? null,
         createdAt: agent.createdAt,
@@ -152,6 +160,13 @@ export async function agentRoutes(fastify: FastifyInstance) {
       .set(updatePayload)
       .where(eq(agents.id, agentId))
       .returning();
+
+    // Regenerate greeting if personality/prompt changed
+    if (parsed.data.systemPrompt) {
+      generateGreetingForAgent(request.user.userId, agentId).catch(err =>
+        console.error('[greeting] Regen after PATCH failed:', err)
+      );
+    }
 
     const updatedSettings = (updated.settings ?? {}) as Record<string, unknown>;
     return {

@@ -10,7 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import * as Haptics from 'expo-haptics';
-import { colors, alpha, fonts } from '../theme';
+import { colors, alpha, fonts, layout } from '../theme';
 
 interface CorrectionCardProps {
   sentence: string;
@@ -20,6 +20,9 @@ interface CorrectionCardProps {
   correctionType: string;
   severity: 'error' | 'improvement' | 'polish';
   practiced?: boolean;
+  onPractice?: () => void;
+  compact?: boolean;
+  flat?: boolean;
 }
 
 const SEVERITY_COLOR: Record<string, string> = {
@@ -110,6 +113,9 @@ export function CorrectionCard({
   correctionType,
   severity,
   practiced,
+  onPractice,
+  compact,
+  flat,
 }: CorrectionCardProps) {
   const severityColor = SEVERITY_COLOR[severity] ?? colors.severityError;
   const icon = SEVERITY_ICON[severity] ?? 'close-circle';
@@ -147,8 +153,8 @@ export function CorrectionCard({
   // --- Render ---
 
   return (
-    <View style={styles.card}>
-      <View style={styles.cardBody}>
+    <View style={[styles.card, compact && styles.cardCompact, flat && styles.cardFlat]}>
+      <View style={[styles.cardBody, compact && styles.cardBodyCompact, flat && styles.cardBodyFlat]}>
         {/* Row 1: icon + inline text + chevron */}
         <View style={styles.row1}>
           <Ionicons
@@ -197,7 +203,7 @@ export function CorrectionCard({
             })}
           </Text>
 
-          {hasExplanation ? (
+          {hasExplanation && !compact ? (
             <Pressable
               onPress={toggleExpand}
               hitSlop={8}
@@ -211,13 +217,13 @@ export function CorrectionCard({
                 />
               </Animated.View>
             </Pressable>
-          ) : (
+          ) : !compact ? (
             <View style={styles.chevronSpacer} />
-          )}
+          ) : null}
         </View>
 
-        {/* Row 2: correction type + practiced badge */}
-        {(correctionType || practiced) ? (
+        {/* Row 2: correction type + practiced badge + practice button */}
+        {(correctionType || practiced || onPractice) ? (
           <View style={styles.row2}>
             {correctionType ? (
               <Text style={styles.correctionType}>{correctionType}</Text>
@@ -230,11 +236,17 @@ export function CorrectionCard({
                 <Text style={styles.practicedText}>Practiced</Text>
               </View>
             )}
+            {onPractice && !practiced && (
+              <Pressable style={styles.practiceBtn} onPress={onPractice}>
+                <Ionicons name="mic" size={14} color={colors.primary} />
+                <Text style={styles.practiceBtnText}>Practice</Text>
+              </Pressable>
+            )}
           </View>
         ) : null}
 
-        {/* Expandable explanation */}
-        {hasExplanation && (
+        {/* Expandable explanation (hidden in compact mode) */}
+        {hasExplanation && !compact && (
           <Animated.View style={expandStyle}>
             <View style={styles.explanationRow}>
               <Ionicons
@@ -347,6 +359,45 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     color: alpha(colors.severityPolish, 0.7),
     letterSpacing: 0.3,
+  },
+  // Compact mode
+  cardCompact: {
+    marginBottom: 6,
+  },
+  cardBodyCompact: {
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+  },
+  // Flat mode — no card chrome, hairline divider
+  cardFlat: {
+    backgroundColor: 'transparent',
+    borderRadius: 0,
+    borderWidth: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: alpha(colors.white, 0.06),
+    marginHorizontal: layout.screenPadding,
+    marginBottom: 0,
+  },
+  cardBodyFlat: {
+    paddingVertical: 14,
+    paddingHorizontal: 0,
+  },
+  // Practice button
+  practiceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: alpha(colors.primary, 0.1),
+    borderWidth: 1,
+    borderColor: alpha(colors.primary, 0.2),
+  },
+  practiceBtnText: {
+    fontSize: 11,
+    fontFamily: fonts.semibold,
+    color: colors.primary,
   },
   // Expandable explanation
   explanationRow: {

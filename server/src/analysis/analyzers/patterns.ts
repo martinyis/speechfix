@@ -5,11 +5,9 @@ const anthropic = new Anthropic();
 
 const VALID_TYPES: PatternType[] = [
   'overused_word',
-  'intensifier_overuse',
   'repetitive_starter',
   'crutch_phrase',
-  'hedging_trend',
-  'noncommittal_language',
+  'hedging',
   'negative_framing',
 ];
 
@@ -19,25 +17,21 @@ const PATTERNS_SYSTEM_PROMPT = `You are a cross-session speech pattern analyzer.
 PATTERN TYPES TO DETECT
 ══════════════════════════════════════
 
-1. "overused_word" — A non-filler word used at abnormally high frequency across sessions. Examples: "super", "thing", "literally", "basically". Set identifier to the word.
+1. "overused_word" — A non-filler word used at abnormally high frequency across sessions. This includes intensifiers like "very", "really", "so", "extremely", "totally" when overused. Examples: "super", "thing", "literally", "basically", "very", "really". Set identifier to the word.
 
-2. "intensifier_overuse" — Excessive use of intensifiers like "very", "really", "so", "extremely", "totally" before adjectives. Set identifier to the most common intensifier.
+2. "repetitive_starter" — More than 30% of sentences starting with the same word/phrase across sessions. Examples: "So,", "I think", "And then". Set identifier to the starter phrase.
 
-3. "repetitive_starter" — More than 30% of sentences starting with the same word/phrase across sessions. Examples: "So,", "I think", "And then". Set identifier to the starter phrase.
+3. "crutch_phrase" — Multi-word expressions used repeatedly across sessions as a verbal crutch. Examples: "the thing is", "at the end of the day", "to be honest". Set identifier to the phrase.
 
-4. "crutch_phrase" — Multi-word expressions used repeatedly across sessions as a verbal crutch. Examples: "the thing is", "at the end of the day", "to be honest". Set identifier to the phrase.
+4. "hedging" — Frequent qualifier stacking that weakens statements OR patterns of avoidance/noncommittal language. Examples: "I kind of maybe think", "sort of like", "try to", "maybe", "we'll see", "I'll look into it", "not sure but". Set identifier to null.
 
-5. "hedging_trend" — Frequent qualifier stacking that weakens statements. Examples: "I kind of maybe think", "sort of like". Set identifier to null.
-
-6. "noncommittal_language" — Patterns of avoidance language across sessions. Examples: "try to", "maybe", "we'll see", "I'll look into it", "not sure but". Set identifier to null.
-
-7. "negative_framing" — Consistently framing things negatively when positive framing would be more effective. High ratio of "can't", "don't", "won't", "problem", "issue" vs solution-oriented language. Set identifier to null.
+5. "negative_framing" — Consistently framing things negatively when positive framing would be more effective. High ratio of "can't", "don't", "won't", "problem", "issue" vs solution-oriented language. Set identifier to null.
 
 ══════════════════════════════════════
 DETECTION CRITERIA
 ══════════════════════════════════════
 
-- A pattern must appear in at least 2 sessions to be reported
+- A pattern must appear in at least 3 sessions to be reported
 - frequency: count of occurrences across all sessions (integer)
 - sessionsAffected: number of sessions where the pattern appears (integer)
 - severity: "low" (minor habit), "medium" (noticeable pattern), "high" (strongly affects communication)
@@ -70,7 +64,7 @@ Return ONLY valid JSON. No markdown. No commentary.
 RULES
 ══════════════════════════════════════
 
-1. Only report patterns with evidence from 2+ sessions
+1. Only report patterns with evidence from 3+ sessions
 2. Do NOT report filler words (um, uh, like-as-filler) — those are tracked separately
 3. Be conservative — only flag patterns that genuinely affect communication quality
 4. Maximum 10 patterns per analysis
@@ -78,7 +72,7 @@ RULES
 6. examples must be EXACT substrings from the input transcripts`;
 
 export async function analyzePatterns(input: PatternAnalysisInput): Promise<PatternAnalysisResult> {
-  if (input.transcripts.length < 2) {
+  if (input.transcripts.length < 3) {
     return { patterns: [] };
   }
 

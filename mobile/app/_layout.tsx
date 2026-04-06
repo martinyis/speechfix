@@ -8,10 +8,16 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { colors } from '../theme';
 import { useAuthStore } from '../stores/authStore';
+import { useAppWarmup } from '../hooks/useAppWarmup';
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
+
+function AppWarmup() {
+  useAppWarmup();
+  return null;
+}
 
 export default function RootLayout() {
   const { token, user, isReady, isSigningUp, loadToken } = useAuthStore();
@@ -77,6 +83,7 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <BottomSheetModalProvider>
           <StatusBar style="light" />
+          {token && <AppWarmup />}
           <Stack
             screenOptions={{
               headerStyle: { backgroundColor: colors.background },
@@ -117,6 +124,20 @@ export default function RootLayout() {
             />
             <Stack.Screen
               name="practice-session"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="pattern-practice-session"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="filler-coach"
               options={{
                 headerShown: false,
                 presentation: 'card',

@@ -20,7 +20,7 @@ export async function jobRoutes(fastify: FastifyInstance) {
 
   // Authenticated endpoint — runs for the current user only
   fastify.post('/jobs/run-pattern-analysis/me', async (request) => {
-    const count = await runPatternAnalysisForUser(request.user.userId);
-    return { patternsFound: count };
+    const result = await runPatternAnalysisForUser(request.user.userId);
+    return { patternsFound: result.patternsFound };
   });
 }

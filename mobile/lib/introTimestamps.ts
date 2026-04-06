@@ -16,22 +16,22 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
       {
         "word": "Hey",
         "startMs": 0,
-        "endMs": 360
+        "endMs": 300
       },
       {
         "word": "welcome",
-        "startMs": 860,
-        "endMs": 1120
+        "startMs": 500,
+        "endMs": 780
       },
       {
         "word": "to",
-        "startMs": 1120,
-        "endMs": 1420
+        "startMs": 780,
+        "endMs": 1040
       },
       {
         "word": "Reflexa",
-        "startMs": 1420,
-        "endMs": 1900
+        "startMs": 1040,
+        "endMs": 1420
       }
     ]
   },
@@ -40,28 +40,28 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
     "words": [
       {
         "word": "I'm",
-        "startMs": 2400,
-        "endMs": 2540
+        "startMs": 1560,
+        "endMs": 1760
       },
       {
         "word": "your",
-        "startMs": 2540,
-        "endMs": 2740
+        "startMs": 1760,
+        "endMs": 1900
       },
       {
         "word": "AI",
-        "startMs": 2740,
-        "endMs": 3080
+        "startMs": 1900,
+        "endMs": 2200
       },
       {
         "word": "speaking",
-        "startMs": 3080,
-        "endMs": 3480
+        "startMs": 2200,
+        "endMs": 2500
       },
       {
         "word": "coach",
-        "startMs": 3480,
-        "endMs": 3880
+        "startMs": 2500,
+        "endMs": 2800
       }
     ]
   },
@@ -70,58 +70,58 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
     "words": [
       {
         "word": "built",
-        "startMs": 3880,
-        "endMs": 4260
+        "startMs": 2880,
+        "endMs": 3040
       },
       {
         "word": "to",
-        "startMs": 4260,
-        "endMs": 4440
+        "startMs": 3040,
+        "endMs": 3180
       },
       {
         "word": "help",
-        "startMs": 4440,
-        "endMs": 4600
+        "startMs": 3180,
+        "endMs": 3280
       },
       {
         "word": "you",
-        "startMs": 4600,
-        "endMs": 4860
+        "startMs": 3280,
+        "endMs": 3460
       },
       {
         "word": "speak",
-        "startMs": 4860,
-        "endMs": 5020
+        "startMs": 3460,
+        "endMs": 3560
       },
       {
         "word": "English",
-        "startMs": 5020,
-        "endMs": 5440
+        "startMs": 3560,
+        "endMs": 3780
       },
       {
         "word": "with",
-        "startMs": 5440,
-        "endMs": 5700
+        "startMs": 3780,
+        "endMs": 3980
       },
       {
         "word": "more",
-        "startMs": 5700,
-        "endMs": 6000
+        "startMs": 3980,
+        "endMs": 4320
       },
       {
         "word": "clarity",
-        "startMs": 6000,
-        "endMs": 6300
+        "startMs": 4320,
+        "endMs": 4380
       },
       {
         "word": "and",
-        "startMs": 6300,
-        "endMs": 6660
+        "startMs": 4380,
+        "endMs": 4700
       },
       {
         "word": "confidence",
-        "startMs": 6660,
-        "endMs": 7180
+        "startMs": 4700,
+        "endMs": 4960
       }
     ]
   },
@@ -130,23 +130,23 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
     "words": [
       {
         "word": "Here's",
-        "startMs": 8280,
-        "endMs": 8960
+        "startMs": 5300,
+        "endMs": 5460
       },
       {
         "word": "how",
-        "startMs": 8960,
-        "endMs": 9080
+        "startMs": 5460,
+        "endMs": 5560
       },
       {
         "word": "it",
-        "startMs": 9080,
-        "endMs": 9240
+        "startMs": 5560,
+        "endMs": 5940
       },
       {
         "word": "works",
-        "startMs": 9240,
-        "endMs": 9600
+        "startMs": 5940,
+        "endMs": 5940
       }
     ]
   },
@@ -155,43 +155,43 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
     "words": [
       {
         "word": "You",
-        "startMs": 10600,
-        "endMs": 11280
+        "startMs": 6020,
+        "endMs": 6240
       },
       {
         "word": "talk",
-        "startMs": 11280,
-        "endMs": 11500
+        "startMs": 6240,
+        "endMs": 6340
       },
       {
         "word": "to",
-        "startMs": 11500,
-        "endMs": 11680
+        "startMs": 6340,
+        "endMs": 6460
       },
       {
         "word": "me",
-        "startMs": 11680,
-        "endMs": 11840
+        "startMs": 6460,
+        "endMs": 6540
       },
       {
         "word": "like",
-        "startMs": 11840,
-        "endMs": 12200
+        "startMs": 6540,
+        "endMs": 6660
       },
       {
         "word": "a",
-        "startMs": 12200,
-        "endMs": 12360
+        "startMs": 6660,
+        "endMs": 6760
       },
       {
         "word": "real",
-        "startMs": 12360,
-        "endMs": 12620
+        "startMs": 6760,
+        "endMs": 6940
       },
       {
         "word": "conversation",
-        "startMs": 12620,
-        "endMs": 13220
+        "startMs": 6940,
+        "endMs": 7340
       }
     ]
   },
@@ -200,43 +200,43 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
     "words": [
       {
         "word": "I",
-        "startMs": 14060,
-        "endMs": 14080
+        "startMs": 7720,
+        "endMs": 7900
       },
       {
         "word": "listen",
-        "startMs": 14080,
-        "endMs": 14400
+        "startMs": 7900,
+        "endMs": 8100
       },
       {
         "word": "I",
-        "startMs": 14800,
-        "endMs": 15380
+        "startMs": 8420,
+        "endMs": 8900
       },
       {
         "word": "respond",
-        "startMs": 15380,
-        "endMs": 15380
+        "startMs": 8900,
+        "endMs": 8900
       },
       {
         "word": "and",
-        "startMs": 15600,
-        "endMs": 15740
+        "startMs": 9020,
+        "endMs": 9260
       },
       {
         "word": "behind",
-        "startMs": 15740,
-        "endMs": 15960
+        "startMs": 9260,
+        "endMs": 9360
       },
       {
         "word": "the",
-        "startMs": 15960,
-        "endMs": 16340
+        "startMs": 9360,
+        "endMs": 9840
       },
       {
         "word": "scenes",
-        "startMs": 16340,
-        "endMs": 16500
+        "startMs": 9840,
+        "endMs": 9840
       }
     ]
   },
@@ -245,28 +245,28 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
     "words": [
       {
         "word": "I'm",
-        "startMs": 16740,
-        "endMs": 17320
+        "startMs": 10080,
+        "endMs": 10560
       },
       {
         "word": "analyzing",
-        "startMs": 17320,
-        "endMs": 17320
+        "startMs": 10560,
+        "endMs": 10560
       },
       {
         "word": "your",
-        "startMs": 17320,
-        "endMs": 17780
+        "startMs": 10560,
+        "endMs": 10920
       },
       {
         "word": "speech",
-        "startMs": 17780,
-        "endMs": 17860
+        "startMs": 10920,
+        "endMs": 10920
       },
       {
         "word": "patterns",
-        "startMs": 17860,
-        "endMs": 18320
+        "startMs": 10920,
+        "endMs": 11220
       }
     ]
   },
@@ -275,38 +275,38 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
     "words": [
       {
         "word": "grammar",
-        "startMs": 18980,
-        "endMs": 18980
+        "startMs": 11620,
+        "endMs": 11620
       },
       {
         "word": "filler",
-        "startMs": 19320,
-        "endMs": 19580
+        "startMs": 11800,
+        "endMs": 11980
       },
       {
         "word": "words",
-        "startMs": 19580,
-        "endMs": 19960
+        "startMs": 11980,
+        "endMs": 12220
       },
       {
         "word": "clarity",
-        "startMs": 20620,
-        "endMs": 20620
+        "startMs": 12620,
+        "endMs": 12620
       },
       {
         "word": "all",
-        "startMs": 21020,
-        "endMs": 21260
+        "startMs": 12720,
+        "endMs": 12840
       },
       {
         "word": "of",
-        "startMs": 21260,
-        "endMs": 21440
+        "startMs": 12840,
+        "endMs": 12940
       },
       {
         "word": "it",
-        "startMs": 21440,
-        "endMs": 21840
+        "startMs": 12940,
+        "endMs": 13160
       }
     ]
   },
@@ -315,43 +315,43 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
     "words": [
       {
         "word": "After",
-        "startMs": 22640,
-        "endMs": 22860
+        "startMs": 13620,
+        "endMs": 13800
       },
       {
         "word": "each",
-        "startMs": 22860,
-        "endMs": 23200
+        "startMs": 13800,
+        "endMs": 14080
       },
       {
         "word": "session",
-        "startMs": 23200,
-        "endMs": 23480
+        "startMs": 14080,
+        "endMs": 14260
       },
       {
         "word": "you",
-        "startMs": 23660,
-        "endMs": 23760
+        "startMs": 14340,
+        "endMs": 14440
       },
       {
         "word": "get",
-        "startMs": 23760,
-        "endMs": 23880
+        "startMs": 14440,
+        "endMs": 14540
       },
       {
         "word": "a",
-        "startMs": 23880,
-        "endMs": 24460
+        "startMs": 14540,
+        "endMs": 14920
       },
       {
         "word": "detailed",
-        "startMs": 24460,
-        "endMs": 24460
+        "startMs": 14920,
+        "endMs": 14920
       },
       {
         "word": "breakdown",
-        "startMs": 24460,
-        "endMs": 24880
+        "startMs": 14920,
+        "endMs": 15180
       }
     ]
   },
@@ -360,33 +360,33 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
     "words": [
       {
         "word": "of",
-        "startMs": 24880,
-        "endMs": 25360
+        "startMs": 15180,
+        "endMs": 15400
       },
       {
         "word": "exactly",
-        "startMs": 25360,
-        "endMs": 25720
+        "startMs": 15400,
+        "endMs": 15600
       },
       {
         "word": "what",
-        "startMs": 25720,
-        "endMs": 25920
+        "startMs": 15600,
+        "endMs": 15740
       },
       {
         "word": "to",
-        "startMs": 25920,
-        "endMs": 26280
+        "startMs": 15740,
+        "endMs": 15960
       },
       {
         "word": "work",
-        "startMs": 26280,
-        "endMs": 26280
+        "startMs": 15960,
+        "endMs": 16000
       },
       {
         "word": "on",
-        "startMs": 26280,
-        "endMs": 26620
+        "startMs": 16000,
+        "endMs": 16240
       }
     ]
   },
@@ -395,38 +395,38 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
     "words": [
       {
         "word": "No",
-        "startMs": 27230,
-        "endMs": 27500
+        "startMs": 16420,
+        "endMs": 16600
       },
       {
         "word": "generic",
-        "startMs": 27500,
-        "endMs": 27860
+        "startMs": 16600,
+        "endMs": 16820
       },
       {
         "word": "tips",
-        "startMs": 27860,
-        "endMs": 28280
+        "startMs": 16820,
+        "endMs": 17100
       },
       {
         "word": "just",
-        "startMs": 28680,
-        "endMs": 28820
+        "startMs": 17540,
+        "endMs": 17800
       },
       {
         "word": "precise",
-        "startMs": 28820,
-        "endMs": 29280
+        "startMs": 17800,
+        "endMs": 18200
       },
       {
         "word": "personalized",
-        "startMs": 29980,
-        "endMs": 29980
+        "startMs": 18800,
+        "endMs": 18800
       },
       {
         "word": "feedback",
-        "startMs": 29980,
-        "endMs": 30480
+        "startMs": 18800,
+        "endMs": 19120
       }
     ]
   },
@@ -435,33 +435,33 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
     "words": [
       {
         "word": "based",
-        "startMs": 30480,
-        "endMs": 30840
+        "startMs": 19120,
+        "endMs": 19340
       },
       {
         "word": "on",
-        "startMs": 30840,
-        "endMs": 31160
+        "startMs": 19340,
+        "endMs": 19480
       },
       {
         "word": "how",
-        "startMs": 31160,
-        "endMs": 31320
+        "startMs": 19480,
+        "endMs": 19580
       },
       {
         "word": "you",
-        "startMs": 31320,
-        "endMs": 31480
+        "startMs": 19580,
+        "endMs": 19720
       },
       {
         "word": "actually",
-        "startMs": 31480,
-        "endMs": 32020
+        "startMs": 19720,
+        "endMs": 20020
       },
       {
         "word": "speak",
-        "startMs": 32020,
-        "endMs": 32340
+        "startMs": 20020,
+        "endMs": 20260
       }
     ]
   },
@@ -470,18 +470,18 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
     "words": [
       {
         "word": "Before",
-        "startMs": 33580,
-        "endMs": 33740
+        "startMs": 21080,
+        "endMs": 21220
       },
       {
         "word": "we",
-        "startMs": 33740,
-        "endMs": 34000
+        "startMs": 21220,
+        "endMs": 21460
       },
       {
         "word": "begin",
-        "startMs": 34000,
-        "endMs": 34240
+        "startMs": 21460,
+        "endMs": 21640
       }
     ]
   },
@@ -490,103 +490,103 @@ export const INTRO_SEGMENTS: SegmentTimings[] = [
     "words": [
       {
         "word": "I'll",
-        "startMs": 34700,
-        "endMs": 34820
+        "startMs": 21760,
+        "endMs": 22040
       },
       {
         "word": "need",
-        "startMs": 34820,
-        "endMs": 35000
+        "startMs": 22040,
+        "endMs": 22180
       },
       {
         "word": "access",
-        "startMs": 35000,
-        "endMs": 35240
+        "startMs": 22180,
+        "endMs": 22400
       },
       {
         "word": "to",
-        "startMs": 35240,
-        "endMs": 35440
+        "startMs": 22400,
+        "endMs": 22560
       },
       {
         "word": "your",
-        "startMs": 35440,
-        "endMs": 35620
+        "startMs": 22560,
+        "endMs": 22760
       },
       {
         "word": "microphone",
-        "startMs": 35620,
-        "endMs": 36040
+        "startMs": 22760,
+        "endMs": 22940
       },
       {
         "word": "so",
-        "startMs": 36040,
-        "endMs": 36260
+        "startMs": 22940,
+        "endMs": 23080
       },
       {
         "word": "I",
-        "startMs": 36260,
-        "endMs": 36380
+        "startMs": 23080,
+        "endMs": 23180
       },
       {
         "word": "can",
-        "startMs": 36380,
-        "endMs": 36560
+        "startMs": 23180,
+        "endMs": 23360
       },
       {
         "word": "listen",
-        "startMs": 36560,
-        "endMs": 36720
+        "startMs": 23360,
+        "endMs": 23420
       },
       {
         "word": "to",
-        "startMs": 36720,
-        "endMs": 36940
+        "startMs": 23420,
+        "endMs": 23600
       },
       {
         "word": "you",
-        "startMs": 36940,
-        "endMs": 37180
+        "startMs": 23600,
+        "endMs": 23780
       },
       {
         "word": "speak",
-        "startMs": 37180,
-        "endMs": 37380
+        "startMs": 23780,
+        "endMs": 23900
       },
       {
         "word": "Tap",
-        "startMs": 38240,
-        "endMs": 38260
+        "startMs": 24540,
+        "endMs": 24620
       },
       {
         "word": "the",
-        "startMs": 38260,
-        "endMs": 38660
+        "startMs": 24620,
+        "endMs": 24980
       },
       {
         "word": "button",
-        "startMs": 38660,
-        "endMs": 38660
+        "startMs": 24980,
+        "endMs": 24980
       },
       {
         "word": "below",
-        "startMs": 38660,
-        "endMs": 38980
+        "startMs": 24980,
+        "endMs": 25120
       },
       {
         "word": "to",
-        "startMs": 38980,
-        "endMs": 39380
+        "startMs": 25120,
+        "endMs": 25260
       },
       {
         "word": "get",
-        "startMs": 39380,
-        "endMs": 39580
+        "startMs": 25260,
+        "endMs": 25500
       },
       {
         "word": "started",
-        "startMs": 39580,
-        "endMs": 39860
+        "startMs": 25500,
+        "endMs": 25640
       }
     ]
   }

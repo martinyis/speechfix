@@ -6,12 +6,14 @@ import { BEHAVIOR_PROMPT } from '../prompts/behavior.js';
 import { ONBOARDING_SESSION_PROMPT } from '../prompts/session-types/onboarding.js';
 import { END_ONBOARDING_TOOL } from '../tools.js';
 import { extractUserProfile } from '../../services/profile-extractor.js';
+import { ensureGreetingsExist } from '../../services/greeting-generator.js';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
 
 export class OnboardingHandler implements AgentTypeHandler {
   readonly needsUserContext = false;
+  readonly greetingStrategy = 'none' as const;
   readonly silenceTimeoutMs = 30_000;
   readonly maxSessionDurationMs = 3 * 60 * 1000;
 
@@ -46,6 +48,9 @@ export class OnboardingHandler implements AgentTypeHandler {
       }).where(eq(users.id, userId));
 
       console.log(`[onboarding-handler] Profile saved for user ${userId}: ${profile.displayName}`);
+
+      // Generate greetings for Reflexa + filler-coach (await so they're ready)
+      await ensureGreetingsExist(userId);
 
       // The AI already spoke its farewell (including speech observation) via TTS
       // before calling end_onboarding, so we don't need to generate separate text here.

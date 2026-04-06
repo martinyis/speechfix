@@ -11,5 +11,6 @@ export function usePracticeTasks() {
       const data = await res.json();
       return data.tasks;
     },
+    refetchOnMount: 'always',
   });
 }

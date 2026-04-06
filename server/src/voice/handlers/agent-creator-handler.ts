@@ -12,6 +12,7 @@ import { generateGreetingForAgent } from '../../services/greeting-generator.js';
 
 export class AgentCreatorHandler implements AgentTypeHandler {
   readonly needsUserContext = false;
+  readonly greetingStrategy = 'none' as const;
 
   buildSystemPrompt(_agentConfig: AgentConfig | null, _userContext?: FullUserContext, formContext?: Record<string, unknown> | null): string {
     const layers = [IDENTITY_PROMPT, BEHAVIOR_PROMPT, AGENT_CREATOR_SESSION_PROMPT];
@@ -68,6 +69,7 @@ export class AgentCreatorHandler implements AgentTypeHandler {
         .values({
           userId,
           type: 'conversation',
+          agentMode: 'conversation',
           name: formName || 'Custom Agent',
           systemPrompt: 'You are a friendly conversation partner who enjoys discussing a wide range of topics.',
           behaviorPrompt: null,
@@ -78,10 +80,8 @@ export class AgentCreatorHandler implements AgentTypeHandler {
 
       console.log(`[agent-creator-handler] Fallback agent created: ${newAgent.id}`);
 
-      // Generate first greeting for the new agent
-      generateGreetingForAgent(userId, newAgent.id).catch(err =>
-        console.error('[greeting] Initial generation failed:', err)
-      );
+      // Await greeting so it's ready when user taps "Start Practicing"
+      await generateGreetingForAgent(userId, newAgent.id);
 
       return {
         type: 'agent-created',
@@ -91,6 +91,7 @@ export class AgentCreatorHandler implements AgentTypeHandler {
           id: newAgent.id,
           name: newAgent.name,
           type: newAgent.type,
+          agentMode: newAgent.agentMode,
           voiceId: newAgent.voiceId,
           avatarSeed: formAvatarSeed ?? null,
           createdAt: newAgent.createdAt.toISOString(),
@@ -105,6 +106,7 @@ export class AgentCreatorHandler implements AgentTypeHandler {
       .values({
         userId,
         type: 'conversation',
+        agentMode: config.agentMode,
         name: config.name,
         systemPrompt: config.systemPrompt,
         behaviorPrompt: config.behaviorPrompt,
@@ -115,10 +117,8 @@ export class AgentCreatorHandler implements AgentTypeHandler {
 
     console.log(`[agent-creator-handler] Agent created: ${newAgent.id} (${newAgent.name})`);
 
-    // Generate first greeting for the new agent
-    generateGreetingForAgent(userId, newAgent.id).catch(err =>
-      console.error('[greeting] Initial generation failed:', err)
-    );
+    // Await greeting so it's ready when user taps "Start Practicing"
+    await generateGreetingForAgent(userId, newAgent.id);
 
     return {
       type: 'agent-created',
@@ -128,6 +128,7 @@ export class AgentCreatorHandler implements AgentTypeHandler {
         id: newAgent.id,
         name: newAgent.name,
         type: newAgent.type,
+        agentMode: newAgent.agentMode,
         voiceId: newAgent.voiceId,
         avatarSeed: formAvatarSeed ?? null,
         createdAt: newAgent.createdAt.toISOString(),

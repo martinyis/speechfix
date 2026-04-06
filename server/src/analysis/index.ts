@@ -1,4 +1,4 @@
-export { runAnalysis, runAnalysisStreaming } from './runner.js';
+export { runAnalysis, runAnalysisStreaming, runAnalysisPhased } from './runner.js';
 export type {
   Correction,
   FillerWordCount,
@@ -12,4 +12,5 @@ export type {
   SpeechPattern,
   PatternAnalysisInput,
   PatternAnalysisResult,
+  PhasedInsightsPayload,
 } from './types.js';

@@ -68,7 +68,7 @@ const palette = {
 };
 
 export interface PracticeRecordOrbProps {
-  state: 'idle' | 'recording' | 'evaluating';
+  state: 'idle' | 'recording' | 'evaluating' | 'success';
   audioLevel: SharedValue<number>;
   onPress: () => void;
 }
@@ -84,11 +84,17 @@ export default function PracticeRecordOrb({
     transform: [{ scale: pressScale.value }],
   }));
 
-  // -- Breathing (idle) --
+  // -- Breathing (idle) / Success bloom --
   const breathScale = useSharedValue(1);
 
   useEffect(() => {
-    if (state === 'idle' || state === 'evaluating') {
+    if (state === 'success') {
+      cancelAnimation(breathScale);
+      breathScale.value = withSequence(
+        withSpring(1.2, { damping: 12, stiffness: 200 }),
+        withDelay(600, withTiming(1.0, { duration: 300 })),
+      );
+    } else if (state === 'idle' || state === 'evaluating') {
       breathScale.value = withRepeat(
         withSequence(
           withTiming(1.04, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
@@ -111,9 +117,10 @@ export default function PracticeRecordOrb({
   const bloomOpacity = useSharedValue(0.7);
 
   useEffect(() => {
-    bloomOpacity.value = withTiming(state === 'recording' ? 1.0 : 0.7, {
-      duration: 300,
-    });
+    bloomOpacity.value = withTiming(
+      state === 'recording' || state === 'success' ? 1.0 : 0.7,
+      { duration: 300 },
+    );
   }, [state, bloomOpacity]);
 
   const bloomStyle = useAnimatedStyle(() => ({
@@ -143,6 +150,20 @@ export default function PracticeRecordOrb({
           ),
         );
       });
+    } else if (state === 'success') {
+      // Single pulse ring radiating outward
+      ringProgress.forEach((sv, i) => {
+        cancelAnimation(sv);
+        if (i === 0) {
+          sv.value = 0;
+          sv.value = withTiming(1, {
+            duration: 500,
+            easing: Easing.out(Easing.ease),
+          });
+        } else {
+          sv.value = withTiming(0, { duration: 200 });
+        }
+      });
     } else {
       // Collapse inward on stop
       ringProgress.forEach((sv) => {
@@ -153,9 +174,15 @@ export default function PracticeRecordOrb({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
-  const ringStyles = ringProgress.map((sv) =>
+  const ringStyles = ringProgress.map((sv, i) =>
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useAnimatedStyle(() => {
+      if (state === 'success' && i === 0) {
+        // Success ring: scale 1→2.5, opacity 0.4→0
+        const scale = 1 + sv.value * 1.5;
+        const opacity = 0.4 * (1 - sv.value);
+        return { transform: [{ scale }], opacity };
+      }
       const scale = 1 + sv.value * 0.8; // 1.0 → 1.8
       const opacity = 0.3 * (1 - sv.value); // 0.3 → 0
       return {
@@ -301,6 +328,8 @@ export default function PracticeRecordOrb({
           <View style={styles.iconOverlay}>
             {state === 'recording' ? (
               <View style={styles.stopSquare} />
+            ) : state === 'success' ? (
+              <Ionicons name="checkmark" size={28} color="#fff" style={styles.micIcon} />
             ) : (
               <Ionicons name="mic" size={24} color="#fff" style={styles.micIcon} />
             )}

@@ -5,11 +5,14 @@ import { END_SESSION_TOOL } from '../tools.js';
 import { FILLER_COACH_IDENTITY_PROMPT, FILLER_COACH_SESSION_PROMPT } from '../prompts/session-types/filler-coach.js';
 import { FILLER_COACH_BEHAVIOR_PROMPT } from '../prompts/behavior.js';
 import { FillerAnalyzer } from '../../analysis/analyzers/fillers.js';
+import { regenerateAllGreetings } from '../../services/greeting-generator.js';
+import { runPatternAnalysisForUser } from '../../jobs/patterns.js';
 
 const fillerAnalyzer = new FillerAnalyzer();
 
 export class FillerCoachHandler implements AgentTypeHandler {
   readonly needsUserContext = false;
+  readonly greetingStrategy = 'pregenerated' as const;
   readonly maxSessionDurationMs = 10 * 60 * 1000; // 10 min hard cap
 
   buildSystemPrompt(
@@ -23,7 +26,7 @@ export class FillerCoachHandler implements AgentTypeHandler {
     layers.push(FILLER_COACH_BEHAVIOR_PROMPT);
 
     // Inject target words into session prompt
-    const targetWords = (formContext?.targetWords as string) || 'um, uh, like, you know';
+    const targetWords = (formContext?.targetWords as string) || 'all common filler words (um, uh, like, you know, so, basically, actually, right, I mean, kind of, sort of, literally)';
     const sessionPrompt = FILLER_COACH_SESSION_PROMPT.replace('{targetWords}', targetWords);
     layers.push(sessionPrompt);
 
@@ -45,7 +48,7 @@ export class FillerCoachHandler implements AgentTypeHandler {
   }
 
   async onSessionEnd(
-    _userId: number,
+    userId: number,
     _agentConfig: AgentConfig | null,
     transcriptBuffer: string[],
     conversationHistory: ConversationMessage[],
@@ -55,6 +58,10 @@ export class FillerCoachHandler implements AgentTypeHandler {
     const userUtterances = transcriptBuffer;
 
     if (!userUtterances.join(' ').trim()) {
+      // Still regenerate greetings even if no speech
+      regenerateAllGreetings(userId).catch(err =>
+        console.error('[greeting] Filler coach regen failed:', err)
+      );
       return { type: 'filler-practice' };
     }
 
@@ -66,6 +73,16 @@ export class FillerCoachHandler implements AgentTypeHandler {
     });
 
     console.log(`[filler-coach-handler] Analysis complete: ${fillerResult.fillerWords.length} filler types (not saved to DB)`);
+
+    // Fire-and-forget: regenerate greetings for next session
+    regenerateAllGreetings(userId).catch(err =>
+      console.error('[greeting] Filler coach regen failed:', err)
+    );
+
+    // Fire-and-forget: trigger pattern analysis (debounce handles frequency)
+    runPatternAnalysisForUser(userId).catch(err =>
+      console.error('[filler-coach-handler] Pattern analysis trigger failed:', err)
+    );
 
     return {
       type: 'filler-practice',

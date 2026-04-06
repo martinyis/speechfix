@@ -1,17 +1,14 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
-  Pressable,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, {
   FadeIn,
   FadeInDown,
-  useSharedValue,
-  useAnimatedScrollHandler,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -19,17 +16,13 @@ import { useFocusEffect } from 'expo-router';
 import { useSessionStore } from '../stores/sessionStore';
 import { useSession } from '../hooks/useSession';
 import { usePracticeTasks } from '../hooks/usePracticeTasks';
-import { SessionSummaryCard } from '../components/SessionSummaryCard';
-import { StickySessionBar } from '../components/StickySessionBar';
-import { CorrectionFilterChips } from '../components/CorrectionFilterChips';
-import { CorrectionCard } from '../components/CorrectionCard';
+import { SessionVerdict } from '../components/SessionVerdict';
+import { CorrectionsPreview } from '../components/CorrectionsPreview';
 import { AnalyzingBanner } from '../components/AnalyzingBanner';
 import { ScreenHeader, EmptyState, GlassIconPillButton } from '../components/ui';
 import { formatDuration } from '../lib/formatters';
 import { colors, alpha, fonts } from '../theme';
-import type { SessionDetail, CorrectionFilter } from '../types/session';
-
-const INITIAL_CORRECTION_LIMIT = 5;
+import type { SessionDetail } from '../types/session';
 
 export default function SessionDetailScreen() {
   const { sessionId, fresh } = useLocalSearchParams<{
@@ -39,23 +32,10 @@ export default function SessionDetailScreen() {
   const insets = useSafeAreaInsets();
   const isFresh = fresh === 'true';
 
-  // Filter state
-  const [correctionFilter, setCorrectionFilter] = useState<CorrectionFilter>('all');
-  const [showAllCorrections, setShowAllCorrections] = useState(false);
-
-  // Scroll tracking for sticky bar
-  const scrollY = useSharedValue(0);
-  const [summaryCardBottom, setSummaryCardBottom] = useState(0);
-
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-    },
-  });
-
   // Data sources
   const storeData = useSessionStore((s) => s.currentSessionData);
   const isStreaming = useSessionStore((s) => s.isStreamingAnalysis);
+  const isInsightsReady = useSessionStore((s) => s.isInsightsReady);
   const storeSessionId = useSessionStore((s) => s.currentSessionId);
   const {
     data: fetchedData,
@@ -63,7 +43,6 @@ export default function SessionDetailScreen() {
     isError,
   } = useSession(isFresh ? null : Number(sessionId));
 
-  // Use real dbSessionId once available (replaces placeholder '0')
   const resolvedSessionId = isFresh && storeSessionId ? storeSessionId : Number(sessionId);
 
   const session: SessionDetail | null | undefined = isFresh
@@ -82,66 +61,23 @@ export default function SessionDetailScreen() {
     return new Set(allTasks.filter(t => t.practiced).map(t => t.correctionId));
   }, [allTasks]);
 
-  // Refetch practice tasks when screen regains focus
   useFocusEffect(
     useCallback(() => {
       refetchPracticeTasks();
     }, [refetchPracticeTasks]),
   );
 
-  // Refetch practice tasks when streaming ends (corrections now exist in DB)
+  // Refetch practice tasks when streaming ends
   const wasStreamingRef = useRef(isStreaming);
   useEffect(() => {
     if (wasStreamingRef.current && !isStreaming) {
-      // Small delay to ensure DB writes have settled
       const timer = setTimeout(() => refetchPracticeTasks(), 500);
       return () => clearTimeout(timer);
     }
     wasStreamingRef.current = isStreaming;
   }, [isStreaming, refetchPracticeTasks]);
 
-  // Compute summary counts
-  const counts = useMemo(() => {
-    if (!session) return null;
-    const errorCount = session.corrections.filter(
-      (c) => c.severity === 'error',
-    ).length;
-    const improvementCount = session.corrections.filter(
-      (c) => c.severity === 'improvement',
-    ).length;
-    const polishCount = session.corrections.filter(
-      (c) => c.severity === 'polish',
-    ).length;
-    const sentencesWithCorrections = new Set(
-      session.corrections.map((c) => c.sentenceIndex),
-    ).size;
-    return {
-      errorCount,
-      improvementCount,
-      polishCount,
-      sentencesWithCorrections,
-    };
-  }, [session]);
-
-  // Filtered + limited corrections
-  const filteredCorrections = useMemo(() => {
-    if (!session) return [];
-    if (correctionFilter === 'all') return session.corrections;
-    return session.corrections.filter((c) => c.severity === correctionFilter);
-  }, [session, correctionFilter]);
-
-  const visibleCorrections = showAllCorrections
-    ? filteredCorrections
-    : filteredCorrections.slice(0, INITIAL_CORRECTION_LIMIT);
-
-  const hiddenCount = filteredCorrections.length - visibleCorrections.length;
-
-  // Filter chip tap -> set filter + reset "show all"
-  const handleFilterChipPress = useCallback((filter: CorrectionFilter) => {
-    setCorrectionFilter(filter);
-    setShowAllCorrections(false);
-  }, []);
-
+  // Handlers
   const handleBack = useCallback(() => {
     if (isFresh) {
       router.replace('/(tabs)');
@@ -150,7 +86,29 @@ export default function SessionDetailScreen() {
     }
   }, [isFresh]);
 
-  // -- Loading / error states for historical mode --
+  const handlePracticeCorrection = useCallback((correctionId: number) => {
+    router.push({
+      pathname: '/practice-session',
+      params: {
+        correctionId: String(correctionId),
+        sessionId: String(resolvedSessionId),
+        mode: 'say_it_right',
+      },
+    });
+  }, [resolvedSessionId]);
+
+  const handleSeeAllCorrections = useCallback(() => {
+    router.push('/corrections-list');
+  }, []);
+
+  const handlePracticeAll = useCallback(() => {
+    router.push({
+      pathname: '/practice-session',
+      params: { sessionId: String(resolvedSessionId), mode: 'say_it_right' },
+    });
+  }, [resolvedSessionId]);
+
+  // -- Loading / error states --
   if (!isFresh && isLoading) {
     return (
       <View style={styles.center}>
@@ -170,49 +128,33 @@ export default function SessionDetailScreen() {
     );
   }
 
-  // -- Fresh mode: still analyzing (no corrections yet) --
-  if (isFresh && !session && !isStreaming) {
+  // Determine what phase we're in for fresh sessions
+  const showAnalyzingBanner = isFresh && !isInsightsReady && !session;
+  const insightsAvailable = isFresh ? isInsightsReady : true;
+  const correctionsStillStreaming = isFresh && isStreaming && isInsightsReady;
+
+  // -- Fresh mode: still analyzing (no insights yet) --
+  if (showAnalyzingBanner) {
     return (
       <View style={styles.container}>
         <ScreenHeader
           variant="back"
           onBack={() => router.replace('/(tabs)')}
         />
-
         <AnalyzingBanner visible />
       </View>
     );
   }
 
-  // -- Session data available (or streaming with corrections) --
-  if (!session || !counts) return null;
-
-  const totalSentences = session.sentences.length;
-  const cleanSentences = Math.max(0, totalSentences - counts.sentencesWithCorrections);
-  const clarityScore =
-    totalSentences > 0
-      ? Math.round((cleanSentences / totalSentences) * 100)
-      : 100;
+  if (!session) return null;
 
   const hasCorrections = session.corrections.length > 0;
-
-  // Animation wrapper helper
-  const maybeAnimate = (
-    node: React.ReactNode,
-    entering: Parameters<typeof Animated.View>[0]['entering'],
-    key?: string,
-  ) =>
-    isFresh ? (
-      <Animated.View key={key} entering={entering}>
-        {node}
-      </Animated.View>
-    ) : (
-      node
-    );
+  const hasInsights = session.sessionInsights.length > 0;
+  const isClean = !hasCorrections && !correctionsStillStreaming;
+  const analysisComplete = !isStreaming;
 
   return (
     <View style={styles.container}>
-      {/* Sticky top bar (normal header) */}
       <ScreenHeader
         variant="back"
         onBack={handleBack}
@@ -223,151 +165,77 @@ export default function SessionDetailScreen() {
         }
       />
 
-      {/* Sticky session bar (appears on scroll — hidden while streaming) */}
-      {!isStreaming && (
-        <StickySessionBar
-          scrollY={scrollY}
-          threshold={summaryCardBottom}
-          clarityScore={clarityScore}
-          errorCount={counts.errorCount}
-          improvementCount={counts.improvementCount}
-          polishCount={counts.polishCount}
-          durationSeconds={session.durationSeconds}
-          onBack={handleBack}
-          activeFilter={correctionFilter}
-          onFilterChange={handleFilterChipPress}
-          totalCorrections={session.corrections.length}
-        />
-      )}
-
       <Animated.ScrollView
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Analyzing banner during streaming */}
-        {isStreaming && <AnalyzingBanner visible />}
-
-        {/* Summary strip — hidden while streaming (needs clarityScore) */}
-        {!isStreaming && (
-          <View
-            onLayout={(e) => {
-              const { y, height } = e.nativeEvent.layout;
-              setSummaryCardBottom(y + height);
-            }}
-          >
-            {maybeAnimate(
-              <SessionSummaryCard
-                clarityScore={clarityScore}
-                errorCount={counts.errorCount}
-                improvementCount={counts.improvementCount}
-                polishCount={counts.polishCount}
-                fillerWords={session.fillerWords}
-                durationSeconds={session.durationSeconds}
-              />,
-              FadeIn.duration(300),
-            )}
-          </View>
+        {/* Session Verdict — score, assessment, fillers, strength, focus */}
+        {insightsAvailable && (
+          <Animated.View entering={isFresh ? FadeIn.duration(300) : undefined}>
+            <SessionVerdict
+              insights={session.sessionInsights}
+              fillerWords={session.fillerWords}
+              durationSeconds={session.durationSeconds}
+              isFresh={isFresh}
+              isLoading={isFresh && !hasInsights && !isClean}
+            />
+          </Animated.View>
         )}
 
-        {/* Refinements section */}
-        <View style={styles.refinementsSection}>
-          <Text style={styles.refinementsLabel}>REFINEMENTS</Text>
+        {/* "Checking grammar..." indicator while corrections stream in */}
+        {correctionsStillStreaming && !hasCorrections && (
+          <Animated.View
+            style={styles.grammarIndicator}
+            entering={FadeIn.duration(200)}
+          >
+            <ActivityIndicator size="small" color={alpha(colors.white, 0.3)} />
+            <Text style={styles.grammarIndicatorText}>Checking grammar...</Text>
+          </Animated.View>
+        )}
 
-          <View style={styles.filterChipsWrap}>
-            <CorrectionFilterChips
-              activeFilter={correctionFilter}
-              onFilterChange={handleFilterChipPress}
-              counts={{
-                all: session.corrections.length,
-                error: counts.errorCount,
-                improvement: counts.improvementCount,
-                polish: counts.polishCount,
-              }}
-            />
-          </View>
+        {/* Corrections Preview — flat layout */}
+        {(hasCorrections || correctionsStillStreaming) && (
+          <CorrectionsPreview
+            corrections={session.corrections}
+            sentences={session.sentences}
+            practicedIds={practicedIds}
+            totalCount={session.corrections.length}
+            onPractice={handlePracticeCorrection}
+            onSeeAll={handleSeeAllCorrections}
+            isStreaming={isStreaming}
+            isFresh={isFresh}
+          />
+        )}
 
-          {visibleCorrections.length > 0 ? (
-            <>
-              {visibleCorrections.map((c, i) => {
-                const sentence =
-                  session.sentences[c.sentenceIndex] ?? '';
-                const key = c.id ?? i;
-                const card = (
-                  <CorrectionCard
-                    key={key}
-                    sentence={sentence}
-                    originalText={c.originalText}
-                    correctedText={c.correctedText}
-                    explanation={c.explanation}
-                    correctionType={c.correctionType}
-                    severity={c.severity}
-                    practiced={c.id != null && practicedIds.has(c.id)}
-                  />
-                );
-                if (isFresh) {
-                  const baseDelay = 200;
-                  return (
-                    <Animated.View
-                      key={key}
-                      entering={FadeInDown.duration(300).delay(baseDelay + i * 100)}
-                    >
-                      {card}
-                    </Animated.View>
-                  );
-                }
-                return card;
-              })}
+        {/* Clean session empty state — only show after analysis is complete */}
+        {analysisComplete && isClean && (
+          <EmptyState
+            icon="checkmark-circle-outline"
+            iconColor={alpha(colors.severityPolish, 0.5)}
+            title="Clean session"
+            subtitle="No corrections detected"
+          />
+        )}
 
-              {/* Show remaining strip */}
-              {hiddenCount > 0 && (
-                <Pressable
-                  style={styles.showRemainingStrip}
-                  onPress={() => setShowAllCorrections(true)}
-                >
-                  <Text style={styles.showRemainingText}>
-                    Showing {visibleCorrections.length} of {filteredCorrections.length}
-                  </Text>
-                  <Text style={styles.showRemainingAction}> Show remaining</Text>
-                </Pressable>
-              )}
-            </>
-          ) : hasCorrections ? (
-            <EmptyState
-              title={`No ${correctionFilter === 'error' ? 'errors' : correctionFilter === 'improvement' ? 'improvements' : 'polish suggestions'} found`}
-            />
-          ) : (
-            <EmptyState
-              icon="checkmark-circle-outline"
-              iconColor={alpha(colors.severityPolish, 0.5)}
-              title="No issues found"
-              subtitle="Your speech was grammatically clean"
-            />
-          )}
-        </View>
-
-        {/* Bottom padding — extra space when floating button visible */}
-        <View style={{ height: insets.bottom + (unpracticedCount > 0 && !isStreaming ? 120 : 60) }} />
+        {/* Bottom padding */}
+        <View style={{ height: insets.bottom + (unpracticedCount > 0 && analysisComplete ? 120 : 60) }} />
       </Animated.ScrollView>
 
-      {/* Floating Practice button */}
-      {unpracticedCount > 0 && !isStreaming && (
-        <View style={[styles.floatingButton, { bottom: insets.bottom + 16 }]}>
+      {/* Floating Practice All button */}
+      {unpracticedCount > 0 && analysisComplete && (
+        <Animated.View
+          style={[styles.floatingButton, { bottom: insets.bottom + 16 }]}
+          entering={FadeInDown.duration(300).delay(200)}
+        >
           <GlassIconPillButton
-            label={`Practice (${unpracticedCount})`}
+            label={`Practice All (${unpracticedCount})`}
             icon="fitness-outline"
             variant="primary"
             fullWidth
-            onPress={() => {
-              router.push({
-                pathname: '/practice-session',
-                params: { sessionId: String(resolvedSessionId), mode: 'say_it_right' },
-              });
-            }}
+            onPress={handlePracticeAll}
           />
-        </View>
+        </Animated.View>
       )}
     </View>
   );
@@ -383,6 +251,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingBottom: 20,
+    paddingTop: 8,
   },
   center: {
     flex: 1,
@@ -391,56 +260,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
   },
-
-  // Header
   topBarDuration: {
     fontSize: 13,
     color: alpha(colors.white, 0.3),
     fontFamily: fonts.medium,
     letterSpacing: 0.5,
   },
-
-  // Refinements
-  refinementsSection: {
-    marginTop: 28,
-  },
-  refinementsLabel: {
-    fontSize: 13,
-    fontFamily: fonts.bold,
-    color: alpha(colors.white, 0.25),
-    letterSpacing: 1.2,
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  filterChipsWrap: {
-    marginBottom: 16,
-  },
-
-  // Show remaining
-  showRemainingStrip: {
+  grammarIndicator: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 14,
-    marginHorizontal: 20,
-    marginTop: 4,
-    borderRadius: 12,
-    backgroundColor: alpha(colors.white, 0.03),
-    borderWidth: 1,
-    borderColor: alpha(colors.white, 0.06),
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
-  showRemainingText: {
-    fontSize: 13,
+  grammarIndicatorText: {
+    fontSize: 14,
     fontFamily: fonts.medium,
     color: alpha(colors.white, 0.35),
   },
-  showRemainingAction: {
-    fontSize: 13,
-    fontFamily: fonts.semibold,
-    color: colors.primary,
-  },
-
-  // Floating practice button
   floatingButton: {
     position: 'absolute',
     left: 20,

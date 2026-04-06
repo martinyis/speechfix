@@ -4,6 +4,7 @@ import type { ConversationMessage, UserContext } from '../response-generator.js'
 export interface AgentConfig {
   id: number;
   type: string;
+  agentMode: string;
   name: string;
   systemPrompt: string;
   behaviorPrompt: string | null;
@@ -19,6 +20,7 @@ export interface SessionEndResult {
   type: 'analysis' | 'onboarding' | 'agent-created' | 'filler-practice';
   dbSessionId?: number;
   clarityScore?: number;
+  score?: number | null;
   correctionIds?: number[];
   analysisResults?: {
     sentences: string[];
@@ -32,12 +34,13 @@ export interface SessionEndResult {
   speechObservation?: string | null;
   agentId?: number;
   agentName?: string;
-  agent?: { id: number; name: string; type: string; voiceId: string | null; avatarSeed?: string | null; createdAt: string };
+  agent?: { id: number; name: string; type: string; agentMode: string; voiceId: string | null; avatarSeed?: string | null; createdAt: string };
   farewellMessage?: string | null;
 }
 
 export interface AgentTypeHandler {
   readonly needsUserContext: boolean;
+  readonly greetingStrategy: 'pregenerated' | 'none';
   readonly silenceTimeoutMs?: number;
   readonly maxSessionDurationMs?: number;
   buildSystemPrompt(agentConfig: AgentConfig | null, userContext?: FullUserContext, formContext?: Record<string, unknown> | null): string;
@@ -60,5 +63,6 @@ export interface AgentTypeHandler {
     durationSeconds: number,
     onCorrection: (correction: any) => void,
     formContext?: Record<string, unknown> | null,
+    onInsightsReady?: (payload: any, dbSessionId: number) => void,
   ): Promise<SessionEndResult>;
 }

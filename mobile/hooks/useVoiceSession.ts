@@ -27,24 +27,25 @@ type VoiceMessage =
     }}
   | { type: 'session_ending' }
   | { type: 'correction'; index: number; data: any }
+  | { type: 'insights_ready'; dbSessionId?: number; data: any }
   | { type: 'analysis_complete'; dbSessionId?: number; data: any }
   | { type: 'agent_created'; agent: Agent }
   | { type: 'error'; message?: string };
 
-// PCM 16kHz 16-bit mono = 32000 bytes/sec
-const PCM_BYTES_PER_SEC = 32000;
+// PCM 24kHz 16-bit mono = 48000 bytes/sec (matches Cartesia TTS output)
+const PCM_BYTES_PER_SEC = 48000;
 
 interface UseVoiceSessionCallbacks {
   onSessionEnd: (results: SessionDetail, dbSessionId: number) => void;
   onError: (message: string) => void;
   onAgentCreated?: (agent: Agent) => void;
-  onFirstCorrection?: () => void;
+  onInsightsReady?: () => void;
   agentId?: number | null;
   mode?: string;
   formContext?: Record<string, unknown>;
 }
 
-export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirstCorrection, agentId, mode, formContext }: UseVoiceSessionCallbacks) {
+export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsightsReady, agentId, mode, formContext }: UseVoiceSessionCallbacks) {
   const wsRef = useRef<WebSocket | null>(null);
   const subscriptionRef = useRef<{ remove(): void } | null>(null);
   const isStoppingRef = useRef(false);
@@ -197,11 +198,17 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirst
         s.setVoiceSessionState('analyzing');
         break;
 
+      case 'insights_ready': {
+        const dbId = msg.dbSessionId ?? 0;
+        s.setInsightsReady(dbId, msg.data);
+        onInsightsReady?.();
+        break;
+      }
+
       case 'correction': {
-        // First correction triggers streaming mode and navigation
-        if (msg.index === 0) {
+        // If insights haven't arrived yet (fallback), start streaming mode
+        if (!store.getState().isInsightsReady && msg.index === 0) {
           s.startStreamingAnalysis();
-          onFirstCorrection?.();
         }
         s.addStreamingCorrection(msg.data);
         break;
@@ -256,7 +263,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirst
         s.endVoiceSession();
         break;
     }
-  }, [startMicAndTimer, cleanup, onSessionEnd, onError, onAgentCreated, onFirstCorrection]);
+  }, [startMicAndTimer, cleanup, onSessionEnd, onError, onAgentCreated, onInsightsReady]);
 
   const start = useCallback(async () => {
     isStoppingRef.current = false;
@@ -287,7 +294,8 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onFirst
     await new Promise(resolve => setTimeout(resolve, 400));
 
     // Connect WebSocket — append agent ID, mode, or formContext if provided
-    const selectedAgent = agentId ?? useAgentStore.getState().selectedAgentId;
+    // System modes (filler-coach, onboarding, etc.) use their own handler — never send an agent ID
+    const selectedAgent = mode ? null : (agentId ?? useAgentStore.getState().selectedAgentId);
     let url = wsUrl('/voice-session');
     if (selectedAgent) {
       url += `&agent=${selectedAgent}`;

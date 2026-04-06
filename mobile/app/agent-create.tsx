@@ -36,7 +36,7 @@ import { useVoicePreview } from '../hooks/useVoicePreview';
 import { VoiceSessionOverlay } from '../components/VoiceSessionOverlay';
 import { StyleChips } from '../components/StyleChips';
 import { AgentAvatar } from '../components/AgentAvatar';
-import { ALL_AVATAR_IDS, type AvatarId } from '../lib/avatars';
+import { ALL_AVATAR_IDS, resolveAvatarId, type AvatarId } from '../lib/avatars';
 import { GlassIconPillButton, ScreenHeader } from '../components/ui';
 import type { Agent } from '../types/session';
 
@@ -283,8 +283,9 @@ export default function AgentCreateScreen() {
   const [isCreating, setIsCreating] = useState(false);
   const [avatarSeed, setAvatarSeed] = useState<AvatarId | null>(null);
 
-  // Success phase voice selection
+  // Success phase customization
   const [successVoiceId, setSuccessVoiceId] = useState<string | null>(null);
+  const [successAvatarSeed, setSuccessAvatarSeed] = useState<AvatarId | null>(null);
 
   // Voice session state from store
   const voiceState = useSessionStore((s) => s.voiceSessionState);
@@ -305,10 +306,11 @@ export default function AgentCreateScreen() {
     (agent: Agent) => {
       setCreatedAgent(agent);
       setSuccessVoiceId(agent.voiceId ?? voiceId);
+      setSuccessAvatarSeed(resolveAvatarId(agent.avatarSeed ?? avatarSeed));
       queryClient.invalidateQueries({ queryKey: ['agents'] });
       setPhase('success');
     },
-    [queryClient, voiceId],
+    [queryClient, voiceId, avatarSeed],
   );
 
   const handleError = useCallback((message: string) => {
@@ -345,6 +347,7 @@ export default function AgentCreateScreen() {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
       setCreatedAgent(agent);
       setSuccessVoiceId(agent.voiceId ?? voiceId);
+      setSuccessAvatarSeed(resolveAvatarId(agent.avatarSeed ?? avatarSeed));
       setPhase('success');
     } catch {
       Alert.alert('Error', 'Failed to create agent. Please try again.');
@@ -575,6 +578,22 @@ export default function AgentCreateScreen() {
   }
 
   // ── Success Phase ────────────────────────────────────────────────────
+  const handleSuccessAvatarSelect = async (seed: AvatarId) => {
+    setSuccessAvatarSeed(seed);
+    if (createdAgent) {
+      try {
+        await authFetch(`/agents/${createdAgent.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ avatarSeed: seed }),
+        });
+        queryClient.invalidateQueries({ queryKey: ['agents'] });
+      } catch {
+        // Silently fail — avatar can be changed later
+      }
+    }
+  };
+
   const handleSuccessVoiceSelect = async (newVoiceId: string | null) => {
     setSuccessVoiceId(newVoiceId);
     if (createdAgent && newVoiceId) {
@@ -598,10 +617,28 @@ export default function AgentCreateScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.successHeader}>
-          <Ionicons name="checkmark-circle" size={64} color={colors.primary} />
+          <AgentAvatar seed={successAvatarSeed} size={88} />
           <Text style={styles.successTitle}>
             {createdAgent?.name ?? 'Agent'} is ready
           </Text>
+        </View>
+
+        <View style={styles.successAvatarSection}>
+          <Text style={styles.successVoiceLabel}>AVATAR</Text>
+          <View style={styles.avatarGrid}>
+            {ALL_AVATAR_IDS.map((id) => (
+              <Pressable
+                key={id}
+                onPress={() => handleSuccessAvatarSelect(id)}
+                style={[
+                  styles.avatarOption,
+                  successAvatarSeed === id && styles.avatarOptionSelected,
+                ]}
+              >
+                <AgentAvatar seed={id} size={48} />
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         <View style={styles.successVoiceSection}>
@@ -819,6 +856,9 @@ const styles = StyleSheet.create({
     ...typography.headlineMd,
     color: colors.onSurface,
     textAlign: 'center',
+  },
+  successAvatarSection: {
+    marginBottom: spacing.xxl,
   },
   successVoiceSection: {
     marginBottom: spacing.xxl,

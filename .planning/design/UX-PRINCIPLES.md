@@ -172,20 +172,17 @@ Every screen follows this vertical structure:
 Every empty state follows this template:
 
 ```
-┌──────────────────────────────────────┐
-│                                      │
-│              [Icon]                  │
-│                                      │
-│         Feature Title                │
-│                                      │
-│    What the user needs to do         │
-│    to activate this feature.         │
-│                                      │
-│         [Primary CTA]               │
-│                                      │
-└──────────────────────────────────────┘
+            [Icon]
+
+       Feature Title
+
+  What the user needs to do
+  to activate this feature.
+
+       [Primary CTA]
 ```
 
+- Centered on screen, no card wrapper — just content on the dark background
 - Icon: relevant Ionicons, muted color
 - Title: `headlineSm`, white
 - Description: `bodyMd`, muted (50% white)

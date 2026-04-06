@@ -14,6 +14,7 @@ import { introAudioRoute } from './routes/intro-audio.js';
 import { practiceRoutes } from './routes/practice.js';
 import { jobRoutes } from './routes/jobs.js';
 import { patternRoutes } from './routes/patterns.js';
+import { greetingRoutes } from './routes/greetings.js';
 import authPlugin from './plugins/auth.js';
 
 const app = Fastify({ logger: true });
@@ -36,6 +37,7 @@ await app.register(introAudioRoute);
 await app.register(practiceRoutes, { prefix: '/practice' });
 await app.register(jobRoutes);
 await app.register(patternRoutes);
+await app.register(greetingRoutes);
 
 async function start() {
   try {

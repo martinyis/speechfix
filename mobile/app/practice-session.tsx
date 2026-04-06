@@ -21,6 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { ScreenHeader, GlassIconPillButton } from '../components/ui';
 import PracticeRecordOrb from '../components/PracticeRecordOrb';
+import PracticeFeedbackPanel from '../components/PracticeFeedbackPanel';
 import { wordDiff, formatCorrectionTypeLabel } from '../lib/wordDiff';
 import { usePracticeTasks } from '../hooks/usePracticeTasks';
 import { usePracticeRecording } from '../hooks/usePracticeRecording';
@@ -50,7 +51,6 @@ export default function PracticeSessionScreen() {
   );
   const [currentCorrectionId, setCurrentCorrectionId] = useState(Number(correctionId));
   const [scenario, setScenario] = useState<string | null>(null);
-  const [answerRevealed, setAnswerRevealed] = useState(false);
   const [sessionQueue, setSessionQueue] = useState<number[]>([]);
   const [queueIndex, setQueueIndex] = useState(0);
   const requeueCountRef = useRef<Record<number, number>>({});
@@ -92,7 +92,12 @@ export default function PracticeSessionScreen() {
         : tasks.filter((t) => !t.practiced).map((t) => t.correctionId);
       if (unpracticed.length > 0) {
         setSessionQueue(unpracticed);
-        setCurrentCorrectionId(unpracticed[0]);
+        // Start from the tapped task, not index 0
+        const tappedIdx = unpracticed.indexOf(Number(correctionId));
+        if (tappedIdx >= 0) {
+          setQueueIndex(tappedIdx);
+        }
+        // Don't override currentCorrectionId — it's already set from nav params
       }
     }
   }, [isFromList, isFromSession, tasks]);
@@ -139,7 +144,6 @@ export default function PracticeSessionScreen() {
 
   const handleTryAgain = useCallback(() => {
     recording.reset();
-    setAnswerRevealed(false);
   }, [recording]);
 
   const handleDone = useCallback(() => {
@@ -194,7 +198,6 @@ export default function PracticeSessionScreen() {
         setQueueIndex(nextIdx);
         setCurrentCorrectionId(newQueue[nextIdx]);
         recording.reset();
-        setAnswerRevealed(false);
         setScenario(null);
       } else {
         handleQueueExhausted();
@@ -232,7 +235,6 @@ export default function PracticeSessionScreen() {
         setQueueIndex(nextIdx);
         setCurrentCorrectionId(newQueue[nextIdx]);
         recording.reset();
-        setAnswerRevealed(false);
         setScenario(null);
       } else {
         handleQueueExhausted();
@@ -249,17 +251,6 @@ export default function PracticeSessionScreen() {
       handleDone();
     }
   }, [mode, sessionQueue, queueIndex, recording, nextTask, handleDone, handleQueueExhausted]);
-
-  // Haptics on result
-  useEffect(() => {
-    if (recording.state === 'result' && recording.result) {
-      if (recording.result.passed) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      }
-    }
-  }, [recording.state, recording.result]);
 
   const severityColor = task ? (SEVERITY_COLOR[task.severity] ?? colors.severityError) : colors.severityError;
 
@@ -293,9 +284,30 @@ export default function PracticeSessionScreen() {
     explanationAnim.value = 0;
   }, [currentCorrectionId]);
 
-  // Dim content during recording
+  // Compute orb state: success when passed, otherwise map normally
+  const passed = recording.state === 'result' && recording.result?.passed;
+  const orbState: 'idle' | 'recording' | 'evaluating' | 'success' =
+    passed ? 'success'
+    : recording.state === 'recording' ? 'recording'
+    : recording.state === 'evaluating' ? 'evaluating'
+    : 'idle';
+
+  // Auto-advance on success (orb celebrates ~600ms, holds ~900ms, then advances)
+  useEffect(() => {
+    if (!passed) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const timer = setTimeout(handleNext, 1500);
+    return () => clearTimeout(timer);
+  }, [passed]);
+
+  // Dim content during recording or failure result (not success)
   const contentOpacity = useAnimatedStyle(() => ({
-    opacity: withTiming(recording.state === 'recording' ? 0.6 : 1, { duration: 200 }),
+    opacity: withTiming(
+      recording.state === 'recording' ? 0.6
+      : (recording.state === 'result' && !recording.result?.passed) ? 0.35
+      : 1,
+      { duration: 200 },
+    ),
   }));
 
   if (!task) {
@@ -400,292 +412,183 @@ export default function PracticeSessionScreen() {
       />
 
       <View style={styles.body}>
-        {/* Use It Naturally: full-screen result takeover (unchanged) */}
-        {mode === 'use_it_naturally' && recording.state === 'result' && recording.result ? (
-          <Animated.View style={styles.resultContainer} entering={FadeIn.duration(250)}>
-            {recording.result.passed ? (
-              <>
-                <Animated.View entering={FadeInDown.duration(300).delay(100)}>
-                  <Ionicons name="checkmark-circle" size={56} color={colors.severityPolish} />
-                </Animated.View>
-                <Text style={styles.resultTitle}>Nailed it</Text>
-                <Text style={styles.resultFeedback}>{recording.result.feedback}</Text>
-                <View style={styles.resultActions}>
-                  {(isFromSession || isFromList) && nextTask ? (
-                    <GlassIconPillButton label="Next" icon="arrow-forward" variant="primary" onPress={handleNext} fullWidth />
-                  ) : (
-                    <GlassIconPillButton label="Done" icon="checkmark" variant="primary" onPress={handleDone} fullWidth />
-                  )}
-                  <GlassIconPillButton label="Try Again" icon="refresh" variant="secondary" onPress={handleTryAgain} fullWidth />
-                </View>
-              </>
-            ) : (
-              <>
-                <Animated.View entering={FadeInDown.duration(300).delay(100)}>
-                  <Ionicons name="refresh-circle" size={56} color="#f59e0b" />
-                </Animated.View>
-                <Text style={styles.resultTitle}>Not quite</Text>
-                <Text style={styles.resultFeedback}>{recording.result.feedback}</Text>
-                {recording.result.transcript ? (
-                  <View style={styles.transcriptBox}>
-                    <Text style={styles.transcriptLabel}>What you said:</Text>
-                    <Text style={styles.transcriptText}>{recording.result.transcript}</Text>
-                  </View>
-                ) : null}
-                <View style={styles.resultActions}>
-                  <GlassIconPillButton label="Try Again" icon="refresh" variant="primary" onPress={handleTryAgain} fullWidth />
-                  {(isFromList || isFromSession) && (
-                    <GlassIconPillButton label="Skip" icon="arrow-forward" variant="secondary" onPress={handleSkip} fullWidth />
-                  )}
-                </View>
-              </>
-            )}
-          </Animated.View>
-        ) : (
-          <>
-            {/* Prompt content — flat on background */}
-            <Animated.View style={[
-              styles.promptContainer,
-              contentOpacity,
-              mode === 'say_it_right' && recording.state === 'result' && styles.promptContainerResult,
-            ]}>
-              {mode === 'say_it_right' ? (
-                <>
-                  {/* Full sentence with error portion underlined */}
-                  <View style={styles.originalWrap}>
-                    <Text style={styles.sectionLabel}>YOUR ORIGINAL</Text>
-                    <Text style={styles.originalFullText}>
-                      {(() => {
-                        const ctx = task.contextSnippet;
-                        if (ctx) {
-                          const idx = ctx.toLowerCase().indexOf(task.originalText.toLowerCase());
-                          if (idx >= 0) {
-                            const before = ctx.slice(0, idx);
-                            const match = ctx.slice(idx, idx + task.originalText.length);
-                            const after = ctx.slice(idx + task.originalText.length);
-                            return (
-                              <>
-                                {before ? <Text>{before}</Text> : null}
-                                <Text style={[styles.errorUnderline, { textDecorationColor: severityColor }]}>
-                                  {match}
-                                </Text>
-                                {after ? <Text>{after}</Text> : null}
-                              </>
-                            );
-                          }
-                        }
-                        // Fallback: wordDiff on originalText
-                        return wordDiff(task.originalText, task.correctedText).map((seg, i) => (
-                          <Text
-                            key={i}
-                            style={
-                              seg.type === 'equal'
-                                ? undefined
-                                : [styles.errorUnderline, { textDecorationColor: severityColor }]
-                            }
-                          >
-                            {i > 0 ? ' ' : ''}{seg.text}
-                          </Text>
-                        ));
-                      })()}
-                    </Text>
-                  </View>
-
-                  {/* Collapsable explanation + correction type */}
-                  <View style={styles.hintArea}>
-                    <View style={styles.hintRow}>
-                      <View style={styles.correctionTypePill}>
-                        <Text style={[styles.correctionTypePillText, { color: severityColor }]}>
-                          {formatCorrectionTypeLabel(task.correctionType)}
-                        </Text>
-                      </View>
-                      {task.explanation ? (
-                        <Pressable onPress={toggleExplanation} hitSlop={8} style={styles.explainToggle}>
-                          <Text style={styles.explainToggleText}>Why?</Text>
-                          <Animated.View style={explanationChevronStyle}>
-                            <Ionicons name="chevron-down" size={12} color={alpha(colors.white, 0.3)} />
-                          </Animated.View>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                    {task.explanation ? (
-                      <Animated.View style={explanationBodyStyle}>
-                        <Text style={styles.hintText}>{task.explanation}</Text>
-                      </Animated.View>
-                    ) : null}
-                  </View>
-
-                  {/* Instruction */}
-                  <Text style={styles.instructionText}>Now say the corrected version</Text>
-
-                  {/* Answer reveal section */}
-                  {answerRevealed && (
-                    <Animated.View entering={FadeInDown.duration(250)} style={styles.revealWrap}>
-                      <Text style={styles.sectionLabel}>CORRECT VERSION</Text>
-                      <View style={styles.targetRow}>
-                        <View style={[styles.accentBar, { backgroundColor: severityColor }]} />
-                        <Text style={styles.targetText}>{task.correctedText}</Text>
-                      </View>
-                      {task.explanation && (
-                        <Text style={[styles.explanationText, { marginTop: 12 }]}>{task.explanation}</Text>
-                      )}
-                    </Animated.View>
-                  )}
-
-                  {/* Inline result for say_it_right */}
-                  {recording.state === 'result' && recording.result && (
-                    <Animated.View entering={FadeInDown.duration(250)} style={styles.inlineResultWrap}>
-                      <View style={styles.resultRow}>
-                        <Ionicons
-                          name={recording.result.passed ? 'checkmark-circle' : 'close-circle'}
-                          size={22}
-                          color={recording.result.passed ? colors.severityPolish : '#f59e0b'}
-                          style={styles.resultIcon}
-                        />
-                        <Text style={[
-                          styles.resultLabel,
-                          { color: recording.result.passed ? colors.severityPolish : '#f59e0b' },
-                        ]}>
-                          {recording.result.passed ? 'Correct' : 'Not quite'}
-                        </Text>
-                      </View>
-                      <Text style={styles.resultFeedbackInline}>{recording.result.feedback}</Text>
-                      {!recording.result.passed && recording.result.transcript ? (
-                        <View style={styles.transcriptBox}>
-                          <Text style={styles.transcriptLabel}>What you said:</Text>
-                          <Text style={styles.transcriptText}>{recording.result.transcript}</Text>
-                        </View>
-                      ) : null}
-                      <View style={styles.actionButtons}>
-                        {!answerRevealed && !recording.result.passed && (
-                          <GlassIconPillButton
-                            label="See Answer"
-                            icon="eye-outline"
-                            variant="secondary"
-                            onPress={() => setAnswerRevealed(true)}
-                          />
-                        )}
-                        <GlassIconPillButton
-                          label="Try Again"
-                          icon="refresh"
-                          variant="primary"
-                          onPress={handleTryAgain}
-                        />
-                        {(isFromSession || (isFromList && nextTask)) && (
-                          <GlassIconPillButton
-                            label="Next"
-                            icon="arrow-forward"
-                            variant="secondary"
-                            onPress={handleNext}
-                          />
-                        )}
-                        {!isFromSession && !isFromList && (
-                          <GlassIconPillButton
-                            label="Done"
-                            icon="checkmark"
-                            variant="secondary"
-                            onPress={handleDone}
-                          />
-                        )}
-                      </View>
-                    </Animated.View>
-                  )}
-                </>
-              ) : (
-                <>
-                  {/* Full sentence with error underlined + collapsable explanation */}
-                  <View style={styles.correctionContext}>
-                    <Text style={styles.sectionLabel}>CORRECTION</Text>
-                    <Text style={styles.originalFullText}>
-                      {(() => {
-                        const ctx = task.contextSnippet;
-                        if (ctx) {
-                          const idx = ctx.toLowerCase().indexOf(task.originalText.toLowerCase());
-                          if (idx >= 0) {
-                            const before = ctx.slice(0, idx);
-                            const match = ctx.slice(idx, idx + task.originalText.length);
-                            const after = ctx.slice(idx + task.originalText.length);
-                            return (
-                              <>
-                                {before ? <Text>{before}</Text> : null}
-                                <Text style={[styles.errorUnderline, { textDecorationColor: severityColor }]}>
-                                  {match}
-                                </Text>
-                                {after ? <Text>{after}</Text> : null}
-                              </>
-                            );
-                          }
-                        }
-                        // Fallback: inline original → corrected
+        {/* Prompt content — always rendered, dimmed during result */}
+        <Animated.View style={[styles.promptContainer, contentOpacity]}>
+          {mode === 'say_it_right' ? (
+            <>
+              {/* Full sentence with error portion underlined */}
+              <View style={styles.originalWrap}>
+                <Text style={styles.sectionLabel}>YOUR ORIGINAL</Text>
+                <Text style={styles.originalFullText}>
+                  {(() => {
+                    const ctx = task.contextSnippet;
+                    if (ctx) {
+                      const idx = ctx.toLowerCase().indexOf(task.originalText.toLowerCase());
+                      if (idx >= 0) {
+                        const before = ctx.slice(0, idx);
+                        const match = ctx.slice(idx, idx + task.originalText.length);
+                        const after = ctx.slice(idx + task.originalText.length);
                         return (
                           <>
-                            <Text style={styles.inlineOriginal}>{task.originalText}</Text>
-                            <Text style={{ color: alpha(colors.white, 0.15) }}> {'→'} </Text>
-                            <Text style={styles.inlineCorrected}>{task.correctedText}</Text>
+                            {before ? <Text>{before}</Text> : null}
+                            <Text style={[styles.errorUnderline, { textDecorationColor: severityColor }]}>
+                              {match}
+                            </Text>
+                            {after ? <Text>{after}</Text> : null}
                           </>
                         );
-                      })()}
-                    </Text>
-
-                    <View style={styles.hintRow}>
-                      <View style={styles.correctionTypePill}>
-                        <Text style={[styles.correctionTypePillText, { color: severityColor }]}>
-                          {formatCorrectionTypeLabel(task.correctionType)}
-                        </Text>
-                      </View>
-                      {task.explanation ? (
-                        <Pressable onPress={toggleExplanation} hitSlop={8} style={styles.explainToggle}>
-                          <Text style={styles.explainToggleText}>Why?</Text>
-                          <Animated.View style={explanationChevronStyle}>
-                            <Ionicons name="chevron-down" size={12} color={alpha(colors.white, 0.3)} />
-                          </Animated.View>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                    {task.explanation ? (
-                      <Animated.View style={explanationBodyStyle}>
-                        <Text style={styles.ruleText}>{task.explanation}</Text>
-                      </Animated.View>
-                    ) : null}
-                  </View>
-
-                  {/* Scenario — the star */}
-                  <View style={styles.scenarioWrap}>
-                    <Text style={styles.sectionLabel}>RESPOND TO THIS</Text>
-                    <View style={styles.targetRow}>
-                      <View style={[styles.accentBar, { backgroundColor: severityColor }]} />
-                      <Text style={styles.scenarioText}>{scenario ?? '...'}</Text>
-                    </View>
-                    <Text style={styles.scenarioHint}>
-                      Answer in your own words — use the corrected form naturally
-                    </Text>
-                  </View>
-                </>
-              )}
-            </Animated.View>
-
-            {/* Recording area — hidden when say_it_right has a result showing */}
-            {!(mode === 'say_it_right' && recording.state === 'result') && (
-              <View style={[styles.recordArea, { paddingBottom: insets.bottom + 16 }]}>
-                {recording.state === 'evaluating' ? (
-                  <View style={styles.evaluatingWrap}>
-                    <ActivityIndicator size="small" color={colors.primary} />
-                    <Text style={styles.evaluatingText}>Evaluating...</Text>
-                  </View>
-                ) : (
-                  <PracticeRecordOrb
-                    state={recording.state === 'idle' ? 'idle' : 'recording'}
-                    audioLevel={recording.audioLevel}
-                    onPress={recording.state === 'recording' ? handleStopRecording : handleStartRecording}
-                  />
-                )}
-
-                {recording.error && (
-                  <Text style={styles.errorText}>{recording.error}</Text>
-                )}
+                      }
+                    }
+                    // Fallback: wordDiff on originalText
+                    return wordDiff(task.originalText, task.correctedText).map((seg, i) => (
+                      <Text
+                        key={i}
+                        style={
+                          seg.type === 'equal'
+                            ? undefined
+                            : [styles.errorUnderline, { textDecorationColor: severityColor }]
+                        }
+                      >
+                        {i > 0 ? ' ' : ''}{seg.text}
+                      </Text>
+                    ));
+                  })()}
+                </Text>
               </View>
+
+              {/* Collapsable explanation + correction type */}
+              <View style={styles.hintArea}>
+                <View style={styles.hintRow}>
+                  <View style={styles.correctionTypePill}>
+                    <Text style={[styles.correctionTypePillText, { color: severityColor }]}>
+                      {formatCorrectionTypeLabel(task.correctionType)}
+                    </Text>
+                  </View>
+                  {task.explanation ? (
+                    <Pressable onPress={toggleExplanation} hitSlop={8} style={styles.explainToggle}>
+                      <Text style={styles.explainToggleText}>Why?</Text>
+                      <Animated.View style={explanationChevronStyle}>
+                        <Ionicons name="chevron-down" size={12} color={alpha(colors.white, 0.3)} />
+                      </Animated.View>
+                    </Pressable>
+                  ) : null}
+                </View>
+                {task.explanation ? (
+                  <Animated.View style={explanationBodyStyle}>
+                    <Text style={styles.hintText}>{task.explanation}</Text>
+                  </Animated.View>
+                ) : null}
+              </View>
+
+              {/* Instruction */}
+              <Text style={styles.instructionText}>Now say the corrected version</Text>
+            </>
+          ) : (
+            <>
+              {/* Full sentence with error underlined + collapsable explanation */}
+              <View style={styles.correctionContext}>
+                <Text style={styles.sectionLabel}>CORRECTION</Text>
+                <Text style={styles.originalFullText}>
+                  {(() => {
+                    const ctx = task.contextSnippet;
+                    if (ctx) {
+                      const idx = ctx.toLowerCase().indexOf(task.originalText.toLowerCase());
+                      if (idx >= 0) {
+                        const before = ctx.slice(0, idx);
+                        const match = ctx.slice(idx, idx + task.originalText.length);
+                        const after = ctx.slice(idx + task.originalText.length);
+                        return (
+                          <>
+                            {before ? <Text>{before}</Text> : null}
+                            <Text style={[styles.errorUnderline, { textDecorationColor: severityColor }]}>
+                              {match}
+                            </Text>
+                            {after ? <Text>{after}</Text> : null}
+                          </>
+                        );
+                      }
+                    }
+                    // Fallback: inline original → corrected
+                    return (
+                      <>
+                        <Text style={styles.inlineOriginal}>{task.originalText}</Text>
+                        <Text style={{ color: alpha(colors.white, 0.15) }}> {'→'} </Text>
+                        <Text style={styles.inlineCorrected}>{task.correctedText}</Text>
+                      </>
+                    );
+                  })()}
+                </Text>
+
+                <View style={styles.hintRow}>
+                  <View style={styles.correctionTypePill}>
+                    <Text style={[styles.correctionTypePillText, { color: severityColor }]}>
+                      {formatCorrectionTypeLabel(task.correctionType)}
+                    </Text>
+                  </View>
+                  {task.explanation ? (
+                    <Pressable onPress={toggleExplanation} hitSlop={8} style={styles.explainToggle}>
+                      <Text style={styles.explainToggleText}>Why?</Text>
+                      <Animated.View style={explanationChevronStyle}>
+                        <Ionicons name="chevron-down" size={12} color={alpha(colors.white, 0.3)} />
+                      </Animated.View>
+                    </Pressable>
+                  ) : null}
+                </View>
+                {task.explanation ? (
+                  <Animated.View style={explanationBodyStyle}>
+                    <Text style={styles.ruleText}>{task.explanation}</Text>
+                  </Animated.View>
+                ) : null}
+              </View>
+
+              {/* Scenario — the star */}
+              <View style={styles.scenarioWrap}>
+                <Text style={styles.sectionLabel}>RESPOND TO THIS</Text>
+                <View style={styles.targetRow}>
+                  <View style={[styles.accentBar, { backgroundColor: severityColor }]} />
+                  <Text style={styles.scenarioText}>{scenario ?? '...'}</Text>
+                </View>
+                <Text style={styles.scenarioHint}>
+                  Answer in your own words — use the corrected form naturally
+                </Text>
+              </View>
+            </>
+          )}
+        </Animated.View>
+
+        {/* Feedback panel (failure only) or recording/success area */}
+        {recording.state === 'result' && recording.result && !recording.result.passed ? (
+          <PracticeFeedbackPanel
+            passed={false}
+            feedback={recording.result.feedback}
+            transcript={recording.result.transcript}
+            correctAnswer={mode === 'say_it_right' ? task.correctedText : undefined}
+            explanation={task.explanation ?? undefined}
+            onTryAgain={handleTryAgain}
+            onNext={(isFromSession || isFromList) ? handleNext : undefined}
+            onSkip={(isFromSession || isFromList) ? handleSkip : undefined}
+            onDone={handleDone}
+            bottomInset={insets.bottom}
+          />
+        ) : (
+          <View style={[styles.recordArea, { paddingBottom: insets.bottom + 16 }]}>
+            {recording.state === 'evaluating' ? (
+              <View style={styles.evaluatingWrap}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.evaluatingText}>Evaluating...</Text>
+              </View>
+            ) : (
+              <PracticeRecordOrb
+                state={orbState}
+                audioLevel={recording.audioLevel}
+                onPress={recording.state === 'recording' ? handleStopRecording : handleStartRecording}
+              />
             )}
-          </>
+
+            {recording.error && (
+              <Text style={styles.errorText}>{recording.error}</Text>
+            )}
+          </View>
         )}
       </View>
     </View>
@@ -735,10 +638,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: layout.screenPadding + 4,
     gap: 32,
-  },
-  promptContainerResult: {
-    justifyContent: 'flex-start',
-    paddingTop: spacing.lg,
   },
   sectionLabel: {
     fontSize: 10,
@@ -807,10 +706,6 @@ const styles = StyleSheet.create({
     color: alpha(colors.white, 0.2),
     textAlign: 'center' as const,
   },
-  revealWrap: {
-    gap: 0,
-  },
-
   // Say It Right — target (hero, also used in answer reveal)
   targetRow: {
     flexDirection: 'row',
@@ -895,86 +790,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.severityError,
     textAlign: 'center',
-  },
-
-  // Result
-  resultContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: layout.screenPadding,
-    gap: spacing.md,
-  },
-  resultTitle: {
-    fontSize: 24,
-    fontFamily: fonts.extrabold,
-    color: colors.onSurface,
-    letterSpacing: -0.5,
-    marginTop: spacing.sm,
-  },
-  resultFeedback: {
-    fontSize: 15,
-    fontFamily: fonts.regular,
-    color: alpha(colors.white, 0.5),
-    textAlign: 'center',
-    lineHeight: 22,
-    maxWidth: 300,
-  },
-  transcriptBox: {
-    marginTop: spacing.sm,
-    padding: spacing.md,
-    borderRadius: 12,
-    backgroundColor: alpha(colors.white, 0.04),
-    borderWidth: 1,
-    borderColor: alpha(colors.white, 0.06),
-    width: '100%',
-    maxWidth: 300,
-  },
-  transcriptLabel: {
-    fontSize: 11,
-    fontFamily: fonts.semibold,
-    color: alpha(colors.white, 0.3),
-    marginBottom: 4,
-  },
-  transcriptText: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: alpha(colors.white, 0.45),
-    lineHeight: 20,
-  },
-  resultActions: {
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.xl,
-    width: '100%',
-    maxWidth: 300,
-  },
-
-  // Inline result for Say It Right
-  inlineResultWrap: {
-    gap: 12,
-  },
-  resultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  resultIcon: {},
-  resultLabel: {
-    fontSize: 15,
-    fontFamily: fonts.bold,
-  },
-  resultFeedbackInline: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: alpha(colors.white, 0.45),
-    lineHeight: 20,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 4,
   },
 
   // Celebration

@@ -7,3 +7,4 @@ export { REFLEXA_SESSION_PROMPT, CUSTOM_AGENT_SESSION_PROMPT } from './session-t
 export { ONBOARDING_SESSION_PROMPT } from './session-types/onboarding.js';
 export { AGENT_CREATOR_SESSION_PROMPT } from './session-types/agent-creator.js';
 export { buildUserContextPrompt } from './context.js';
+export { ROLEPLAY_AUTHORITY_BLOCK, ROLEPLAY_BEHAVIOR_PROMPT, ROLEPLAY_SESSION_PROMPT } from './session-types/roleplay.js';

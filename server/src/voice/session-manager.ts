@@ -9,7 +9,8 @@ import type { AgentTypeHandler, AgentConfig, FullUserContext } from './handlers/
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { fetchAndConsumeGreeting, regenerateAllGreetings } from '../services/greeting-generator.js';
+import { fetchGreeting, regenerateAllGreetings } from '../services/greeting-generator.js';
+import { FillerCoachHandler } from './handlers/filler-coach-handler.js';
 import { hasLowConfidenceWords, correctTranscript, type WordWithConfidence } from '../services/transcript-corrector.js';
 
 const SPEECH_FINAL_DEBOUNCE_MS = 1200;
@@ -67,36 +68,37 @@ export class VoiceSession {
     const cartesiaKey = process.env.CARTESIA_API_KEY;
     const voiceId = this.agentConfig?.voiceId || DEFAULT_VOICE_ID;
 
-    const contextAndGreetingPromise = (async () => {
-      let userContext: FullUserContext | undefined;
-      let preGeneratedGreeting: string | null = null;
+    const strategy = this.handler.greetingStrategy;
+    const greetingMode = this.handler instanceof FillerCoachHandler ? 'filler-coach' : 'conversation';
 
-      if (this.handler.needsUserContext) {
-        try {
-          const [userResult, greeting] = await Promise.all([
-            db.select({
-              displayName: users.displayName,
-              context: users.context,
-              goals: users.goals,
-              contextNotes: users.contextNotes,
-            }).from(users).where(eq(users.id, this.userId)),
-            fetchAndConsumeGreeting(this.userId, this.agentConfig?.id ?? null),
-          ]);
-          if (userResult[0]) {
-            userContext = {
-              displayName: userResult[0].displayName,
-              context: userResult[0].context,
-              goals: userResult[0].goals as string[] | null,
-              contextNotes: userResult[0].contextNotes as FullUserContext['contextNotes'],
-            };
-          }
-          preGeneratedGreeting = greeting;
-        } catch (err) {
-          console.error('[voice-session] Failed to fetch user profile/greeting:', err);
+    const greetingPromise = strategy === 'pregenerated'
+      ? fetchGreeting(this.userId, this.agentConfig?.id ?? null, greetingMode).catch(err => {
+          console.error('[voice-session] Failed to fetch greeting:', err);
+          return null;
+        })
+      : Promise.resolve(null);
+
+    const userContextPromise = (async () => {
+      if (!this.handler.needsUserContext) return undefined;
+      try {
+        const [userResult] = await db.select({
+          displayName: users.displayName,
+          context: users.context,
+          goals: users.goals,
+          contextNotes: users.contextNotes,
+        }).from(users).where(eq(users.id, this.userId));
+        if (userResult) {
+          return {
+            displayName: userResult.displayName,
+            context: userResult.context,
+            goals: userResult.goals as string[] | null,
+            contextNotes: userResult.contextNotes as FullUserContext['contextNotes'],
+          } as FullUserContext;
         }
+      } catch (err) {
+        console.error('[voice-session] Failed to fetch user profile:', err);
       }
-
-      return { userContext, preGeneratedGreeting };
+      return undefined;
     })();
 
     const deepgramPromise = (async () => {
@@ -148,8 +150,9 @@ export class VoiceSession {
     })();
 
     // Wait for all parallel setup to complete
-    const [{ userContext, preGeneratedGreeting }] = await Promise.all([
-      contextAndGreetingPromise,
+    const [preGeneratedGreeting, userContext] = await Promise.all([
+      greetingPromise,
+      userContextPromise,
       deepgramPromise,
       ttsPromise,
     ]);
@@ -166,16 +169,15 @@ export class VoiceSession {
     const sentinel = '[Session started]';
     this.conversationHistory.push({ role: 'user', content: sentinel });
 
-    if (preGeneratedGreeting) {
+    if (strategy === 'pregenerated' && preGeneratedGreeting) {
       console.log(`[DEBUG] Using pre-generated greeting: "${preGeneratedGreeting}"`);
       await this.sendGreetingDirectly(preGeneratedGreeting);
-
-      // Fire-and-forget: regenerate greetings for next session
-      regenerateAllGreetings(this.userId).catch(err =>
-        console.error('[greeting] Background regeneration failed:', err)
-      );
+    } else if (strategy === 'none') {
+      console.log(`[DEBUG] Handler strategy=none, using Claude for first message`);
+      await this.generateAndSendResponse();
     } else {
-      console.log(`[DEBUG] No pre-generated greeting, falling back to Claude`);
+      // Safety net — should never happen if system works correctly
+      console.error('[greeting] MISSING greeting for pregenerated handler — falling back to Claude');
       await this.generateAndSendResponse();
     }
 
@@ -662,6 +664,20 @@ export class VoiceSession {
           });
         };
 
+        const onInsightsReady = (payload: any, dbSessionId: number) => {
+          this.sendToClient({
+            type: 'insights_ready',
+            dbSessionId,
+            data: {
+              score: payload.score,
+              insights: payload.insights,
+              fillerWords: payload.fillerWords,
+              fillerPositions: payload.fillerPositions,
+              metrics: payload.metrics,
+            },
+          });
+        };
+
         try {
           const result = await this.handler.onSessionEndStreaming(
             this.userId,
@@ -671,9 +687,10 @@ export class VoiceSession {
             durationSeconds,
             onCorrection,
             this.formContext,
+            onInsightsReady,
           );
 
-          // Send analysis_complete with remaining data (fillers, insights, etc.)
+          // Send analysis_complete with remaining data (corrections, final insights)
           this.sendToClient({
             type: 'analysis_complete',
             sessionId: this.sessionId,
@@ -686,12 +703,12 @@ export class VoiceSession {
               fillerPositions: result.analysisResults?.fillerPositions ?? [],
               sessionInsights: result.analysisResults?.sessionInsights ?? [],
               clarityScore: result.clarityScore,
+              score: result.score,
               correctionIds: result.correctionIds ?? [],
             },
           });
         } catch (streamErr) {
           console.warn(`[voice-session] Streaming analysis failed, falling back to non-streaming:`, streamErr);
-          // Fall through to non-streaming path below
           await this.handleSessionEndFallback(durationSeconds);
         }
       } else {
@@ -766,6 +783,13 @@ export class VoiceSession {
 
     this.tts?.close();
     this.tts = null;
+
+    // Regenerate greetings even on abnormal disconnect (if greeting was consumed)
+    if (this.greetingDone && this.handler.greetingStrategy === 'pregenerated') {
+      regenerateAllGreetings(this.userId).catch(err =>
+        console.error('[greeting] Cleanup regen failed:', err)
+      );
+    }
 
     console.log(`[voice-session] Session ${this.sessionId} cleaned up`);
   }
