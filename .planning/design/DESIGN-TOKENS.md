@@ -161,55 +161,15 @@ All shadows use black (`#000`) base for dark theme compatibility:
 
 ## Glass Presets
 
-The Vibrant Glass effect uses translucent white overlays on dark backgrounds. **Use sparingly** — most content should sit directly on the dark background without a card wrapper. See UI-PATTERNS.md for when cards are appropriate.
+Glass presets exist but should be used rarely. Default to flat layouts with no card wrappers — use spacing and typography for hierarchy instead.
 
-### `glass.card` — Standard Glass Card
+| Preset | Bg Opacity | Border Opacity | Radius | Use Case |
+|--------|-----------|----------------|--------|----------|
+| `glass.card` | 5% white | 10% white | 16px | Tappable rows that navigate somewhere |
+| `glass.cardElevated` | 8% white | 12% white | 16px | Modals, overlays only |
+| `glass.navBar` | 6% white | 10% white | 48px | Bottom tab bar |
 
-```
-backgroundColor: rgba(255, 255, 255, 0.05)   — 5% white overlay
-borderColor:     rgba(255, 255, 255, 0.10)   — 10% white border
-borderWidth:     1
-borderRadius:    16  (borderRadius.default)
-```
-
-Use for: Interactive tappable rows, expandable cards, self-contained units that need visual separation.
-
-### `glass.cardElevated` — Elevated Glass Card
-
-```
-backgroundColor: rgba(255, 255, 255, 0.08)   — 8% white overlay
-borderColor:     rgba(255, 255, 255, 0.12)   — 12% white border
-borderWidth:     1
-borderRadius:    16  (borderRadius.default)
-```
-
-Use for: Modals, overlays, the currently active/selected item. Not for general content.
-
-### `glass.navBar` — Floating Navigation
-
-```
-backgroundColor: rgba(255, 255, 255, 0.06)   — 6% white overlay
-borderColor:     rgba(255, 255, 255, 0.10)   — 10% white border
-borderWidth:     1
-borderRadius:    48  (borderRadius.xl)
-```
-
-Use for: Bottom tab bar, floating action bars, pill-shaped navigation.
-
-### Creating Custom Glass Levels
-
-Use the `alpha()` helper for custom opacity levels:
-
-```typescript
-import { alpha, colors } from '@/theme';
-
-// Custom glass surface
-backgroundColor: alpha(colors.white, 0.03)  // Very subtle
-borderColor: alpha(colors.white, 0.07)       // Faint border
-
-// Colored glass (for accent areas)
-backgroundColor: alpha(colors.primary, 0.10) // Purple tinted glass
-```
+Use `alpha()` helper for custom opacity: `alpha(colors.white, 0.03)`
 
 ## Layout Constants
 

@@ -4,86 +4,9 @@
 
 ## Layout Philosophy
 
-**Default to open, flat layouts.** Use spacing, typography, and subtle dividers to create hierarchy — not card wrappers. Cards add visual noise when overused. Most content should breathe directly on the dark background.
+**Default to open, flat layouts.** Use spacing, typography, and subtle dividers to create hierarchy — not card wrappers. Most content sits directly on the dark background.
 
-### When to Use a Card
-
-Cards (`glass.card` or `glass.cardElevated`) are appropriate ONLY when:
-- The element is **interactive** (tappable to navigate, expandable)
-- The element is a **distinct, self-contained unit** (e.g., a single correction with its own expand/collapse)
-- The element needs to be **visually separated from adjacent items of the same type** (e.g., session rows in a list)
-
-### When NOT to Use a Card
-
-- **Stats and data points** — display inline or in a flat row, not wrapped in individual cards
-- **Section content** — use section headers + spacing, not a card container around the section
-- **Single-purpose screens** — the screen background IS the container; don't add a card inside it
-- **Grouped controls** — use spacing and dividers, not a card wrapper
-- **Labels, badges, metadata** — these are inline elements, not card content
-
-### Hierarchy Without Cards
-
-```typescript
-// DO: Use spacing and typography for structure
-<View style={{ gap: spacing.xl, paddingHorizontal: spacing.xl }}>
-  <Text style={[typography.labelMd, { color: colors.onSurfaceVariant }]}>
-    SECTION TITLE
-  </Text>
-  <Text style={[typography.headlineMd, { color: colors.onSurface }]}>
-    42
-  </Text>
-  <Text style={[typography.bodySm, { color: alpha(colors.white, 0.50) }]}>
-    Sessions this week
-  </Text>
-</View>
-
-// DON'T: Wrap everything in glass.card
-<View style={[glass.card, { padding: spacing.lg }]}>
-  {/* same content but now unnecessarily boxed */}
-</View>
-```
-
-### Flat Row Layout (Stats, Metadata)
-
-```
-LABEL          LABEL          LABEL
-42             2.3/min        94%
-description    description    description
-```
-
-- No card backgrounds — just flat text on the dark surface
-- Use `flexDirection: 'row'` with `flex: 1` children
-- Separate with spacing or thin vertical dividers (`alpha(colors.white, 0.08)`)
-
-### Glass Card (When Justified)
-
-```typescript
-import { glass, spacing } from '@/theme';
-
-const styles = StyleSheet.create({
-  card: {
-    ...glass.card,
-    padding: spacing.lg,
-    gap: spacing.md,
-  },
-});
-```
-
-Reserve `glass.cardElevated` for modals, overlays, and the currently active/selected item.
-
-### Glass + Blur
-
-For frosted glass effect, combine glass preset with `expo-blur`:
-
-```typescript
-<BlurView intensity={40} tint="dark" style={styles.container}>
-  <View style={[glass.card, styles.content]}>
-    {children}
-  </View>
-</BlurView>
-```
-
-Use blur sparingly — only for overlays, navigation bars, and floating elements.
+Glass cards are reserved for elements that are **tappable and navigate somewhere** (e.g., session rows, expandable corrections). Everything else — stats, sections, controls, metadata — should be flat.
 
 ## Content Row (SessionRow, List Items)
 
@@ -93,15 +16,13 @@ Use blur sparingly — only for overlays, navigation bars, and floating elements
                Supporting detail
 ```
 
-- Flat row directly on screen background, OR glass card if tappable and navigates somewhere
 - Left: icon or colored badge/indicator
 - Center: text hierarchy (title → subtitle → detail)
 - Right: metadata (time, count, chevron)
-- Padding: `spacing.lg` (16px)
-- Gap between items: `spacing.md` (12px)
-- Separate rows with thin dividers or spacing — not by giving each one a card
+- Padding: `spacing.lg` (16px), gap: `spacing.md` (12px)
+- Separate rows with thin dividers or spacing
 
-### Inline Stat (Replaces "Stat Card")
+### Inline Stat
 
 ```
 LABEL            ← labelSm, uppercase, muted
@@ -109,9 +30,7 @@ LABEL            ← labelSm, uppercase, muted
 description      ← bodySm, muted
 ```
 
-- No card wrapper — sits flat on background
-- Used in horizontal rows (2-3 columns with flex)
-- Separated by spacing or thin dividers
+- Flat on background, horizontal rows (2-3 columns with flex)
 
 ### Action Row (Tappable)
 
@@ -120,10 +39,8 @@ description      ← bodySm, muted
          Description
 ```
 
-- Glass card IS appropriate here (interactive, navigates)
-- Pressable with spring feedback
-- Chevron or arrow on right edge
-- Haptic feedback on press
+- Pressable with spring feedback + haptic
+- Chevron on right edge
 
 ## Buttons
 
@@ -230,21 +147,8 @@ SECTION TITLE                    [Action →]
 
 ### Grouped List with Date Headers
 
-```
-TODAY
-├── Row
-├── Row
-
-THIS WEEK
-├── Row
-
-EARLIER
-├── Row
-```
-
 - Section titles: `labelMd`, uppercase, muted
 - Items: flat rows separated by spacing or thin dividers
-- Cards only if rows are individually tappable/interactive
 - Gap between items: `spacing.sm` (8px)
 - Gap between sections: `spacing.xl` (24px)
 
@@ -327,7 +231,7 @@ transform: [{ scale: withSpring(pressed ? 0.97 : 1, { damping: 15, stiffness: 30
 
 | Action              | Haptic Type             |
 |---------------------|-------------------------|
-| Tap interactive card | `ImpactFeedbackStyle.Light` |
+| Tap interactive element | `ImpactFeedbackStyle.Light` |
 | Start recording      | `ImpactFeedbackStyle.Medium` |
 | End recording        | `ImpactFeedbackStyle.Medium` |
 | Error/warning        | `NotificationFeedbackType.Warning` |

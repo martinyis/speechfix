@@ -28,5 +28,5 @@
 2. Corrections first, score second
 3. Technical & precise copy — never bubbly or patronizing
 4. Rich animations with purpose — Skia for complex, Reanimated for simple
-5. Open layouts by default — use spacing and typography for hierarchy, not card wrappers
+5. Flat layouts by default — spacing and typography for hierarchy, minimize card wrappers
 6. Balanced density — key info upfront, details expandable

@@ -205,7 +205,7 @@ FILLER WORDS          2.3/min
 - Left: rotated icon with gradient (3 variants: purple/blue, pink/purple, cyan/blue)
 - Center: time, duration, filler count, transcript snippet (italic)
 - Right: correction count or "Clean" badge
-- Glass card is acceptable here — each row is tappable and navigates to session detail
+- Tappable row that navigates to session detail
 
 ### Props
 
@@ -284,7 +284,7 @@ session. Consider varying your...
      [Generate Drill →]
 ```
 
-**Note**: Consider migrating away from card wrapper — insights can live as flat content sections with spacing and dividers.
+**Note**: Should use flat content sections with spacing and dividers, not card wrappers.
 
 ### Types
 
@@ -328,20 +328,6 @@ session. Consider varying your...
 
 ```typescript
 import { colors, typography, spacing, borderRadius, glass, alpha, shadows } from '@/theme';
-```
-
-### Glass Card (Use Sparingly)
-
-Only use for interactive, self-contained units (tappable rows, expandable cards). Default to flat layouts.
-
-```typescript
-// Only when the element is interactive/tappable
-const styles = StyleSheet.create({
-  interactiveItem: {
-    ...glass.card,
-    padding: spacing.lg,
-  },
-});
 ```
 
 ### Severity Color Lookup

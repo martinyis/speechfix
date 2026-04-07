@@ -94,7 +94,7 @@ Settings → Accessed via profile icon in header (not a tab)
 
 - **Theme**: "Vibrant Glass" — dark background with vivid accent colors
 - **Inspiration**: Arc Browser, Linear — sleek, dark, premium
-- **Layout**: Open and flat by default. Use spacing and typography for hierarchy, not card wrappers. Glass cards only for interactive, tappable elements.
+- **Layout**: Open and flat by default. Use spacing and typography for hierarchy, not card wrappers.
 - **Animation**: Rich & expressive — bloom effects, particles, waveforms. The app feels alive.
 - **Density**: Balanced — key info upfront, expandable details. Never overwhelming.
 - **Typography**: Manrope 800 for headlines (tight tracking), Inter/system for body

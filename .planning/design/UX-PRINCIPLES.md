@@ -160,7 +160,7 @@ Every screen follows this vertical structure:
 
 ### Correction Interaction
 
-1. Cards visible with severity badge + correction preview
+1. Corrections visible with severity badge + correction preview
 2. Tap to expand → explanation slides in
 3. "Show N more" button if > initial display count
 4. Filter by severity using pill chips at top
