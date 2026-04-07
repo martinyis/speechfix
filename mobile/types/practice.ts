@@ -21,7 +21,7 @@ export interface PracticeResult {
   attemptId: number;
 }
 
-export type PracticeMode = 'say_it_right' | 'use_it_naturally';
+export type PracticeMode = 'say_it_right';
 
 export interface PatternExercise {
   id: number;
@@ -64,6 +64,85 @@ export interface QueuedPattern {
 export interface PatternTasksResponse {
   active: ActivePattern | null;
   queued: QueuedPattern[];
+}
+
+// ---------------------------------------------------------------------------
+// Weak Spots
+// ---------------------------------------------------------------------------
+
+export interface WeakSpot {
+  id: number;
+  correctionType: string;
+  status: 'active' | 'backlog' | 'resolved' | 'dismissed';
+  severity: 'error' | 'improvement' | 'polish';
+  srsStage: number;
+  nextReviewAt: string | null;
+  lastDrillAt: string | null;
+  isRecurring: boolean;
+  isDue: boolean;
+  corrections: WeakSpotCorrection[];
+  exercises: WeakSpotExercise[];
+  createdAt: string;
+}
+
+export interface WeakSpotCorrection {
+  id: number;
+  correctionId: number;
+  originalText: string;
+  correctedText: string;
+  explanation: string;
+  correctionType: string;
+  severity: 'error' | 'improvement' | 'polish';
+  fullContext: string | null;
+}
+
+export interface WeakSpotExercise {
+  id: number;
+  prompt: string;
+  targetRule: string;
+  orderIndex: number;
+}
+
+export interface QuickFix {
+  id: number; // correction id
+  originalText: string;
+  correctedText: string;
+  explanation: string;
+  correctionType: string;
+  severity: 'error' | 'improvement' | 'polish';
+  fullContext: string | null;
+  practiced: boolean;
+}
+
+export interface WeakSpotsResponse {
+  activeSpots: WeakSpot[];
+  backlog: {
+    id: number;
+    correctionType: string;
+    severity: 'error' | 'improvement' | 'polish';
+    correctionCount: number;
+    isRecurring: boolean;
+  }[];
+  quickFixes: QuickFix[];
+}
+
+export type DrillItem =
+  | { type: 'correction'; data: WeakSpotCorrection }
+  | { type: 'exercise'; data: WeakSpotExercise };
+
+export interface DrillResult {
+  passed: boolean;
+  transcript: string;
+  feedback: string;
+  attemptId: number;
+}
+
+export interface DrillSummary {
+  totalItems: number;
+  retriesCount: number;
+  resolved: boolean;
+  nextReviewAt: string | null;
+  srsStage: number;
 }
 
 // Keep for backwards compat with PatternTaskCard

@@ -4,7 +4,7 @@ import { generateResponse } from './response-generator.js';
 import type { ConversationMessage, ResponseMeta } from './response-generator.js';
 import { CartesiaTTS } from './tts.js';
 import { detectTurnHeuristic, detectTurnLLM } from './turn-detector.js';
-import { DEFAULT_VOICE_ID } from './voice-config.js';
+import { DEFAULT_VOICE_ID, SYSTEM_MODE_VOICES } from './voice-config.js';
 import type { AgentTypeHandler, AgentConfig, FullUserContext } from './handlers/types.js';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
@@ -13,7 +13,7 @@ import { fetchGreeting, regenerateAllGreetings } from '../services/greeting-gene
 import { FillerCoachHandler } from './handlers/filler-coach-handler.js';
 import { hasLowConfidenceWords, correctTranscript, type WordWithConfidence } from '../services/transcript-corrector.js';
 
-const SPEECH_FINAL_DEBOUNCE_MS = 1200;
+const SPEECH_FINAL_DEBOUNCE_MS = 300;
 
 export type SessionState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
@@ -49,13 +49,15 @@ export class VoiceSession {
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
   private silenceNudgeCount = 0;
   private sessionMaxTimer: ReturnType<typeof setTimeout> | null = null;
+  private mode: string | null;
 
-  constructor(ws: WebSocket, userId: number, handler: AgentTypeHandler, agentConfig: AgentConfig | null, formContext?: Record<string, unknown> | null) {
+  constructor(ws: WebSocket, userId: number, handler: AgentTypeHandler, agentConfig: AgentConfig | null, mode: string | null, formContext?: Record<string, unknown> | null) {
     this.sessionId = crypto.randomUUID();
     this.ws = ws;
     this.userId = userId;
     this.handler = handler;
     this.agentConfig = agentConfig;
+    this.mode = mode;
     this.formContext = formContext ?? null;
   }
 
@@ -66,7 +68,9 @@ export class VoiceSession {
     // --- Parallel setup: fetch user context + greeting, connect Deepgram + Cartesia ---
     const deepgramKey = process.env.DEEPGRAM_API_KEY;
     const cartesiaKey = process.env.CARTESIA_API_KEY;
-    const voiceId = this.agentConfig?.voiceId || DEFAULT_VOICE_ID;
+    const voiceId = this.agentConfig?.voiceId
+      || (this.mode && SYSTEM_MODE_VOICES[this.mode])
+      || DEFAULT_VOICE_ID;
 
     const strategy = this.handler.greetingStrategy;
     const greetingMode = this.handler instanceof FillerCoachHandler ? 'filler-coach' : 'conversation';
@@ -285,28 +289,44 @@ export class VoiceSession {
 
     if (!utterance) return;
 
-    // Correct low-confidence words via LLM before they enter conversation history
+    // Fire-and-forget transcript correction — don't block response generation
     if (words.length > 0 && hasLowConfidenceWords(words)) {
       const lowWords = words.filter(w => w.confidence < 0.80);
       console.log(`[transcript-correction] Low-confidence words detected: ${lowWords.map(w => `"${w.word}"(${(w.confidence * 100).toFixed(0)}%)`).join(', ')}`);
-      const corrected = await correctTranscript(utterance, words, this.conversationHistory);
-      if (corrected !== utterance) {
-        console.log(`[transcript-correction] Corrected: "${utterance}" → "${corrected}"`);
-        utterance = corrected;
-      } else {
-        console.log(`[transcript-correction] No changes needed`);
-      }
+      const originalUtterance = utterance;
+      correctTranscript(originalUtterance, words, this.conversationHistory)
+        .then(corrected => {
+          if (corrected !== originalUtterance) {
+            console.log(`[transcript-correction] Corrected: "${originalUtterance}" → "${corrected}"`);
+            const entry = this.conversationHistory.find(
+              m => m.role === 'user' && m.content.includes(originalUtterance)
+            );
+            if (entry) entry.content = entry.content.replace(originalUtterance, corrected);
+          } else {
+            console.log(`[transcript-correction] No changes needed`);
+          }
+        })
+        .catch(err => console.error(`[transcript-correction] Failed:`, err));
     }
 
     console.log(`[voice-session] Speech final, utterance: "${utterance}"`);
     this.transcriptBuffer.push(utterance);
 
+    // Prepend elapsed time for handlers that need it (e.g. filler coach pacing)
+    let messageContent = utterance;
+    if (this.handler.includeElapsedTime) {
+      const elapsedSec = Math.round((Date.now() - this.startTime) / 1000);
+      const mins = Math.floor(elapsedSec / 60);
+      const secs = elapsedSec % 60;
+      messageContent = `[${mins}:${secs.toString().padStart(2, '0')} elapsed] ${utterance}`;
+    }
+
     // Merge consecutive user messages to maintain role alternation (required by Anthropic API)
     const lastMsg = this.conversationHistory[this.conversationHistory.length - 1];
     if (lastMsg?.role === 'user') {
-      lastMsg.content += ' ' + utterance;
+      lastMsg.content += ' ' + messageContent;
     } else {
-      this.conversationHistory.push({ role: 'user', content: utterance });
+      this.conversationHistory.push({ role: 'user', content: messageContent });
     }
 
     // Muted = solo practice mode: accumulate transcripts, never respond
@@ -462,13 +482,20 @@ export class VoiceSession {
         }
       }
 
-      // Flush remaining TTS buffer and wait for all audio to be delivered
-      if (!abortController.signal.aborted && this.tts) {
-        console.log(`[DEBUG] Flushing TTS (EOS signal)`);
-        this.tts.flush();
-        console.log(`[DEBUG] Waiting for TTS completion...`);
-        await this.tts.waitForCompletion();
-        console.log(`[DEBUG] TTS complete, ${this.turnAudioBytes} audio bytes sent`);
+      // If an end tool was called, skip TTS flush/wait for immediate session end
+      const hasEndTool = meta.toolCalls.includes('end_session') || meta.toolCalls.includes('end_onboarding');
+
+      if (!hasEndTool) {
+        // Normal flow: flush TTS and wait for all audio to be delivered
+        if (!abortController.signal.aborted && this.tts) {
+          console.log(`[DEBUG] Flushing TTS (EOS signal)`);
+          this.tts.flush();
+          console.log(`[DEBUG] Waiting for TTS completion...`);
+          await this.tts.waitForCompletion();
+          console.log(`[DEBUG] TTS complete, ${this.turnAudioBytes} audio bytes sent`);
+        }
+      } else {
+        console.log(`[voice-session] End tool detected in stream, skipping TTS wait for immediate session end`);
       }
 
       if (!abortController.signal.aborted && fullResponse) {
@@ -784,11 +811,12 @@ export class VoiceSession {
     this.tts?.close();
     this.tts = null;
 
-    // Regenerate greetings even on abnormal disconnect (if greeting was consumed)
-    if (this.greetingDone && this.handler.greetingStrategy === 'pregenerated') {
-      regenerateAllGreetings(this.userId).catch(err =>
-        console.error('[greeting] Cleanup regen failed:', err)
-      );
+    // Always regenerate greetings for pregenerated handlers so the next session
+    // has a fresh greeting ready — regardless of whether this session's greeting played.
+    if (this.handler.greetingStrategy === 'pregenerated') {
+      regenerateAllGreetings(this.userId)
+        .then(() => console.log(`[greeting] Post-session regen complete for user ${this.userId}`))
+        .catch(err => console.error('[greeting] Cleanup regen failed:', err));
     }
 
     console.log(`[voice-session] Session ${this.sessionId} cleaned up`);

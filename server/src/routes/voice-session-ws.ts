@@ -6,6 +6,7 @@ import { db } from '../db/index.js';
 import { agents } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { buildFillerHistoryPrompt } from '../voice/prompts/filler-context.js';
+import { selectTopic } from '../services/topic-selector.js';
 
 export async function voiceSessionRoute(fastify: FastifyInstance) {
   fastify.get('/voice-session', { websocket: true }, async (socket, req) => {
@@ -62,10 +63,15 @@ export async function voiceSessionRoute(fastify: FastifyInstance) {
       if (!formContext.targetWords) {
         formContext.targetWords = 'um, uh, like, you know';
       }
+      // Select cognitive pressure topic
+      const topicSelection = await selectTopic(req.user.userId);
+      formContext.topicDirective = topicSelection.directive;
+      formContext.topicSlug = topicSelection.topicSlug;
+      formContext.cognitiveLevel = topicSelection.level;
     }
 
     const handler = resolveHandler(mode, agentConfig);
-    const session = new VoiceSession(socket, req.user.userId, handler, agentConfig, formContext);
+    const session = new VoiceSession(socket, req.user.userId, handler, agentConfig, mode, formContext);
 
     fastify.log.info(`[voice-ws] New connection, session ${session.sessionId}, agent=${agentConfig?.name ?? 'system'}, mode=${mode ?? 'default'}`);
 

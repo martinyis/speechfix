@@ -70,9 +70,9 @@ export function getAvatarGradient(id: AvatarId): AvatarGradient {
 
 export const SYSTEM_MODE_AVATARS: Record<string, AvatarId> = {
   conversation: 'reflexa',
-  onboarding: 'f5',
-  'filler-coach': 'm4',
-  'agent-creator': 'f3',
+  onboarding: 'reflexa',
+  'filler-coach': 'm1',
+  'agent-creator': 'f6',
 };
 
 /**

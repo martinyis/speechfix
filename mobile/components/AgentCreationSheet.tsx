@@ -18,7 +18,6 @@ import Animated, {
   useDerivedValue,
   Easing,
   interpolate,
-  interpolateColor,
 } from 'react-native-reanimated';
 import {
   BottomSheetModal,
@@ -34,7 +33,6 @@ import {
   typography,
   spacing,
   layout,
-  borderRadius,
 } from '../theme';
 import { GlassIconPillButton } from './ui';
 import { GradientText } from './GradientText';
@@ -69,7 +67,7 @@ const PURPLE_PALETTE = {
 // ── Mini Bloom Orb (Voice mode) ─────────────────────────────────────────
 const CANVAS_SIZE = 280;
 const ORB_R = 50;
-const ICON_SIZE = 80;
+const ICON_SIZE = 96;
 const ICON_SCALE = ICON_SIZE / CANVAS_SIZE;
 
 function MiniBloomOrb() {
@@ -320,15 +318,10 @@ const MODES = {
 
 type Mode = keyof typeof MODES;
 
-// ── Option Row ──────────────────────────────────────────────────────────
+// ── Option Column ───────────────────────────────────────────────────────
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-const ROW_BORDER_REST = alpha(colors.white, 0.06);
-const ROW_BORDER_PRESSED = alpha(colors.primary, 0.35);
-const ROW_FILL_REST = 'transparent';
-const ROW_FILL_PRESSED = alpha(colors.primary, 0.06);
-
-function OptionRow({
+function OptionColumn({
   mode,
   selected,
   onSelect,
@@ -340,70 +333,38 @@ function OptionRow({
   children: React.ReactNode;
 }) {
   const progress = useSharedValue(selected ? 1 : 0);
-  const pressed = useSharedValue(0);
 
   useEffect(() => {
-    progress.value = withTiming(selected ? 1 : 0, { duration: 200 });
+    progress.value = withTiming(selected ? 1 : 0, { duration: 250 });
   }, [selected]);
 
-  const rowStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0, 1], [0.45, 1]),
-    borderColor: interpolateColor(
-      pressed.value,
-      [0, 1],
-      [ROW_BORDER_REST, ROW_BORDER_PRESSED],
-    ),
-    backgroundColor: interpolateColor(
-      pressed.value,
-      [0, 1],
-      [ROW_FILL_REST, ROW_FILL_PRESSED],
-    ),
+  const columnStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 1], [0.40, 1]),
+    transform: [{ scale: interpolate(progress.value, [0, 1], [0.96, 1.0]) }],
   }));
-
-  const accentStyle = useAnimatedStyle(() => ({
-    opacity: progress.value,
-    transform: [{ scaleY: progress.value }],
-  }));
-
-  const easing = Easing.out(Easing.cubic);
-
-  const handlePressIn = () => {
-    pressed.value = withTiming(1, { duration: 220, easing });
-  };
-
-  const handlePressOut = () => {
-    pressed.value = withTiming(0, { duration: 280, easing });
-  };
 
   return (
     <AnimatedPressable
-      style={[styles.optionRow, rowStyle]}
+      style={[styles.optionColumn, columnStyle]}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onSelect();
       }}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
     >
-      {/* Vertical accent bar */}
-      <Animated.View style={[styles.accentBar, accentStyle]} />
-
-      {/* Mini Skia icon */}
-      <View style={styles.miniIconContainer}>
-        <View style={styles.miniIconScaler}>
+      {/* Skia icon */}
+      <View style={styles.iconContainer}>
+        <View style={styles.iconScaler}>
           {children}
         </View>
       </View>
 
       {/* Text */}
-      <View style={styles.optionTextWrap}>
-        <Text style={[styles.optionTitle, selected && styles.optionTitleSelected]}>
-          {MODES[mode].title}
-        </Text>
-        <Text style={styles.optionSubtitle}>
-          {MODES[mode].subtitle}
-        </Text>
-      </View>
+      <Text style={[styles.columnTitle, selected && styles.columnTitleSelected]}>
+        {MODES[mode].title}
+      </Text>
+      <Text style={styles.columnSubtitle}>
+        {MODES[mode].subtitle}
+      </Text>
     </AnimatedPressable>
   );
 }
@@ -431,7 +392,7 @@ export const AgentCreationSheet = forwardRef<BottomSheetModal>((_props, ref) => 
         {...props}
         disappearsOnIndex={-1}
         appearsOnIndex={0}
-        opacity={0.7}
+        opacity={0.5}
         pressBehavior="close"
       />
     ),
@@ -453,7 +414,7 @@ export const AgentCreationSheet = forwardRef<BottomSheetModal>((_props, ref) => 
         {/* Header */}
         <View style={styles.header}>
           <GradientText
-            text="New Agent"
+            text="New Practice Partner"
             style={typography.headlineSm}
             colors={[colors.primary, colors.secondary]}
           />
@@ -465,23 +426,23 @@ export const AgentCreationSheet = forwardRef<BottomSheetModal>((_props, ref) => 
           />
         </View>
 
-        {/* Options */}
-        <View style={styles.optionsWrap}>
-          <OptionRow
+        {/* Options — two columns side by side */}
+        <View style={styles.columnsWrap}>
+          <OptionColumn
             mode="voice"
             selected={mode === 'voice'}
             onSelect={() => setMode('voice')}
           >
             <MiniBloomOrb />
-          </OptionRow>
+          </OptionColumn>
 
-          <OptionRow
+          <OptionColumn
             mode="manual"
             selected={mode === 'manual'}
             onSelect={() => setMode('manual')}
           >
             <AssemblingDocIcon />
-          </OptionRow>
+          </OptionColumn>
         </View>
 
         {/* CTA */}
@@ -507,12 +468,9 @@ const styles = StyleSheet.create({
     width: 40,
   },
   sheetBackground: {
-    backgroundColor: colors.surfaceContainerHigh,
+    backgroundColor: colors.surfaceContainerLow,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    borderColor: alpha(colors.white, 0.10),
-    borderWidth: 1,
-    borderBottomWidth: 0,
   },
   sheetContent: {
     flex: 1,
@@ -523,7 +481,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginTop: spacing.sm,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
     gap: spacing.sm,
   },
   accentLine: {
@@ -532,58 +490,44 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
 
-  // Options
-  optionsWrap: {
+  // Columns layout
+  columnsWrap: {
     flex: 1,
-    justifyContent: 'center',
-    gap: spacing.xl,
-  },
-  optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: spacing.lg,
-    borderWidth: 1,
-    borderColor: alpha(colors.white, 0.06),
-    borderRadius: borderRadius.default,
+  },
+  optionColumn: {
+    flex: 1,
+    alignItems: 'center',
     paddingVertical: spacing.md,
-    paddingHorizontal: spacing.md,
   },
-  accentBar: {
-    width: 3,
-    height: 40,
-    borderRadius: 1.5,
-    backgroundColor: colors.primary,
-  },
-
-  // Mini Skia icon
-  miniIconContainer: {
+  iconContainer: {
     width: ICON_SIZE,
     height: ICON_SIZE,
-    borderRadius: borderRadius.sm,
     overflow: 'hidden',
+    marginBottom: spacing.sm,
   },
-  miniIconScaler: {
+  iconScaler: {
     width: ICON_SIZE,
     height: ICON_SIZE,
     transform: [{ scale: ICON_SCALE }],
     transformOrigin: 'left top',
   },
-
-  // Option text
-  optionTextWrap: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  optionTitle: {
+  columnTitle: {
     ...typography.bodyMdMedium,
     color: colors.onSurface,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
   },
-  optionTitleSelected: {
+  columnTitleSelected: {
     color: colors.primary,
   },
-  optionSubtitle: {
+  columnSubtitle: {
     ...typography.bodySm,
-    color: alpha(colors.white, 0.55),
+    color: alpha(colors.white, 0.50),
+    textAlign: 'center',
     lineHeight: 18,
   },
 

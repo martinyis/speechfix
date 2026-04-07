@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { pcmToWav } from '../utils/audio.js';
-import { DEFAULT_VOICE_ID } from '../voice/voice-config.js';
+import { DEFAULT_VOICE_ID, TTS_MODEL, TTS_SPEED, TTS_EMOTION } from '../voice/voice-config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = join(__dirname, '..', '..', '.cache');
@@ -84,7 +84,7 @@ async function ensureAudioCached(): Promise<{ meta: CachedMeta; wavPath: string 
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model_id: 'sonic',
+          model_id: TTS_MODEL,
           transcript: FULL_SCRIPT,
           voice: { mode: 'id', id: DEFAULT_VOICE_ID },
           language: 'en',
@@ -93,6 +93,7 @@ async function ensureAudioCached(): Promise<{ meta: CachedMeta; wavPath: string 
             encoding: 'pcm_s16le',
             sample_rate: 24000,
           },
+          generation_config: { speed: TTS_SPEED, emotion: TTS_EMOTION },
         }),
       },
     );

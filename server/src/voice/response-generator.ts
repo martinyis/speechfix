@@ -45,7 +45,9 @@ export async function* generateResponse(
 
   const stream = await groq.chat.completions.create({
     model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-    max_tokens: tools && tools.length > 0 ? 250 : 150,
+    max_completion_tokens: tools && tools.length > 0 ? 250 : 150,
+    temperature: 0.8,
+    stop: ['\n\n', '**', '\n- ', '\n1.'],
     messages,
     stream: true,
     ...(tools && tools.length > 0

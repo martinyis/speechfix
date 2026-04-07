@@ -16,8 +16,16 @@ export default function FillerCoachScreen() {
 
   const { start, stop, toggleMute } = useVoiceSession({
     mode: 'filler-coach',
-    onSessionEnd: () => {
-      router.back();
+    onSessionEnd: (results, dbSessionId) => {
+      // If no data, just go back
+      if (results.fillerWords.length === 0 && results.sentences.length === 0) {
+        router.back();
+        return;
+      }
+      router.replace({
+        pathname: '/filler-coach-results',
+        params: { fillerCoachSessionId: String(dbSessionId), fresh: 'true' },
+      });
     },
     onError: (message) => {
       console.warn('Filler coach error:', message);

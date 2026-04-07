@@ -73,7 +73,14 @@ export default function HomeScreen() {
   // Voice session hook
   const { start, stop, toggleMute } = useVoiceSession({
     onInsightsReady: () => {
-      if (!navigatedToDetailRef.current) {
+      // Don't navigate if session has no meaningful data (user hung up immediately)
+      const sessionData = useSessionStore.getState().currentSessionData;
+      const hasContent = sessionData && (
+        sessionData.sessionInsights.length > 0 ||
+        sessionData.corrections.length > 0 ||
+        sessionData.fillerWords.length > 0
+      );
+      if (!navigatedToDetailRef.current && hasContent) {
         navigatedToDetailRef.current = true;
         router.push({
           pathname: '/session-detail',
@@ -81,9 +88,10 @@ export default function HomeScreen() {
         });
       }
     },
-    onSessionEnd: (_results, dbSessionId) => {
-      // Only navigate if streaming didn't already take us there
-      if (!navigatedToDetailRef.current) {
+    onSessionEnd: (results, dbSessionId) => {
+      // Don't navigate to analysis if user never spoke (empty session)
+      const isEmpty = results.sentences.length === 0 && results.corrections.length === 0;
+      if (!navigatedToDetailRef.current && !isEmpty) {
         navigatedToDetailRef.current = true;
         router.push({
           pathname: '/session-detail',

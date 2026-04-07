@@ -1,19 +1,7 @@
-import { Platform } from 'react-native';
 import { useAuthStore } from '../stores/authStore';
+import { API_BASE_URL, WS_BASE_URL } from './config';
 
-const DEV_MACHINE_IP = '10.183.25.195';
-
-export const API_BASE_URL = __DEV__
-  ? Platform.OS === 'ios'
-    ? `http://${DEV_MACHINE_IP}:3005`
-    : 'http://10.0.2.2:3005'
-  : 'https://api.example.com';
-
-export const WS_BASE_URL = __DEV__
-  ? Platform.OS === 'ios'
-    ? `ws://${DEV_MACHINE_IP}:3005`
-    : 'ws://10.0.2.2:3005'
-  : 'wss://api.example.com';
+export { API_BASE_URL, WS_BASE_URL };
 
 export async function authFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = useAuthStore.getState().token;

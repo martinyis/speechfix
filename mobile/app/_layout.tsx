@@ -137,7 +137,21 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="weak-spot-drill"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
               name="filler-coach"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="filler-coach-results"
               options={{
                 headerShown: false,
                 presentation: 'card',

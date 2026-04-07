@@ -19,9 +19,11 @@ import Animated, {
 import { ScreenHeader, GlassIconPillButton } from '../components/ui';
 import PracticeRecordOrb from '../components/PracticeRecordOrb';
 import PracticeFeedbackPanel from '../components/PracticeFeedbackPanel';
+import SuccessCelebration from '../components/SuccessCelebration';
 import { usePatternTasks } from '../hooks/usePatternTasks';
 import { usePatternPracticeRecording } from '../hooks/usePatternPracticeRecording';
 import { authFetch } from '../lib/api';
+import { usePreloadSuccessSound, playSuccessSound } from '../lib/sounds';
 import { colors, alpha, spacing, layout, fonts } from '../theme';
 
 const REFRAME_TYPES = ['hedging', 'negative_framing'];
@@ -112,6 +114,7 @@ export default function PatternPracticeSessionScreen() {
 
   const { data: patternData, refetch: refetchPatterns } = usePatternTasks();
   const recording = usePatternPracticeRecording();
+  usePreloadSuccessSound();
 
   const active = patternData?.active ?? null;
 
@@ -244,6 +247,7 @@ export default function PatternPracticeSessionScreen() {
   useEffect(() => {
     if (!passed) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    playSuccessSound();
     const timer = setTimeout(handleNext, 1500);
     return () => clearTimeout(timer);
   }, [passed]);
@@ -345,6 +349,7 @@ export default function PatternPracticeSessionScreen() {
   return (
     <View style={styles.container}>
       <ScreenHeader variant="back" />
+      <SuccessCelebration visible={!!passed} />
 
       <View style={styles.body}>
         {/* Level indicator */}

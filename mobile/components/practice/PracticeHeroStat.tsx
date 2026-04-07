@@ -29,7 +29,7 @@ export function PracticeHeroStat({ modes, severityCounts, activeIndex }: Practic
           mode={mode}
           index={i}
           activeIndex={activeIndex}
-          severityCounts={mode.key === 'corrections' ? severityCounts : undefined}
+          severityCounts={mode.key === 'weak_spots' ? severityCounts : undefined}
         />
       ))}
     </View>
@@ -68,8 +68,8 @@ function HeroSlide({
 
   return (
     <Animated.View style={[styles.slide, animStyle]}>
-      {mode.key === 'corrections' && (
-        <CorrectionsHero remaining={mode.stats.remaining} total={mode.stats.total} severityCounts={severityCounts} />
+      {mode.key === 'weak_spots' && (
+        <WeakSpotsHero remaining={mode.stats.remaining} total={mode.stats.total} severityCounts={severityCounts} />
       )}
       {mode.key === 'filler_words' && <FillerWordsHero />}
       {mode.key === 'patterns' && (
@@ -79,7 +79,7 @@ function HeroSlide({
   );
 }
 
-function CorrectionsHero({
+function WeakSpotsHero({
   remaining,
   total,
   severityCounts,
@@ -91,7 +91,7 @@ function CorrectionsHero({
   return (
     <View style={styles.heroContent}>
       <Text style={styles.heroNumber}>{remaining}</Text>
-      <Text style={styles.heroLabel}>corrections remaining</Text>
+      <Text style={styles.heroLabel}>weak spots to practice</Text>
       {severityCounts && Object.keys(severityCounts).length > 0 && (
         <View style={styles.severityRow}>
           {(['error', 'improvement', 'polish'] as const).map((sev) => {

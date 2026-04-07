@@ -22,6 +22,7 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withRepeat,
+  FadeIn,
   Easing,
   SharedValue,
 } from 'react-native-reanimated';
@@ -140,6 +141,9 @@ function FormSection({
   onTap,
   isLast,
   onLayout,
+  isEmpty,
+  hintText,
+  required,
   children,
 }: {
   index: number;
@@ -151,8 +155,29 @@ function FormSection({
   onTap: (i: number) => void;
   isLast?: boolean;
   onLayout?: (e: LayoutChangeEvent) => void;
+  isEmpty?: boolean;
+  hintText?: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
+  const [showHint, setShowHint] = useState(false);
+
+  // Reset hint when field becomes non-empty
+  useEffect(() => {
+    if (!isEmpty) setShowHint(false);
+  }, [isEmpty]);
+
+  const handleContinue = () => {
+    if (required && isEmpty) return; // disabled
+    if (isEmpty && !showHint) {
+      setShowHint(true);
+      return;
+    }
+    // Either field is filled, or hint is showing and user taps Skip
+    setShowHint(false);
+    onContinue();
+  };
+
   const animStyle = useAnimatedStyle(() => {
     const target = index === focusIdx.value ? 1.0 : 0.12;
     return {
@@ -161,12 +186,25 @@ function FormSection({
   });
 
   const isFocused = index === focusIndex;
+  const hintVisible = isFocused && hintText && (showHint || (required && isEmpty));
+  const isDisabled = required && isEmpty;
+  const showSkipLabel = showHint && !required;
 
   return (
     <Animated.View style={[styles.sectionWrapper, animStyle]} onLayout={onLayout}>
       <Pressable onPress={() => onTap(index)} disabled={isFocused}>
         <Text style={styles.fieldLabel}>{label}</Text>
         {children}
+        {hintVisible && (
+          <Animated.View entering={FadeIn.duration(250)} style={styles.hintRow}>
+            <Ionicons
+              name="information-circle-outline"
+              size={16}
+              color={alpha(colors.severityImprovement, 0.6)}
+            />
+            <Text style={styles.hintText}>{hintText}</Text>
+          </Animated.View>
+        )}
         {isFocused && (
           <View style={styles.sectionNav}>
             {onBack ? (
@@ -177,8 +215,20 @@ function FormSection({
               <View />
             )}
             {!isLast && (
-              <Pressable onPress={onContinue} hitSlop={8} style={styles.continueLink}>
-                <Text style={styles.continueLinkText}>Continue →</Text>
+              <Pressable
+                onPress={handleContinue}
+                hitSlop={8}
+                style={styles.continueLink}
+                disabled={isDisabled}
+              >
+                <Text
+                  style={[
+                    styles.continueLinkText,
+                    isDisabled && styles.continueLinkTextDisabled,
+                  ]}
+                >
+                  {showSkipLabel ? 'Skip →' : 'Continue →'}
+                </Text>
               </Pressable>
             )}
           </View>
@@ -430,6 +480,7 @@ export default function AgentCreateScreen() {
               index={0} focusIdx={focusIdx} focusIndex={focusIndex}
               label="NAME" onContinue={() => setFocus(1)} onTap={setFocus}
               onLayout={(e) => handleSectionLayout(0, e)}
+              isEmpty={name.trim() === ''} hintText="Enter a name to continue" required
             >
               <FocusableInput value={name} onChangeText={setName} placeholder="Agent name" />
             </FormSection>
@@ -439,6 +490,7 @@ export default function AgentCreateScreen() {
               index={1} focusIdx={focusIdx} focusIndex={focusIndex}
               label="DESCRIPTION" onContinue={() => setFocus(2)} onBack={() => setFocus(0)} onTap={setFocus}
               onLayout={(e) => handleSectionLayout(1, e)}
+              isEmpty={description.trim() === ''} hintText="A description shapes your agent's personality"
             >
               <FocusableInput
                 value={description} onChangeText={setDescription}
@@ -451,6 +503,7 @@ export default function AgentCreateScreen() {
               index={2} focusIdx={focusIdx} focusIndex={focusIndex}
               label="AVATAR" onContinue={() => setFocus(3)} onBack={() => setFocus(1)} onTap={setFocus}
               onLayout={(e) => handleSectionLayout(2, e)}
+              isEmpty={avatarSeed === null} hintText="An avatar makes your agent recognizable"
             >
               <View style={styles.avatarGrid}>
                 {ALL_AVATAR_IDS.map((id) => (
@@ -473,6 +526,7 @@ export default function AgentCreateScreen() {
               index={3} focusIdx={focusIdx} focusIndex={focusIndex}
               label="VOICE" onContinue={() => setFocus(4)} onBack={() => setFocus(2)} onTap={setFocus}
               onLayout={(e) => handleSectionLayout(3, e)}
+              isEmpty={voiceId === null} hintText="A voice brings your agent to life"
             >
               <VoicePicker
                 voices={voices}
@@ -491,6 +545,7 @@ export default function AgentCreateScreen() {
               index={4} focusIdx={focusIdx} focusIndex={focusIndex}
               label="FOCUS AREA" onContinue={() => setFocus(5)} onBack={() => setFocus(3)} onTap={setFocus}
               onLayout={(e) => handleSectionLayout(4, e)}
+              isEmpty={focusArea.trim() === ''} hintText="A focus area guides your conversations"
             >
               <FocusableInput
                 value={focusArea} onChangeText={setFocusArea}
@@ -503,6 +558,7 @@ export default function AgentCreateScreen() {
               index={5} focusIdx={focusIdx} focusIndex={focusIndex}
               label="STYLE" onContinue={() => setFocus(6)} onBack={() => setFocus(4)} onTap={setFocus}
               onLayout={(e) => handleSectionLayout(5, e)}
+              isEmpty={conversationStyle === null} hintText="A style shapes how your agent talks"
             >
               <StyleChips
                 options={STYLE_OPTIONS}
@@ -647,6 +703,7 @@ export default function AgentCreateScreen() {
             voices={voices}
             selectedVoiceId={successVoiceId}
             onSelect={handleSuccessVoiceSelect}
+            compact
             previewVoiceId={voicePreview.activeVoiceId}
             previewPlaying={voicePreview.isPlaying}
             previewLoading={voicePreview.isLoading}
@@ -714,6 +771,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: fonts.semibold,
     color: colors.primary,
+  },
+  continueLinkTextDisabled: {
+    color: alpha(colors.white, 0.15),
+  },
+  hintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  hintText: {
+    ...typography.bodySm,
+    color: alpha(colors.white, 0.45),
   },
   lastSectionButtons: {
     marginTop: spacing.xl,

@@ -7,12 +7,15 @@ import { FILLER_COACH_BEHAVIOR_PROMPT } from '../prompts/behavior.js';
 import { FillerAnalyzer } from '../../analysis/analyzers/fillers.js';
 import { regenerateAllGreetings } from '../../services/greeting-generator.js';
 import { runPatternAnalysisForUser } from '../../jobs/patterns.js';
+import { db } from '../../db/index.js';
+import { fillerCoachSessions } from '../../db/schema.js';
 
 const fillerAnalyzer = new FillerAnalyzer();
 
 export class FillerCoachHandler implements AgentTypeHandler {
   readonly needsUserContext = false;
   readonly greetingStrategy = 'pregenerated' as const;
+  readonly includeElapsedTime = true;
   readonly maxSessionDurationMs = 10 * 60 * 1000; // 10 min hard cap
 
   buildSystemPrompt(
@@ -28,7 +31,11 @@ export class FillerCoachHandler implements AgentTypeHandler {
     // Inject target words into session prompt
     const targetWords = (formContext?.targetWords as string) || 'all common filler words (um, uh, like, you know, so, basically, actually, right, I mean, kind of, sort of, literally)';
     const sessionPrompt = FILLER_COACH_SESSION_PROMPT.replace('{targetWords}', targetWords);
-    layers.push(sessionPrompt);
+
+    // Inject topic directive
+    const topicDirective = (formContext?.topicDirective as string) || 'Ask what\'s on their mind or what they\'ve been up to. Be curious and engaged.';
+    const finalPrompt = sessionPrompt.replace('{topicDirective}', topicDirective);
+    layers.push(finalPrompt);
 
     // Filler history from past sessions (pre-fetched and passed via formContext)
     const fillerHistory = formContext?.fillerHistory as string | undefined;
@@ -52,8 +59,8 @@ export class FillerCoachHandler implements AgentTypeHandler {
     _agentConfig: AgentConfig | null,
     transcriptBuffer: string[],
     conversationHistory: ConversationMessage[],
-    _durationSeconds: number,
-    _formContext?: Record<string, unknown> | null,
+    durationSeconds: number,
+    formContext?: Record<string, unknown> | null,
   ): Promise<SessionEndResult> {
     const userUtterances = transcriptBuffer;
 
@@ -65,14 +72,33 @@ export class FillerCoachHandler implements AgentTypeHandler {
       return { type: 'filler-practice' };
     }
 
-    // Run filler analysis only (no DB writes, no session creation)
+    // Run filler analysis
     const fillerResult = await fillerAnalyzer.analyze({
       sentences: userUtterances,
       mode: 'conversation',
       conversationHistory,
     });
 
-    console.log(`[filler-coach-handler] Analysis complete: ${fillerResult.fillerWords.length} filler types (not saved to DB)`);
+    const totalFillerCount = fillerResult.fillerWords.reduce((sum, fw) => sum + fw.count, 0);
+
+    // Persist to filler_coach_sessions
+    const [coachSession] = await db
+      .insert(fillerCoachSessions)
+      .values({
+        userId,
+        durationSeconds,
+        totalFillerCount,
+        fillerData: {
+          fillerWords: fillerResult.fillerWords,
+          fillerPositions: fillerResult.fillerPositions,
+          sentences: userUtterances,
+        },
+        cognitiveLevel: (formContext?.cognitiveLevel as number) ?? null,
+        topicSlug: (formContext?.topicSlug as string) ?? null,
+      })
+      .returning();
+
+    console.log(`[filler-coach-handler] Saved coach session ${coachSession.id}: ${fillerResult.fillerWords.length} filler types, ${totalFillerCount} total`);
 
     // Fire-and-forget: regenerate greetings for next session
     regenerateAllGreetings(userId).catch(err =>
@@ -86,6 +112,7 @@ export class FillerCoachHandler implements AgentTypeHandler {
 
     return {
       type: 'filler-practice',
+      dbSessionId: coachSession.id,
       analysisResults: {
         sentences: userUtterances,
         corrections: [],

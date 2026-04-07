@@ -158,11 +158,11 @@ export async function generatePatternExercises(
     return 0;
   }
 
-  // Get existing exercises to dedup (across all levels)
+  // Get existing exercises to dedup (within the same level)
   const existingExercises = await db
     .select({ originalSentence: patternExercises.originalSentence })
     .from(patternExercises)
-    .where(and(eq(patternExercises.patternId, patternId), eq(patternExercises.userId, userId)));
+    .where(and(eq(patternExercises.patternId, patternId), eq(patternExercises.userId, userId), eq(patternExercises.level, level)));
 
   const existingSentences = new Set(existingExercises.map((e) => e.originalSentence));
 

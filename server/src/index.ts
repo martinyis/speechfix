@@ -15,6 +15,8 @@ import { practiceRoutes } from './routes/practice.js';
 import { jobRoutes } from './routes/jobs.js';
 import { patternRoutes } from './routes/patterns.js';
 import { greetingRoutes } from './routes/greetings.js';
+import { fillerCoachRoutes } from './routes/filler-coach.js';
+import { weakSpotRoutes } from './routes/weak-spots.js';
 import authPlugin from './plugins/auth.js';
 
 const app = Fastify({ logger: true });
@@ -38,6 +40,8 @@ await app.register(practiceRoutes, { prefix: '/practice' });
 await app.register(jobRoutes);
 await app.register(patternRoutes);
 await app.register(greetingRoutes);
+await app.register(fillerCoachRoutes);
+await app.register(weakSpotRoutes, { prefix: '/practice' });
 
 async function start() {
   try {

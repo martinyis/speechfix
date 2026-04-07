@@ -1,4 +1,5 @@
-import { pgTable, serial, text, integer, jsonb, timestamp, varchar, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, integer, jsonb, timestamp, varchar, boolean, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -56,6 +57,8 @@ export const corrections = pgTable('corrections', {
   severity: text('severity').notNull().default('error'),
   contextSnippet: text('context_snippet'),
   scenario: text('scenario'),
+  fullContext: text('full_context'),
+  dismissed: boolean('dismissed').default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -121,6 +124,17 @@ export const patternExercises = pgTable('pattern_exercises', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const fillerCoachSessions = pgTable('filler_coach_sessions', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  durationSeconds: integer('duration_seconds').notNull(),
+  totalFillerCount: integer('total_filler_count').notNull().default(0),
+  fillerData: jsonb('filler_data'),
+  cognitiveLevel: integer('cognitive_level'),
+  topicSlug: varchar('topic_slug', { length: 50 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 export const patternPracticeAttempts = pgTable('pattern_practice_attempts', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
@@ -129,4 +143,51 @@ export const patternPracticeAttempts = pgTable('pattern_practice_attempts', {
   transcript: text('transcript').notNull(),
   feedback: text('feedback'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const weakSpots = pgTable('weak_spots', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  correctionType: text('correction_type').notNull(),
+  status: text('status', { enum: ['active', 'backlog', 'resolved', 'dismissed'] }).notNull().default('backlog'),
+  severity: text('severity', { enum: ['error', 'improvement', 'polish'] }).notNull(),
+  srsStage: integer('srs_stage').notNull().default(0),
+  nextReviewAt: timestamp('next_review_at'),
+  lastDrillAt: timestamp('last_drill_at'),
+  isRecurring: boolean('is_recurring').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (table) => ({
+  uniqueUserTypeActive: uniqueIndex('weak_spots_user_type_active_idx')
+    .on(table.userId, table.correctionType)
+    .where(sql`status != 'dismissed'`),
+}));
+
+export const weakSpotCorrections = pgTable('weak_spot_corrections', {
+  id: serial('id').primaryKey(),
+  weakSpotId: integer('weak_spot_id').references(() => weakSpots.id, { onDelete: 'cascade' }).notNull(),
+  correctionId: integer('correction_id').references(() => corrections.id, { onDelete: 'cascade' }).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const weakSpotExercises = pgTable('weak_spot_exercises', {
+  id: serial('id').primaryKey(),
+  weakSpotId: integer('weak_spot_id').references(() => weakSpots.id, { onDelete: 'cascade' }).notNull(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  prompt: text('prompt').notNull(),
+  targetRule: text('target_rule').notNull(),
+  orderIndex: integer('order_index').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const weakSpotDrillAttempts = pgTable('weak_spot_drill_attempts', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  weakSpotId: integer('weak_spot_id').references(() => weakSpots.id, { onDelete: 'cascade' }).notNull(),
+  correctionId: integer('correction_id').references(() => corrections.id),
+  exerciseId: integer('exercise_id').references(() => weakSpotExercises.id),
+  passed: boolean('passed').notNull(),
+  transcript: text('transcript'),
+  feedback: text('feedback'),
+  createdAt: timestamp('created_at').defaultNow(),
 });

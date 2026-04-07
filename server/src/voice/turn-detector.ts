@@ -45,25 +45,29 @@ export function detectTurnHeuristic(
     }
   }
 
-  // Short response right after AI spoke — likely a reply
-  const lastMessage = history[history.length - 1];
-  if (lastMessage?.role === 'assistant' && wordCount < 5) {
-    return 'respond';
-  }
-
-  // Long monologue, no question
-  if (wordCount > 30) {
-    return 'wait';
-  }
-
   // Trailing conjunction — sentence is incomplete
   const lastWord = words[words.length - 1].toLowerCase().replace(/[.,!]$/, '');
   if (TRAILING_CONJUNCTIONS.includes(lastWord)) {
     return 'wait';
   }
 
-  // Everything else is uncertain
-  return 'uncertain';
+  // Short response right after AI spoke — likely a reply
+  const lastMessage = history[history.length - 1];
+  if (lastMessage?.role === 'assistant' && wordCount < 5) {
+    return 'respond';
+  }
+
+  // Medium-length utterance with a complete thought — respond rather than waiting
+  if (wordCount >= 3 && wordCount <= 30) {
+    return 'respond';
+  }
+
+  // Long monologue — let them keep going, use LLM only for this edge case
+  if (wordCount > 30) {
+    return 'uncertain';
+  }
+
+  return 'respond';
 }
 
 const anthropic = new Anthropic();

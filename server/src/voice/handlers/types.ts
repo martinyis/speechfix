@@ -41,6 +41,7 @@ export interface SessionEndResult {
 export interface AgentTypeHandler {
   readonly needsUserContext: boolean;
   readonly greetingStrategy: 'pregenerated' | 'none';
+  readonly includeElapsedTime?: boolean;
   readonly silenceTimeoutMs?: number;
   readonly maxSessionDurationMs?: number;
   buildSystemPrompt(agentConfig: AgentConfig | null, userContext?: FullUserContext, formContext?: Record<string, unknown> | null): string;

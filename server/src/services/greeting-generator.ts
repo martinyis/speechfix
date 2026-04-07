@@ -1,7 +1,7 @@
 import Groq from 'groq-sdk';
 import { db } from '../db/index.js';
 import { agentGreetings, agents, users, sessions } from '../db/schema.js';
-import { eq, and, desc, isNull, sql } from 'drizzle-orm';
+import { eq, and, desc, isNull } from 'drizzle-orm';
 
 const groq = new Groq();
 
@@ -196,7 +196,8 @@ async function generateGreeting(userId: number, agentId: number | null, mode: st
 
   const response = await groq.chat.completions.create({
     model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-    max_tokens: 80,
+    max_completion_tokens: 80,
+    temperature: 0.8,
     messages: [
       { role: 'system', content: prompt },
       { role: 'user', content: 'Generate the greeting now.' },
@@ -212,19 +213,19 @@ async function generateGreeting(userId: number, agentId: number | null, mode: st
 }
 
 async function upsertGreeting(userId: number, agentId: number | null, mode: string, text: string): Promise<void> {
-  // Use raw SQL for upsert since the unique index uses COALESCE expression
-  // ON CONFLICT ON CONSTRAINT doesn't work with indexes, so use the index directly
-  await db.execute(sql`
-    INSERT INTO agent_greetings (user_id, agent_id, mode, greeting_text, created_at)
-    VALUES (${userId}, ${agentId}, ${mode}, ${text}, NOW())
-    ON CONFLICT (user_id, COALESCE(agent_id, 0), mode)
-    DO UPDATE SET greeting_text = EXCLUDED.greeting_text, created_at = NOW()
-  `);
+  // Delete-then-insert to avoid ON CONFLICT expression index limitation
+  await db.transaction(async (tx) => {
+    const condition = agentId !== null
+      ? and(eq(agentGreetings.userId, userId), eq(agentGreetings.agentId, agentId), eq(agentGreetings.mode, mode))
+      : and(eq(agentGreetings.userId, userId), isNull(agentGreetings.agentId), eq(agentGreetings.mode, mode));
+    await tx.delete(agentGreetings).where(condition);
+    await tx.insert(agentGreetings).values({ userId, agentId, mode, greetingText: text });
+  });
 }
 
 /**
- * Fetch a greeting without deleting it. After reading, fire-and-forget a replacement.
- * The old greeting stays in DB as fallback while replacement generates.
+ * Fetch a pre-generated greeting for the given agent/mode.
+ * Regeneration is handled by session-manager cleanup after each session.
  */
 export async function fetchGreeting(userId: number, agentId: number | null, mode = 'conversation'): Promise<string | null> {
   const condition = agentId
@@ -238,18 +239,7 @@ export async function fetchGreeting(userId: number, agentId: number | null, mode
 
   if (!greeting) return null;
 
-  // Fire-and-forget: replace with a fresh greeting for next session
-  replaceGreeting(userId, agentId, mode).catch(err =>
-    console.error(`[greeting] Background replacement failed for agent=${agentId} mode=${mode}:`, err)
-  );
-
   return greeting.greetingText;
-}
-
-async function replaceGreeting(userId: number, agentId: number | null, mode: string): Promise<void> {
-  const text = await generateGreeting(userId, agentId, mode);
-  await upsertGreeting(userId, agentId, mode, text);
-  console.log(`[greeting] Replaced greeting for agent=${agentId} mode=${mode}`);
 }
 
 /**

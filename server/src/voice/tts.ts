@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { TTS_MODEL } from './voice-config.js';
+import { TTS_MODEL, TTS_SPEED, TTS_EMOTION } from './voice-config.js';
 
 export interface TTSCallbacks {
   onAudio: (base64Chunk: string) => void;
@@ -83,6 +83,7 @@ export class CartesiaTTS {
         context_id: this.activeContextId,
         continue: true,
         language: 'en',
+        generation_config: { speed: TTS_SPEED, emotion: TTS_EMOTION },
       }));
       return true;
     }
@@ -108,6 +109,7 @@ export class CartesiaTTS {
         context_id: this.activeContextId,
         continue: false,
         language: 'en',
+        generation_config: { speed: TTS_SPEED, emotion: TTS_EMOTION },
       }));
     }
     // Start monitoring for audio silence (fallback if done doesn't arrive)
@@ -137,6 +139,7 @@ export class CartesiaTTS {
     const oldContextId = this.activeContextId;
     // Generate new context to ignore stale audio
     this.currentContextId = crypto.randomUUID();
+    this.activeContextId = this.currentContextId;
     this.stopSilenceCheck();
 
     // Send cancel for the old context
@@ -228,6 +231,12 @@ export class CartesiaTTS {
     }
 
     if (message.type === 'error') {
+      const errMsg = typeof message.error === 'string' ? message.error : JSON.stringify(message.error ?? message);
+      // "Invalid context ID" is expected after abort — suppress it
+      if (errMsg.includes('Invalid context')) {
+        console.log(`[tts] Suppressed post-abort error: ${errMsg}`);
+        return;
+      }
       console.error(`[tts] Cartesia error:`, message.error || message);
       this.callbacks.onError(new Error(message.error || 'Cartesia TTS error'));
     }

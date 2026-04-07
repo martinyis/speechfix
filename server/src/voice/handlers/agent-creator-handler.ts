@@ -2,8 +2,6 @@ import type { ConversationMessage } from '../response-generator.js';
 import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from './types.js';
 import type { ChatTool } from '../tools.js';
 import { END_SESSION_TOOL } from '../tools.js';
-import { IDENTITY_PROMPT } from '../prompts/identity.js';
-import { BEHAVIOR_PROMPT } from '../prompts/behavior.js';
 import { AGENT_CREATOR_SESSION_PROMPT } from '../prompts/session-types/agent-creator.js';
 import { extractAgentConfig } from '../../services/agent-config-extractor.js';
 import { db } from '../../db/index.js';
@@ -15,7 +13,12 @@ export class AgentCreatorHandler implements AgentTypeHandler {
   readonly greetingStrategy = 'none' as const;
 
   buildSystemPrompt(_agentConfig: AgentConfig | null, _userContext?: FullUserContext, formContext?: Record<string, unknown> | null): string {
-    const layers = [IDENTITY_PROMPT, BEHAVIOR_PROMPT, AGENT_CREATOR_SESSION_PROMPT];
+    // Agent creator doesn't need the full identity/behavior prompts — those are for conversation mode
+    // and cause the model to over-explain and yap. Use a minimal identity instead.
+    const layers = [
+      'You are Reflexa, an AI assistant. You speak in casual, natural English. Keep it brief and direct.',
+      AGENT_CREATOR_SESSION_PROMPT,
+    ];
 
     if (formContext) {
       const parts: string[] = [];

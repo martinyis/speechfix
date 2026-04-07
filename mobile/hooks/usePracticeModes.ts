@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import type { PracticeTask, PatternTasksResponse } from '../types/practice';
+import type { PatternTasksResponse, WeakSpotsResponse } from '../types/practice';
 
-export type PracticeModeName = 'corrections' | 'filler_words' | 'patterns';
+export type PracticeModeName = 'weak_spots' | 'filler_words' | 'patterns';
 
 export interface PracticeModeInfo {
   key: PracticeModeName;
@@ -12,19 +12,13 @@ export interface PracticeModeInfo {
 }
 
 export function usePracticeModes(
-  tasks: PracticeTask[] | undefined,
+  weakSpotsData: WeakSpotsResponse | undefined,
   patternData: PatternTasksResponse | undefined,
 ) {
   return useMemo(() => {
-    const correctionTotal = tasks?.length ?? 0;
-    const unpracticedTasks = tasks?.filter((t) => !t.practiced) ?? [];
-    const correctionRemaining = unpracticedTasks.length;
-
-    // Severity counts for hero stat
-    const severityCounts: Record<string, number> = {};
-    for (const t of unpracticedTasks) {
-      severityCounts[t.severity] = (severityCounts[t.severity] ?? 0) + 1;
-    }
+    const activeCount = weakSpotsData?.activeSpots.length ?? 0;
+    const quickFixCount = weakSpotsData?.quickFixes.length ?? 0;
+    const dueCount = weakSpotsData?.activeSpots.filter((ws) => ws.isDue).length ?? 0;
 
     const hasPatterns = !!(patternData?.active || (patternData?.queued && patternData.queued.length > 0));
     const patternTotal = patternData?.active?.exercises.length ?? 0;
@@ -34,11 +28,11 @@ export function usePracticeModes(
 
     const modes: PracticeModeInfo[] = [
       {
-        key: 'corrections',
-        label: 'Corrections',
-        icon: 'create-outline',
-        enabled: correctionTotal > 0,
-        stats: { total: correctionTotal, remaining: correctionRemaining },
+        key: 'weak_spots',
+        label: 'Weak Spots',
+        icon: 'fitness-outline',
+        enabled: activeCount > 0 || quickFixCount > 0,
+        stats: { total: activeCount + quickFixCount, remaining: dueCount + quickFixCount },
       },
       {
         key: 'filler_words',
@@ -59,10 +53,10 @@ export function usePracticeModes(
     const enabledModes = modes.filter((m) => m.enabled);
 
     const defaultMode: PracticeModeName =
-      enabledModes.find((m) => m.key === 'corrections')?.key ??
+      enabledModes.find((m) => m.key === 'weak_spots')?.key ??
       enabledModes[0]?.key ??
       'filler_words';
 
-    return { modes, enabledModes, defaultMode, severityCounts };
-  }, [tasks, patternData]);
+    return { modes, enabledModes, defaultMode };
+  }, [weakSpotsData, patternData]);
 }

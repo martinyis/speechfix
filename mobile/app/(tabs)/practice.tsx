@@ -10,20 +10,20 @@ import Animated, {
 } from 'react-native-reanimated';
 import { EmptyState } from '../../components/ui';
 import {
-  CorrectionsMode,
+  WeakSpotsMode,
   FillerWordsMode,
   PatternsMode,
   OrbitModeSwitcher,
 } from '../../components/practice';
-import { usePracticeTasks } from '../../hooks/usePracticeTasks';
+import { useWeakSpots } from '../../hooks/useWeakSpots';
 import { usePatternTasks } from '../../hooks/usePatternTasks';
 import { usePracticeModes, type PracticeModeName } from '../../hooks/usePracticeModes';
 import { colors, spacing } from '../../theme';
 
 export default function PracticeScreen() {
-  const { data: tasks, isLoading, refetch } = usePracticeTasks();
+  const { data: weakSpotsData, isLoading, refetch: refetchWeakSpots } = useWeakSpots();
   const { data: patternData, refetch: refetchPatterns } = usePatternTasks();
-  const { enabledModes, severityCounts, defaultMode } = usePracticeModes(tasks, patternData);
+  const { enabledModes, defaultMode } = usePracticeModes(weakSpotsData, patternData);
   const insets = useSafeAreaInsets();
 
   const [activeMode, setActiveMode] = useState<PracticeModeName>(defaultMode);
@@ -38,7 +38,7 @@ export default function PracticeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      refetch();
+      refetchWeakSpots();
       refetchPatterns();
     }, []),
   );
@@ -46,12 +46,10 @@ export default function PracticeScreen() {
   const handleModeChange = useCallback(
     (mode: PracticeModeName) => {
       if (mode === activeMode) return;
-      // Crossfade: 150ms out, set mode, 150ms in
       fadeOpacity.value = withSequence(
         withTiming(0, { duration: 150 }),
         withTiming(1, { duration: 150 }),
       );
-      // Change content at the midpoint
       setTimeout(() => setActiveMode(mode), 150);
     },
     [activeMode],
@@ -104,8 +102,13 @@ export default function PracticeScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         >
-          {activeMode === 'corrections' && tasks && (
-            <CorrectionsMode tasks={tasks} severityCounts={severityCounts} />
+          {activeMode === 'weak_spots' && weakSpotsData && (
+            <WeakSpotsMode
+              weakSpots={weakSpotsData.activeSpots}
+              backlogCount={weakSpotsData.backlog.length}
+              quickFixes={weakSpotsData.quickFixes}
+              onRefresh={refetchWeakSpots}
+            />
           )}
           {activeMode === 'filler_words' && <FillerWordsMode />}
           {activeMode === 'patterns' && patternData && (

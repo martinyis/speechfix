@@ -7,7 +7,7 @@ import { db } from '../db/index.js';
 import { agents } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { pcmToWav } from '../utils/audio.js';
-import { AVAILABLE_VOICES } from '../voice/voice-config.js';
+import { AVAILABLE_VOICES, TTS_MODEL, TTS_SPEED, TTS_EMOTION } from '../voice/voice-config.js';
 import { generateGreetingForAgent } from '../services/greeting-generator.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -237,7 +237,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model_id: 'sonic',
+            model_id: TTS_MODEL,
             transcript: "Hi there, I'm your conversation partner. Let's practice speaking together.",
             voice: { mode: 'id', id: voiceId },
             language: 'en',
@@ -246,6 +246,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
               encoding: 'pcm_s16le',
               sample_rate: 24000,
             },
+            generation_config: { speed: TTS_SPEED, emotion: TTS_EMOTION },
           }),
         },
       );

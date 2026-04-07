@@ -19,5 +19,15 @@ export const AVAILABLE_VOICES: VoiceConfig[] = [
   { id: '79f8b5fb-2cc8-479a-80df-29f7a7cf1a3e', name: 'Theo', gender: 'male', description: 'Steady, confident' },
 ];
 
+// Voice overrides for system modes (null = use DEFAULT_VOICE_ID)
+export const SYSTEM_MODE_VOICES: Record<string, string> = {
+  'filler-coach': '79f8b5fb-2cc8-479a-80df-29f7a7cf1a3e',   // Theo – steady, confident
+  'agent-creator': '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc',   // Jacqueline – reassuring, empathic
+};
+
 // TTS model to use ('sonic' = Sonic Turbo, 'sonic-3' = higher quality)
-export const TTS_MODEL = 'sonic';
+export const TTS_MODEL = 'sonic-3';
+
+// TTS generation defaults (sonic-3 supports speed/emotion controls)
+export const TTS_SPEED = 0.95;
+export const TTS_EMOTION = 'calm';

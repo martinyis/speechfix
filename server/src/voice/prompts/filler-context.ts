@@ -1,5 +1,5 @@
 import { db } from '../../db/index.js';
-import { fillerWords, sessions } from '../../db/schema.js';
+import { fillerWords, sessions, fillerCoachSessions } from '../../db/schema.js';
 import { eq, desc, sql } from 'drizzle-orm';
 
 interface FillerAggregate {
@@ -64,6 +64,28 @@ export async function buildFillerHistoryPrompt(userId: number): Promise<string> 
   if (recentFillers.length > 0 && recentDate) {
     const recentParts = recentFillers.map((f) => `${f.word} x${f.count}`);
     lines.push(`Most recent session (${recentDate}): ${recentParts.join(', ')}`);
+  }
+
+  // Add recent coach practice sessions
+  const recentCoachSessions = await db
+    .select()
+    .from(fillerCoachSessions)
+    .where(eq(fillerCoachSessions.userId, userId))
+    .orderBy(desc(fillerCoachSessions.createdAt))
+    .limit(3);
+
+  if (recentCoachSessions.length > 0) {
+    lines.push('');
+    lines.push('RECENT FILLER COACH PRACTICE:');
+    for (const cs of recentCoachSessions) {
+      const mins = Math.max(cs.durationSeconds / 60, 0.5);
+      const rate = (cs.totalFillerCount / mins).toFixed(1);
+      const data = cs.fillerData as { fillerWords?: Array<{ word: string; count: number }> } | null;
+      const topWords = data?.fillerWords?.slice(0, 3).map((fw) => `${fw.word} x${fw.count}`).join(', ') || 'none detected';
+      const daysDiff = Math.round((Date.now() - new Date(cs.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      const when = daysDiff === 0 ? 'today' : daysDiff === 1 ? 'yesterday' : `${daysDiff} days ago`;
+      lines.push(`- Practice ${when}: ${cs.totalFillerCount} fillers in ${Math.round(mins)}min (${rate}/min) — ${topWords}`);
+    }
   }
 
   return lines.join('\n');

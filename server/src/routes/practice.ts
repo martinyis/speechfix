@@ -7,10 +7,8 @@ import { generateAndStorePatternExercises } from '../services/pattern-exercise-g
 import { transcribeRawPCM } from '../services/transcription.js';
 import {
   evaluateSayItRight,
-  evaluateUseItNaturally,
   evaluatePatternExercise,
   evaluateReframeExercise,
-  generateScenario,
   type CorrectionContext,
   type PatternExerciseContext,
   type ReframeExerciseContext,
@@ -82,7 +80,6 @@ export async function practiceRoutes(fastify: FastifyInstance) {
     // Extract form fields
     const correctionIdField = data.fields?.correctionId;
     const modeField = data.fields?.mode;
-    const scenarioField = data.fields?.scenario;
 
     const correctionId = Number(
       correctionIdField && 'value' in correctionIdField ? correctionIdField.value : null
@@ -90,19 +87,12 @@ export async function practiceRoutes(fastify: FastifyInstance) {
     const mode = String(
       modeField && 'value' in modeField ? modeField.value : ''
     );
-    const scenario = scenarioField && 'value' in scenarioField
-      ? String(scenarioField.value)
-      : undefined;
 
-    console.log('[Practice/evaluate] Parsed fields — correctionId:', correctionId, 'mode:', mode, 'scenario:', scenario ? 'yes' : 'no');
+    console.log('[Practice/evaluate] Parsed fields — correctionId:', correctionId, 'mode:', mode);
 
-    if (!correctionId || !mode || !['say_it_right', 'use_it_naturally'].includes(mode)) {
+    if (!correctionId || mode !== 'say_it_right') {
       console.warn('[Practice/evaluate] Invalid fields — aborting');
-      return reply.code(400).send({ error: 'correctionId and mode (say_it_right|use_it_naturally) are required' });
-    }
-
-    if (mode === 'use_it_naturally' && !scenario) {
-      return reply.code(400).send({ error: 'scenario is required for use_it_naturally mode' });
+      return reply.code(400).send({ error: 'correctionId and mode (say_it_right) are required' });
     }
 
     const tempPath = path.join('/tmp', `${randomUUID()}.pcm`);
@@ -153,10 +143,8 @@ export async function practiceRoutes(fastify: FastifyInstance) {
         correctionType: correction.correctionType,
       };
 
-      // Evaluate based on mode
-      const result = mode === 'say_it_right'
-        ? await evaluateSayItRight(correctionCtx, transcription.text)
-        : await evaluateUseItNaturally(correctionCtx, transcription.text, scenario!);
+      // Evaluate
+      const result = await evaluateSayItRight(correctionCtx, transcription.text);
 
       // Save practice attempt
       const [attempt] = await db
@@ -180,47 +168,6 @@ export async function practiceRoutes(fastify: FastifyInstance) {
     } finally {
       await unlink(tempPath).catch(() => {});
     }
-  });
-
-  // GET /scenario — Generate a scenario for "Use It Naturally" mode
-  fastify.get<{ Querystring: { correctionId: string } }>('/scenario', async (request, reply) => {
-    const userId = request.user.userId;
-    const correctionId = Number(request.query.correctionId);
-
-    if (!correctionId) {
-      return reply.code(400).send({ error: 'correctionId query parameter is required' });
-    }
-
-    // Verify correction belongs to user and check for pre-generated scenario
-    const [correction] = await db
-      .select({
-        originalText: corrections.originalText,
-        correctedText: corrections.correctedText,
-        explanation: corrections.explanation,
-        correctionType: corrections.correctionType,
-        scenario: corrections.scenario,
-      })
-      .from(corrections)
-      .innerJoin(sessions, eq(corrections.sessionId, sessions.id))
-      .where(and(eq(corrections.id, correctionId), eq(sessions.userId, userId)));
-
-    if (!correction) {
-      return reply.code(404).send({ error: 'Correction not found' });
-    }
-
-    // Return pre-generated scenario if available, otherwise generate on-demand
-    if (correction.scenario) {
-      return { scenario: correction.scenario };
-    }
-
-    const scenario = await generateScenario({
-      originalText: correction.originalText,
-      correctedText: correction.correctedText,
-      explanation: correction.explanation,
-      correctionType: correction.correctionType,
-    });
-
-    return { scenario };
   });
 
   // POST /generate-patterns — Trigger pattern analysis + exercise generation

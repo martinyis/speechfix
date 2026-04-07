@@ -9,7 +9,7 @@ const MAX_SESSIONS = 20;
 const MAX_CHARS = 50_000;
 const MIN_SESSIONS_REQUIRED = 5;
 const MIN_TOTAL_SESSIONS = 3;
-const MIN_TOTAL_SENTENCES = 150;
+const MIN_TOTAL_SENTENCES = 30;
 const DEBOUNCE_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 interface SessionTranscript {

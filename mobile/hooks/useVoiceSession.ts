@@ -35,6 +35,12 @@ type VoiceMessage =
 // PCM 24kHz 16-bit mono = 48000 bytes/sec (matches Cartesia TTS output)
 const PCM_BYTES_PER_SEC = 48000;
 
+// ── Timing / debug logger ──────────────────────────────────────────────
+const T0 = { v: 0 };                       // session-relative epoch
+const t = () => T0.v ? Date.now() - T0.v : 0; // ms since session start
+const TAG = '[voice-timing]';
+const tlog = (...args: unknown[]) => console.log(TAG, `+${t()}ms`, ...args);
+
 interface UseVoiceSessionCallbacks {
   onSessionEnd: (results: SessionDetail, dbSessionId: number) => void;
   onError: (message: string) => void;
@@ -92,78 +98,78 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
     doneRef.current = false;
   }, []);
 
-  const startMicAndTimer = useCallback(async () => {
-    // Start elapsed time timer
+  // Track audio chunks sent for periodic logging
+  const audioChunkCountRef = useRef(0);
+
+  const startTimer = useCallback(() => {
+    tlog('⏱ startTimer');
     timerRef.current = setInterval(() => {
       store.getState().incrementElapsedTime();
     }, 1000);
+  }, []);
 
-    // Start recording
-    try {
-      const { subscription } = await ExpoPlayAudioStream.startRecording({
-        sampleRate: 16000,
-        channels: 1,
-        encoding: 'pcm_16bit',
-        interval: 100,
-        onAudioStream: async (event: any) => {
-          const ws = wsRef.current;
-          if (ws?.readyState === WebSocket.OPEN && event.data) {
-            ws.send(JSON.stringify({ type: 'audio', data: event.data }));
-          }
-        },
-      });
-      isRecordingRef.current = true;
-      if (subscription) {
-        subscriptionRef.current = subscription;
-      }
-    } catch (e) {
-      console.error('[voice-session] startRecording failed:', e);
-      onError('Failed to start microphone');
-      cleanup();
-      store.getState().endVoiceSession();
-    }
-  }, [cleanup, onError]);
+  // Track per-turn audio chunk count for logging
+  const turnAudioChunksRef = useRef(0);
+  const turnSpeakingStartRef = useRef(0);
 
   const handleMessage = useCallback((msg: VoiceMessage) => {
     const s = store.getState();
 
     switch (msg.type) {
       case 'ready':
-        startMicAndTimer();
+        tlog('📩 ready — server ready, starting timer');
+        startTimer();
         s.setVoiceSessionState('listening');
         break;
 
       case 'audio': {
         if (doneRef.current) {
-          console.log('[voice-session] BLOCKED audio chunk after doneRef=true');
+          tlog('⛔ audio chunk BLOCKED (doneRef=true)');
           break;
         }
         // Track first audio time and bytes for playback estimation
         if (firstAudioTimeRef.current === 0) {
           firstAudioTimeRef.current = Date.now();
+          const latency = turnSpeakingStartRef.current > 0
+            ? Date.now() - turnSpeakingStartRef.current
+            : '?';
+          tlog(`🔊 FIRST audio chunk for turn ${msg.turnId ?? turnIdRef.current} — ${latency}ms after turn_state:speaking`);
         }
+        turnAudioChunksRef.current++;
         const rawBytes = Math.ceil((msg.data?.length ?? 0) * 3 / 4);
         turnAudioBytesRef.current += rawBytes;
         const streamId = String(msg.turnId ?? turnIdRef.current);
         try {
           ExpoPlayAudioStream.playSound(msg.data, streamId, 'pcm_s16le');
-        } catch (e) { console.error('[voice-session] playSound error:', e); }
+        } catch (e) {
+          tlog('🔊 playSound ERROR:', e);
+          console.error('[voice-session] playSound error:', e);
+        }
+        // Log every 20 audio chunks to track flow
+        if (turnAudioChunksRef.current % 20 === 0) {
+          tlog(`🔊 received ${turnAudioChunksRef.current} audio chunks, ${(turnAudioBytesRef.current / 1024).toFixed(1)}KB total`);
+        }
         break;
       }
 
       case 'audio_end': {
-        if (doneRef.current) break;
+        if (doneRef.current) {
+          tlog('⛔ audio_end BLOCKED (doneRef=true)');
+          break;
+        }
         // Estimate remaining playback time before transitioning to 'listening'
-        // PCM 16kHz 16-bit mono = 32000 bytes/sec
         const totalBytes = msg.totalAudioBytes ?? 0;
         const totalDurationMs = (totalBytes / PCM_BYTES_PER_SEC) * 1000;
         const elapsedSinceFirst = firstAudioTimeRef.current > 0
           ? Date.now() - firstAudioTimeRef.current
           : 0;
-        const remainingMs = Math.max(0, totalDurationMs - elapsedSinceFirst + 500);
+        const remainingMs = Math.max(0, totalDurationMs - elapsedSinceFirst + 200);
+
+        tlog(`🔊 audio_end — turn ${turnIdRef.current}: ${turnAudioChunksRef.current} chunks, ${(turnAudioBytesRef.current / 1024).toFixed(1)}KB, totalDuration=${totalDurationMs.toFixed(0)}ms, elapsed=${elapsedSinceFirst}ms, remaining=${remainingMs.toFixed(0)}ms`);
 
         if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
         playbackTimerRef.current = setTimeout(() => {
+          tlog(`⏱ playback timer fired — transitioning to listening (was waiting ${remainingMs.toFixed(0)}ms)`);
           const current = store.getState();
           current.setVoiceSessionState(current.isMuted ? 'muted' : 'listening');
           playbackTimerRef.current = null;
@@ -172,11 +178,14 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
       }
 
       case 'turn_state': {
+        tlog(`📩 turn_state: ${msg.state}, turnId=${msg.turnId}`);
         if (msg.state === 'speaking') {
           s.setVoiceSessionState('speaking');
           turnIdRef.current = msg.turnId ?? turnIdRef.current + 1;
           firstAudioTimeRef.current = 0;
           turnAudioBytesRef.current = 0;
+          turnAudioChunksRef.current = 0;
+          turnSpeakingStartRef.current = Date.now();
           if (playbackTimerRef.current) {
             clearTimeout(playbackTimerRef.current);
             playbackTimerRef.current = null;
@@ -184,21 +193,25 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
         }
         // For 'listening' without audio, apply immediately
         if (msg.state === 'listening' && turnAudioBytesRef.current === 0 && !playbackTimerRef.current) {
+          tlog('📩 turn_state: listening (no audio received — immediate transition)');
           s.setVoiceSessionState(s.isMuted ? 'muted' : 'listening');
         }
         break;
       }
 
       case 'mute_state':
+        tlog(`📩 mute_state: ${msg.muted}`);
         s.setMuted(msg.muted);
         break;
 
       case 'session_ending':
+        tlog('📩 session_ending');
         doneRef.current = true;
         s.setVoiceSessionState('analyzing');
         break;
 
       case 'insights_ready': {
+        tlog('📩 insights_ready — dbSessionId:', msg.dbSessionId);
         const dbId = msg.dbSessionId ?? 0;
         s.setInsightsReady(dbId, msg.data);
         onInsightsReady?.();
@@ -206,6 +219,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
       }
 
       case 'correction': {
+        tlog(`📩 correction #${msg.index}`);
         // If insights haven't arrived yet (fallback), start streaming mode
         if (!store.getState().isInsightsReady && msg.index === 0) {
           s.startStreamingAnalysis();
@@ -215,6 +229,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
       }
 
       case 'analysis_complete': {
+        tlog('📩 analysis_complete — dbSessionId:', msg.dbSessionId);
         if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
         const dbId = msg.dbSessionId ?? 0;
         s.finalizeStreamingSession(dbId, msg.data, msg.data?.correctionIds);
@@ -229,6 +244,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
       }
 
       case 'session_end': {
+        tlog('📩 session_end — dbSessionId:', msg.dbSessionId ?? msg.sessionId);
         if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
         const dbSessionId = msg.dbSessionId ?? msg.sessionId ?? 0;
         // Build a SessionDetail-like object from the results
@@ -251,6 +267,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
       }
 
       case 'agent_created':
+        tlog('📩 agent_created:', msg.agent?.name);
         if (msg.agent) {
           useAgentStore.getState().addAgent(msg.agent);
           onAgentCreated?.(msg.agent);
@@ -258,14 +275,17 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
         break;
 
       case 'error':
+        tlog('📩 ERROR:', msg.message);
         onError(msg.message || 'An error occurred');
         cleanup();
         s.endVoiceSession();
         break;
     }
-  }, [startMicAndTimer, cleanup, onSessionEnd, onError, onAgentCreated, onInsightsReady]);
+  }, [startTimer, cleanup, onSessionEnd, onError, onAgentCreated, onInsightsReady]);
 
   const start = useCallback(async () => {
+    T0.v = Date.now();
+    tlog('▶ start() called');
     isStoppingRef.current = false;
     doneRef.current = false;
     const s = store.getState();
@@ -276,6 +296,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
 
     // Request mic permissions
     const { granted } = await ExpoPlayAudioStream.requestPermissionsAsync();
+    tlog('mic permission:', granted ? 'granted' : 'DENIED');
     if (!granted) {
       onError('Microphone permission is required');
       s.endVoiceSession();
@@ -288,10 +309,41 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
         sampleRate: 24000,
         playbackMode: PlaybackModes.CONVERSATION,
       });
+      tlog('setSoundConfig done');
     } catch (e) { console.error('[voice-session] setSoundConfig failed:', e); }
 
-    // Allow iOS AVAudioSession to fully initialize before audio arrives
-    await new Promise(resolve => setTimeout(resolve, 400));
+    // Start recording BEFORE connecting WebSocket.
+    // On iOS, the AVAudioSession audio route is only fully activated when
+    // recording begins. Starting it early ensures playback works when the
+    // greeting audio arrives. Mic chunks are safely dropped until the WS opens.
+    audioChunkCountRef.current = 0;
+    try {
+      const { subscription } = await ExpoPlayAudioStream.startRecording({
+        sampleRate: 16000,
+        channels: 1,
+        encoding: 'pcm_16bit',
+        interval: 100,
+        onAudioStream: async (event: any) => {
+          const ws = wsRef.current;
+          if (ws?.readyState === WebSocket.OPEN && event.data) {
+            ws.send(JSON.stringify({ type: 'audio', data: event.data }));
+            audioChunkCountRef.current++;
+            if (audioChunkCountRef.current % 50 === 0) {
+              tlog(`🎙 sent ${audioChunkCountRef.current} mic chunks (${(audioChunkCountRef.current * 0.1).toFixed(1)}s of audio)`);
+            }
+          }
+        },
+      });
+      isRecordingRef.current = true;
+      if (subscription) subscriptionRef.current = subscription;
+      tlog('🎙 recording started (audio session active)');
+    } catch (e) {
+      tlog('🎙 startRecording FAILED:', e);
+      console.error('[voice-session] startRecording failed:', e);
+      onError('Failed to start microphone');
+      s.endVoiceSession();
+      return;
+    }
 
     // Connect WebSocket — append agent ID, mode, or formContext if provided
     // System modes (filler-coach, onboarding, etc.) use their own handler — never send an agent ID
@@ -306,10 +358,12 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
     if (formContext) {
       url += `&formContext=${encodeURIComponent(JSON.stringify(formContext))}`;
     }
+    tlog('connecting WS…');
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      tlog('WS open — sending {start}');
       ws.send(JSON.stringify({ type: 'start' }));
     };
 
@@ -320,13 +374,16 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
       } catch (e) { console.error('[voice-session] message parse error:', e); }
     };
 
-    ws.onerror = () => {
+    ws.onerror = (e) => {
+      tlog('WS error:', e);
       onError("Couldn't connect. Check your connection and try again.");
       cleanup();
       s.endVoiceSession();
     };
 
-    ws.onclose = () => {};
+    ws.onclose = (e) => {
+      tlog('WS close — code:', e.code, 'reason:', e.reason, 'clean:', e.wasClean);
+    };
 
     // Handle app backgrounding
     appStateSubRef.current = AppState.addEventListener('change', (nextState) => {
@@ -340,14 +397,14 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
     if (isStoppingRef.current) return;
     isStoppingRef.current = true;
     doneRef.current = true;
-    console.log('[voice-session] stop() called');
+    tlog('⏹ stop() called — total mic chunks sent:', audioChunkCountRef.current);
 
     store.getState().setVoiceSessionState('analyzing');
 
     // Stop audio playback immediately so user hears silence
     try {
       await ExpoPlayAudioStream.stopSound();
-      console.log('[voice-session] stopSound() resolved');
+      tlog('⏹ stopSound() resolved');
     } catch (e) { console.warn('[voice-session] stop: stopSound error:', e); }
 
     if (playbackTimerRef.current) {
@@ -359,12 +416,14 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
     const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'done' }));
-      console.log('[voice-session] ws.send(done) sent');
+      tlog('⏹ ws.send(done) sent');
     }
 
     // Stop mic (slow on iOS — no longer blocks UX)
     if (isRecordingRef.current) {
+      const micStopStart = Date.now();
       try { await ExpoPlayAudioStream.stopRecording(); } catch (e) { console.warn('[voice-session] stop: stopRecording error:', e); }
+      tlog(`⏹ stopRecording took ${Date.now() - micStopStart}ms`);
       isRecordingRef.current = false;
     }
     subscriptionRef.current?.remove();
@@ -375,7 +434,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    console.log('[voice-session] stop() complete');
+    tlog('⏹ stop() complete');
   }, []);
 
   const toggleMute = useCallback(async () => {

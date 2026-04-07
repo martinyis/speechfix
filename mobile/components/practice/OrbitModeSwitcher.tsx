@@ -18,13 +18,13 @@ const ICON_SIZE = 20;
 const SEGMENT_SIZE = 38;
 
 const MODE_COLORS: Record<PracticeModeName, string> = {
-  corrections: colors.tertiary,
+  weak_spots: colors.tertiary,
   filler_words: colors.secondary,
   patterns: '#34d399',
 };
 
 const MODE_ICONS: Record<PracticeModeName, keyof typeof Ionicons.glyphMap> = {
-  corrections: 'create-outline',
+  weak_spots: 'fitness-outline',
   filler_words: 'chatbubbles-outline',
   patterns: 'repeat-outline',
 };

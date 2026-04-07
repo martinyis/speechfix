@@ -6,7 +6,7 @@ import { getFillerSummary } from '../voice/prompts/filler-context.js';
 import { db } from '../db/index.js';
 import { sessions, corrections, fillerWords, agents } from '../db/schema.js';
 import { eq, desc, sql, and } from 'drizzle-orm';
-import { generateAndStoreScenarios } from '../services/practice-evaluator.js';
+import { absorbCorrections } from '../services/weak-spot-manager.js';
 import { writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import path from 'path';
@@ -93,9 +93,9 @@ export async function sessionRoutes(fastify: FastifyInstance) {
           }))
         ).returning();
 
-        // Fire-and-forget: pre-generate practice scenarios
-        generateAndStoreScenarios(inserted.map(r => r.id)).catch(err =>
-          console.error('[sessions] Scenario pre-generation failed:', err)
+        // Fire-and-forget: absorb corrections into weak spots system
+        absorbCorrections(request.user.userId, inserted.map(r => r.id), result.sentences).catch(err =>
+          console.error('[sessions] Failed to absorb corrections:', err)
         );
       }
 

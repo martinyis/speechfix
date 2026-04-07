@@ -14,7 +14,7 @@ import { db } from '../../db/index.js';
 import { sessions, corrections, fillerWords, users } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { regenerateAllGreetings } from '../../services/greeting-generator.js';
-import { generateAndStoreScenarios } from '../../services/practice-evaluator.js';
+import { absorbCorrections } from '../../services/weak-spot-manager.js';
 import { runPatternAnalysisForUser } from '../../jobs/patterns.js';
 import { generateSessionBriefInsights } from '../../services/session-insights-generator.js';
 
@@ -157,9 +157,9 @@ export class ConversationHandler implements AgentTypeHandler {
         }))
       ).returning();
 
-      // Fire-and-forget: pre-generate practice scenarios
-      generateAndStoreScenarios(inserted.map(r => r.id)).catch(err =>
-        console.error('[conversation-handler] Scenario pre-generation failed:', err)
+      // Fire-and-forget: absorb corrections into weak spots system
+      absorbCorrections(userId, inserted.map(r => r.id), userUtterances).catch(err =>
+        console.error('[conversation-handler] Failed to absorb corrections:', err)
       );
     }
 
@@ -323,8 +323,8 @@ export class ConversationHandler implements AgentTypeHandler {
       ).returning();
       correctionIds = inserted.map(r => r.id);
 
-      generateAndStoreScenarios(correctionIds).catch(err =>
-        console.error('[conversation-handler] Scenario pre-generation failed:', err)
+      absorbCorrections(userId, correctionIds, userUtterances).catch(err =>
+        console.error('[conversation-handler] Failed to absorb corrections:', err)
       );
     }
 

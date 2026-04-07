@@ -1,25 +1,23 @@
-import { useMemo, useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
+  Pressable,
   ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, {
   FadeIn,
-  FadeInDown,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
 
 import { useSessionStore } from '../stores/sessionStore';
 import { useSession } from '../hooks/useSession';
-import { usePracticeTasks } from '../hooks/usePracticeTasks';
 import { SessionVerdict } from '../components/SessionVerdict';
 import { CorrectionsPreview } from '../components/CorrectionsPreview';
 import { AnalyzingBanner } from '../components/AnalyzingBanner';
-import { ScreenHeader, EmptyState, GlassIconPillButton } from '../components/ui';
+import { ScreenHeader, EmptyState } from '../components/ui';
 import { formatDuration } from '../lib/formatters';
 import { colors, alpha, fonts } from '../theme';
 import type { SessionDetail } from '../types/session';
@@ -49,34 +47,6 @@ export default function SessionDetailScreen() {
     ? storeData
     : fetchedData;
 
-  // Practice tasks for floating button
-  const { data: allTasks, refetch: refetchPracticeTasks } = usePracticeTasks();
-  const unpracticedCount = useMemo(() => {
-    if (!allTasks || !resolvedSessionId) return 0;
-    return allTasks.filter(t => t.sessionId === resolvedSessionId && !t.practiced).length;
-  }, [allTasks, resolvedSessionId]);
-
-  const practicedIds = useMemo(() => {
-    if (!allTasks) return new Set<number>();
-    return new Set(allTasks.filter(t => t.practiced).map(t => t.correctionId));
-  }, [allTasks]);
-
-  useFocusEffect(
-    useCallback(() => {
-      refetchPracticeTasks();
-    }, [refetchPracticeTasks]),
-  );
-
-  // Refetch practice tasks when streaming ends
-  const wasStreamingRef = useRef(isStreaming);
-  useEffect(() => {
-    if (wasStreamingRef.current && !isStreaming) {
-      const timer = setTimeout(() => refetchPracticeTasks(), 500);
-      return () => clearTimeout(timer);
-    }
-    wasStreamingRef.current = isStreaming;
-  }, [isStreaming, refetchPracticeTasks]);
-
   // Handlers
   const handleBack = useCallback(() => {
     if (isFresh) {
@@ -86,27 +56,9 @@ export default function SessionDetailScreen() {
     }
   }, [isFresh]);
 
-  const handlePracticeCorrection = useCallback((correctionId: number) => {
-    router.push({
-      pathname: '/practice-session',
-      params: {
-        correctionId: String(correctionId),
-        sessionId: String(resolvedSessionId),
-        mode: 'say_it_right',
-      },
-    });
-  }, [resolvedSessionId]);
-
   const handleSeeAllCorrections = useCallback(() => {
     router.push('/corrections-list');
   }, []);
-
-  const handlePracticeAll = useCallback(() => {
-    router.push({
-      pathname: '/practice-session',
-      params: { sessionId: String(resolvedSessionId), mode: 'say_it_right' },
-    });
-  }, [resolvedSessionId]);
 
   // -- Loading / error states --
   if (!isFresh && isLoading) {
@@ -199,13 +151,25 @@ export default function SessionDetailScreen() {
           <CorrectionsPreview
             corrections={session.corrections}
             sentences={session.sentences}
-            practicedIds={practicedIds}
+            practicedIds={new Set<number>()}
             totalCount={session.corrections.length}
-            onPractice={handlePracticeCorrection}
+            onPractice={() => {}}
             onSeeAll={handleSeeAllCorrections}
             isStreaming={isStreaming}
             isFresh={isFresh}
           />
+        )}
+
+        {/* Practice link */}
+        {hasCorrections && analysisComplete && (
+          <Pressable
+            style={styles.practiceLink}
+            onPress={() => router.push('/(tabs)/practice')}
+          >
+            <Text style={styles.practiceLinkText}>
+              Practice these in the Practice tab
+            </Text>
+          </Pressable>
         )}
 
         {/* Clean session empty state — only show after analysis is complete */}
@@ -219,24 +183,8 @@ export default function SessionDetailScreen() {
         )}
 
         {/* Bottom padding */}
-        <View style={{ height: insets.bottom + (unpracticedCount > 0 && analysisComplete ? 120 : 60) }} />
+        <View style={{ height: insets.bottom + 60 }} />
       </Animated.ScrollView>
-
-      {/* Floating Practice All button */}
-      {unpracticedCount > 0 && analysisComplete && (
-        <Animated.View
-          style={[styles.floatingButton, { bottom: insets.bottom + 16 }]}
-          entering={FadeInDown.duration(300).delay(200)}
-        >
-          <GlassIconPillButton
-            label={`Practice All (${unpracticedCount})`}
-            icon="fitness-outline"
-            variant="primary"
-            fullWidth
-            onPress={handlePracticeAll}
-          />
-        </Animated.View>
-      )}
     </View>
   );
 }
@@ -278,9 +226,14 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     color: alpha(colors.white, 0.35),
   },
-  floatingButton: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
+  practiceLink: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  practiceLinkText: {
+    fontSize: 13,
+    fontFamily: fonts.medium,
+    color: alpha(colors.primary, 0.6),
   },
 });
