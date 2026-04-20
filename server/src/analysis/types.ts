@@ -45,8 +45,6 @@ export interface SessionInsight {
 }
 
 export interface PhasedInsightsPayload {
-  /** @deprecated alias for legacy readers — mirrors deliveryScore (or languageScore if delivery null). Remove in Phase 3. */
-  score: number | null;
   deliveryScore: number | null;
   languageScore: number | null;
   insights: SessionInsight[];

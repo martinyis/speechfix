@@ -70,7 +70,6 @@ export async function runAnalysisPhased(
   if (input.sentences.length === 0) {
     // Empty sessions: no scores, no insights.
     const emptyPayload: PhasedInsightsPayload = {
-      score: null,
       deliveryScore: null,
       languageScore: null,
       insights: [],

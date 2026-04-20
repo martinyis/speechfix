@@ -215,7 +215,6 @@ Keep text descriptions concise (under 15 words each). Be encouraging but honest.
   }
 
   return {
-    score: deliveryScore, // legacy alias; language score is added later in handler
     deliveryScore,
     languageScore: null,
     insights,
