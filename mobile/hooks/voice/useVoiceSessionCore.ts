@@ -12,7 +12,7 @@ export type CoreMessage = {
 export type MicStartBehavior = 'immediate' | 'on-ready';
 
 export interface UseVoiceSessionCoreConfig {
-  wsUrl: string;
+  wsUrl: string | (() => string);
   startPayload?: Record<string, unknown>;
   onMessage: (msg: CoreMessage) => void;
   onError: (message: string) => void;
@@ -234,7 +234,8 @@ export function useVoiceSessionCore(config: UseVoiceSessionCoreConfig): UseVoice
       await new Promise((resolve) => setTimeout(resolve, avSessionInitDelayMs));
     }
 
-    const ws = new WebSocket(wsUrl);
+    const resolvedUrl = typeof wsUrl === 'function' ? wsUrl() : wsUrl;
+    const ws = new WebSocket(resolvedUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
