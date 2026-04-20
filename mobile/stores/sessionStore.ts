@@ -39,7 +39,6 @@ interface SessionStore {
   // Streaming actions
   startStreamingAnalysis: () => void;
   setInsightsReady: (dbSessionId: number, data: {
-    score?: number | null;
     deliveryScore?: number | null;
     languageScore?: number | null;
     insights?: any[];
@@ -55,7 +54,6 @@ interface SessionStore {
     fillerPositions?: any[];
     sessionInsights?: any[];
     clarityScore?: number;
-    score?: number | null;
     deliveryScore?: number | null;
     languageScore?: number | null;
     speechTimeline?: SpeechTimeline | null;
