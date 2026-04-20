@@ -9,7 +9,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 
-import { SessionRowVariantC as SessionRow } from '../components/session-variants/VariantC';
+import { SessionRow } from '../components/session-variants/VariantC';
 import { ScreenHeader, EmptyState } from '../components/ui';
 import { useSessions } from '../hooks/useSessions';
 import { colors, alpha, fonts } from '../theme';

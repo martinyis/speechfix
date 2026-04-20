@@ -66,7 +66,7 @@ function CorrectionDots({
 // Main Component
 // ---------------------------------------------------------------------------
 
-export function SessionRowVariantC({ item }: { item: SessionListItem }) {
+export function SessionRow({ item }: { item: SessionListItem }) {
   const score = item.clarityScore ?? null;
   const agentName = item.agentName ?? 'Reflexa';
   const avatarSeed = item.agentAvatarSeed ?? null;

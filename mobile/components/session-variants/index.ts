@@ -1,1 +1,1 @@
-export { SessionRowVariantC } from './VariantC';
+export { SessionRow } from './VariantC';
