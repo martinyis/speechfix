@@ -1,290 +1,108 @@
-import { useRef, useCallback, useEffect } from 'react';
-import { AppState } from 'react-native';
-import {
-  ExpoPlayAudioStream,
-  PlaybackModes,
-} from '@mykin-ai/expo-audio-stream';
-import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import { useCallback, useRef } from 'react';
+import { useVoiceSessionCore, type CoreMessage } from './voice/useVoiceSessionCore';
 import { useSessionStore } from '../stores/sessionStore';
 import { wsUrl, authFetch } from '../lib/api';
 
-const PCM_BYTES_PER_SEC = 32000;
-
 interface UseOnboardingVoiceSessionCallbacks {
-  onComplete: (displayName: string | null, speechObservation: string | null, farewellMessage: string | null) => void;
+  onComplete: (
+    displayName: string | null,
+    speechObservation: string | null,
+    farewellMessage: string | null,
+  ) => void;
   onError: (message: string) => void;
 }
 
 export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboardingVoiceSessionCallbacks) {
-  const wsRef = useRef<WebSocket | null>(null);
-  const subscriptionRef = useRef<{ remove(): void } | null>(null);
-  const isStoppingRef = useRef(false);
-  const doneRef = useRef(false);
-  const isRecordingRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const appStateSubRef = useRef<{ remove(): void } | null>(null);
-
-  const turnIdRef = useRef(0);
-  const firstAudioTimeRef = useRef(0);
-  const turnAudioBytesRef = useRef(0);
-  const playbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingCompleteRef = useRef<{ displayName: string | null; speechObservation: string | null; farewellMessage: string | null } | null>(null);
-  const cleanedUpRef = useRef(false);
-
-  const speakingEndRef = useRef(0);
-
   const store = useSessionStore;
+  const coreRef = useRef<ReturnType<typeof useVoiceSessionCore> | null>(null);
+  const pendingCompleteRef = useRef<{
+    displayName: string | null;
+    speechObservation: string | null;
+    farewellMessage: string | null;
+  } | null>(null);
+  const completedRef = useRef(false);
 
-  const cleanup = useCallback(async () => {
-    console.log('[onboarding-ws] cleanup called (alreadyCleaned:', cleanedUpRef.current, ')');
-    if (cleanedUpRef.current) return;
-    cleanedUpRef.current = true;
+  const silentSkip = useCallback(() => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    authFetch('/onboarding/skip', { method: 'POST' }).catch(() => {});
+    coreRef.current?.cleanup();
+    store.getState().endVoiceSession();
+    onComplete(null, null, null);
+  }, [onComplete]);
 
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-    if (playbackTimerRef.current) { clearTimeout(playbackTimerRef.current); playbackTimerRef.current = null; }
-    subscriptionRef.current?.remove(); subscriptionRef.current = null;
-    appStateSubRef.current?.remove(); appStateSubRef.current = null;
+  const handleMessage = useCallback(
+    (msg: CoreMessage) => {
+      const core = coreRef.current;
 
-    if (isRecordingRef.current) {
-      try { await ExpoPlayAudioStream.stopRecording(); } catch {}
-      isRecordingRef.current = false;
-    }
-    try { await ExpoPlayAudioStream.stopSound(); } catch {}
+      switch (msg.type) {
+        case 'onboarding_complete': {
+          core?.markDone();
+          const displayName = (msg.displayName as string | null | undefined) ?? null;
+          const speechObservation = (msg.speechObservation as string | null | undefined) ?? null;
+          const farewellMessage = (msg.farewellMessage as string | null | undefined) ?? null;
+          console.log('[onboarding] Server sent onboarding_complete', {
+            hasPendingAudio: core?.isPlaybackPending(),
+          });
 
-    if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
-    deactivateKeepAwake();
-    isStoppingRef.current = false;
-  }, []);
+          if (core?.isPlaybackPending()) {
+            pendingCompleteRef.current = { displayName, speechObservation, farewellMessage };
+          } else if (!completedRef.current) {
+            completedRef.current = true;
+            store.getState().endVoiceSession();
+            core?.cleanup();
+            onComplete(displayName, speechObservation, farewellMessage);
+          }
+          break;
+        }
 
-  const startMicAndTimer = useCallback(async () => {
-    timerRef.current = setInterval(() => {
-      store.getState().incrementElapsedTime();
-    }, 1000);
-
-    try {
-      const { subscription } = await ExpoPlayAudioStream.startRecording({
-        sampleRate: 48000,
-        channels: 1,
-        encoding: 'pcm_16bit',
-        interval: 100,
-        onAudioStream: async (event: any) => {
-          const ws = wsRef.current;
-          if (!ws || ws.readyState !== WebSocket.OPEN || !event.data) return;
-          const s = store.getState();
-          if (s.voiceSessionState === 'speaking') return;
-          if (speakingEndRef.current > 0 && Date.now() - speakingEndRef.current < 500) return;
-          ws.send(JSON.stringify({ type: 'audio', data: event.data }));
-        },
-      });
-      isRecordingRef.current = true;
-      if (subscription) subscriptionRef.current = subscription;
-    } catch (e) {
-      console.error('[onboarding] startRecording failed:', e);
-      onError('Failed to start microphone');
-      cleanup();
-      store.getState().endVoiceSession();
-    }
-  }, [cleanup, onError]);
-
-  const handleMessage = useCallback((msg: any) => {
-    const { type, data, ...rest } = msg;
-    console.log('[onboarding-ws] msg:', { type, ...rest, hasData: !!data });
-    const s = store.getState();
-
-    switch (msg.type) {
-      case 'ready':
-        console.log('[onboarding] Server ready, starting mic');
-        startMicAndTimer();
-        s.setVoiceSessionState('listening');
-        break;
-
-      case 'audio': {
-        if (doneRef.current) break;
-        if (firstAudioTimeRef.current === 0) firstAudioTimeRef.current = Date.now();
-        const rawBytes = Math.ceil((msg.data?.length ?? 0) * 3 / 4);
-        turnAudioBytesRef.current += rawBytes;
-        const streamId = String(msg.turnId ?? turnIdRef.current);
-        try { ExpoPlayAudioStream.playSound(msg.data, streamId, 'pcm_s16le'); } catch {}
-        break;
-      }
-
-      case 'audio_end': {
-        if (doneRef.current) break;
-        const totalBytes = msg.totalAudioBytes ?? 0;
-        const totalDurationMs = (totalBytes / PCM_BYTES_PER_SEC) * 1000;
-        const elapsedSinceFirst = firstAudioTimeRef.current > 0 ? Date.now() - firstAudioTimeRef.current : 0;
-        const remainingMs = Math.max(0, totalDurationMs - elapsedSinceFirst + 500);
-
-        if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
-        playbackTimerRef.current = setTimeout(() => {
-          speakingEndRef.current = Date.now();
-          playbackTimerRef.current = null;
-          if (pendingCompleteRef.current && !cleanedUpRef.current) {
+        case 'playback_complete': {
+          if (pendingCompleteRef.current && !completedRef.current) {
+            completedRef.current = true;
             const { displayName, speechObservation, farewellMessage } = pendingCompleteRef.current;
             pendingCompleteRef.current = null;
             store.getState().endVoiceSession();
-            cleanup();
+            core?.cleanup();
             onComplete(displayName, speechObservation, farewellMessage);
-          } else if (!pendingCompleteRef.current) {
-            store.getState().setVoiceSessionState('listening');
           }
-        }, remainingMs);
-        break;
-      }
-
-      case 'turn_state': {
-        if (msg.state === 'speaking') {
-          s.setVoiceSessionState('speaking');
-          turnIdRef.current = msg.turnId ?? turnIdRef.current + 1;
-          firstAudioTimeRef.current = 0;
-          turnAudioBytesRef.current = 0;
-          if (playbackTimerRef.current) {
-            clearTimeout(playbackTimerRef.current);
-            playbackTimerRef.current = null;
-          }
+          break;
         }
-        if (msg.state === 'listening' && turnAudioBytesRef.current === 0 && !playbackTimerRef.current) {
-          s.setVoiceSessionState('listening');
-        }
-        break;
+
+        case 'ws_error':
+          console.error('[onboarding] WebSocket error');
+          if (!core?.isDone()) silentSkip();
+          break;
+
+        case 'ws_close':
+          console.warn('[onboarding] WebSocket closed', {
+            code: msg.code,
+            reason: msg.reason,
+            wasDone: msg.wasDone,
+          });
+          if (!msg.wasDone) silentSkip();
+          break;
       }
+    },
+    [onComplete, silentSkip],
+  );
 
-      case 'onboarding_complete': {
-        doneRef.current = true;
-        const displayName = msg.displayName ?? null;
-        const speechObservation = msg.speechObservation ?? null;
-        const farewellMessage = msg.farewellMessage ?? null;
-        console.log('[onboarding] Server sent onboarding_complete', { hasPendingAudio: !!playbackTimerRef.current });
-        if (playbackTimerRef.current) {
-          // Audio still playing — defer navigation until playback finishes
-          pendingCompleteRef.current = { displayName, speechObservation, farewellMessage };
-        } else {
-          s.endVoiceSession();
-          cleanup();
-          onComplete(displayName, speechObservation, farewellMessage);
-        }
-        break;
-      }
+  const core = useVoiceSessionCore({
+    wsUrl: () => wsUrl('/voice-session') + '&mode=onboarding',
+    onMessage: handleMessage,
+    onError,
+    pcmBytesPerSec: 32000,
+    playbackPaddingMs: 500,
+    micStartBehavior: 'on-ready',
+    avSessionInitDelayMs: 400,
+    logTag: '[onboarding-ws]',
+  });
 
-      case 'error':
-        onError(msg.message || 'An error occurred');
-        cleanup();
-        s.endVoiceSession();
-        break;
-    }
-  }, [startMicAndTimer, cleanup, onComplete, onError]);
+  coreRef.current = core;
 
-  const start = useCallback(async () => {
-    console.log('[onboarding] Starting voice session');
-    isStoppingRef.current = false;
-    doneRef.current = false;
-    cleanedUpRef.current = false;
-    const s = store.getState();
-    s.startVoiceSession();
-    s.resetElapsedTime();
-
-    try { await activateKeepAwakeAsync(); } catch {}
-
-    // Request mic permissions — this also configures AVAudioSession for recording + playback
-    const { granted } = await ExpoPlayAudioStream.requestPermissionsAsync();
-    if (!granted) {
-      onError('Microphone permission is required');
-      store.getState().endVoiceSession();
-      return;
-    }
-
-    try {
-      await ExpoPlayAudioStream.setSoundConfig({
-        sampleRate: 24000,
-        playbackMode: PlaybackModes.REGULAR,
-      });
-    } catch {}
-
-    // Allow iOS AVAudioSession to fully initialize before audio arrives
-    await new Promise(resolve => setTimeout(resolve, 400));
-
-    const ws = new WebSocket(wsUrl('/voice-session') + '&mode=onboarding');
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log('[onboarding] WebSocket connected, sending start');
-      ws.send(JSON.stringify({ type: 'start' }));
-    };
-    ws.onmessage = (event) => {
-      try { handleMessage(JSON.parse(event.data)); } catch {}
-    };
-    ws.onerror = () => {
-      console.error('[onboarding] WebSocket error');
-      if (!doneRef.current && !cleanedUpRef.current) {
-        // Silently complete onboarding on error — don't block the user
-        authFetch('/onboarding/skip', { method: 'POST' }).catch(() => {});
-        cleanup();
-        store.getState().endVoiceSession();
-        onComplete(null, null, null);
-      }
-    };
-    ws.onclose = (event) => {
-      console.warn('[onboarding] WebSocket closed', { code: event.code, reason: event.reason, wasDone: doneRef.current });
-      if (!doneRef.current && !cleanedUpRef.current) {
-        // Session wasn't finished — silently complete onboarding
-        authFetch('/onboarding/skip', { method: 'POST' }).catch(() => {});
-        cleanup();
-        store.getState().endVoiceSession();
-        onComplete(null, null, null);
-      }
-    };
-
-    appStateSubRef.current = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'background' && !doneRef.current) { stop(); }
-    });
-  }, [handleMessage, cleanup, onError]);
-
-  const stop = useCallback(async () => {
-    if (isStoppingRef.current || cleanedUpRef.current) return;
-    console.log('[onboarding] stop() called');
-    isStoppingRef.current = true;
-    doneRef.current = true;
-
-    store.getState().setVoiceSessionState('analyzing');
-
-    // Stop audio playback immediately so user hears silence
-    try { await ExpoPlayAudioStream.stopSound(); } catch {}
-
-    if (playbackTimerRef.current) {
-      clearTimeout(playbackTimerRef.current);
-      playbackTimerRef.current = null;
-    }
-
-    // Tell server to stop generating audio early
-    const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'done' }));
-    }
-
-    // Stop mic (slow on iOS — no longer blocks UX)
-    if (isRecordingRef.current) {
-      try { await ExpoPlayAudioStream.stopRecording(); } catch {}
-      isRecordingRef.current = false;
-    }
-    subscriptionRef.current?.remove(); subscriptionRef.current = null;
-
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-  }, []);
-
-  const toggleMute = useCallback(async () => {
-    const s = store.getState();
-    const newMuted = !s.isMuted;
-    s.setMuted(newMuted);
-
-    const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: newMuted ? 'mute' : 'unmute' }));
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => { cleanup(); };
-  }, [cleanup]);
-
-  return { start, stop, toggleMute, cleanup };
+  return {
+    start: core.start,
+    stop: core.stop,
+    toggleMute: core.toggleMute,
+    cleanup: core.cleanup,
+  };
 }
