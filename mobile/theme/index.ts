@@ -296,3 +296,11 @@ export function alpha(hex: string, opacity: number): string {
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
+
+/** Map a 0-100 score to its semantic color. */
+export function scoreColor(score: number): string {
+  if (score >= 80) return '#34d399'; // green
+  if (score >= 60) return '#fbbf24'; // amber
+  if (score >= 40) return '#fb923c'; // orange
+  return '#ff6e84'; // red
+}

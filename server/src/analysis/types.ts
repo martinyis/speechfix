@@ -3,6 +3,13 @@ export interface Correction {
   originalText: string;
   correctedText: string;
   explanation: string;
+  /**
+   * 2-4 word sentence-specific tag describing what is wrong. Drives the
+   * "atom" diff row in the mobile UI ("don't know how speak" → "missing 'to'").
+   * Distinct from `explanation`, which is the longer pedagogical "Read more"
+   * body. May be empty for legacy corrections.
+   */
+  shortReason: string;
   correctionType: string;
   severity: 'error' | 'improvement' | 'polish';
   contextSnippet: string;
@@ -17,6 +24,8 @@ export interface FillerWordPosition {
   sentenceIndex: number;
   word: string;
   startIndex: number;
+  /** Absolute time in seconds from session start. Populated when word timings are available. */
+  timeSeconds?: number;
 }
 
 export interface SessionInsight {
@@ -28,13 +37,18 @@ export interface SessionInsight {
     | 'strength'
     | 'focus_area'
     | 'metric'
-    | 'score';
+    | 'score'
+    | 'delivery_score'
+    | 'language_score';
   description: string;
   value?: string | number;
 }
 
 export interface PhasedInsightsPayload {
+  /** @deprecated alias for legacy readers — mirrors deliveryScore (or languageScore if delivery null). Remove in Phase 3. */
   score: number | null;
+  deliveryScore: number | null;
+  languageScore: number | null;
   insights: SessionInsight[];
   fillerWords: FillerWordCount[];
   fillerPositions: FillerWordPosition[];
@@ -44,6 +58,7 @@ export interface PhasedInsightsPayload {
     fillersPerMinute: number;
     totalFillers: number;
   };
+  speechTimeline?: import('../voice/speech-types.js').SpeechTimeline;
 }
 
 export interface AnalysisResult {
@@ -89,6 +104,7 @@ export interface AnalyzerInput {
   sentences: string[];
   mode: 'recording' | 'conversation';
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  speechTimeline?: import('../voice/speech-types.js').SpeechTimeline;
 }
 
 export interface Analyzer {

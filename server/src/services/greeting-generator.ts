@@ -172,11 +172,12 @@ function buildGreetingPrompt(ctx: GreetingContext, mode: string): string {
 
 function buildFillerCoachGreetingPrompt(ctx: GreetingContext): string {
   const lines: string[] = [];
-  lines.push('You are a speech coach in the Reflexa app. You help users reduce filler words.');
+  lines.push('You are a speech coach in the Reflexa app. You help users cut filler words and overused phrases so their speech is clearer and more confident.');
   lines.push('You are direct, encouraging, and never judgmental.');
   lines.push('');
   lines.push('Generate a 1-2 sentence greeting for a filler word coaching session.');
   lines.push('Rules:');
+  lines.push('- Frame the session around filler words and words they overuse — making their speech clearer.');
   lines.push('- Be warm but direct. No bubbly language.');
   lines.push('- Invite them to start talking naturally.');
   lines.push('- Do NOT mention specific target words (those are session-specific and you don\'t know them yet).');

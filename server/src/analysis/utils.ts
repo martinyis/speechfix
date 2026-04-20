@@ -16,6 +16,7 @@ export function normalizeCorrection(raw: any): Correction {
     originalText: raw.originalText ?? '',
     correctedText: raw.correctedText ?? '',
     explanation: raw.explanation ?? '',
+    shortReason: typeof raw.shortReason === 'string' ? raw.shortReason.trim() : '',
     correctionType: raw.correctionType || raw.type || 'other',
     severity: ['error', 'improvement', 'polish'].includes(raw.severity) ? raw.severity : 'error',
     contextSnippet: raw.contextSnippet ?? '',

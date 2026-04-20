@@ -1,8 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import {
   Canvas,
   Circle,
+  Path,
+  Skia,
   RadialGradient,
   vec,
 } from '@shopify/react-native-skia';
@@ -78,6 +80,47 @@ export default function PracticeRecordOrb({
   audioLevel,
   onPress,
 }: PracticeRecordOrbProps) {
+  // -- Evaluating arc sweep --
+  const arcPath = useMemo(() => {
+    const path = Skia.Path.Make();
+    path.addArc(
+      { x: CX - OUTER_RING_RADIUS, y: CY - OUTER_RING_RADIUS, width: OUTER_RING_RADIUS * 2, height: OUTER_RING_RADIUS * 2 },
+      -90, // start from top
+      90,  // 90° sweep
+    );
+    return path;
+  }, []);
+
+  const arcRotation = useSharedValue(0);
+  const arcOpacity = useSharedValue(0);
+  const iconDim = useSharedValue(1);
+
+  useEffect(() => {
+    if (state === 'evaluating') {
+      arcRotation.value = 0;
+      arcRotation.value = withRepeat(
+        withTiming(360, { duration: 1500, easing: Easing.linear }),
+        -1,
+        false,
+      );
+      arcOpacity.value = withTiming(1, { duration: 300 });
+      iconDim.value = withTiming(0.3, { duration: 250 });
+    } else {
+      cancelAnimation(arcRotation);
+      arcOpacity.value = withTiming(0, { duration: 200 });
+      iconDim.value = withTiming(1, { duration: 200 });
+    }
+  }, [state, arcRotation, arcOpacity, iconDim]);
+
+  const arcStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${arcRotation.value}deg` }],
+    opacity: arcOpacity.value,
+  }));
+
+  const iconDimStyle = useAnimatedStyle(() => ({
+    opacity: iconDim.value,
+  }));
+
   // -- Press animation --
   const pressScale = useSharedValue(1);
   const pressStyle = useAnimatedStyle(() => ({
@@ -236,14 +279,22 @@ export default function PracticeRecordOrb({
     }),
   );
 
+  // Lock input while evaluating or during the success check-mark animation
+  // (prevents the user from accidentally restarting a recording before the
+  // parent screen has had a chance to advance).
+  const disabled = state === 'success' || state === 'evaluating';
+
   return (
     <AnimatedPressable
       style={[styles.pressable, pressStyle]}
       onPress={onPress}
+      disabled={disabled}
       onPressIn={() => {
+        if (disabled) return;
         pressScale.value = withSpring(0.9, { damping: 15, stiffness: 300 });
       }}
       onPressOut={() => {
+        if (disabled) return;
         pressScale.value = withSpring(1.0, { damping: 15, stiffness: 300 });
       }}
     >
@@ -324,6 +375,28 @@ export default function PracticeRecordOrb({
             </Canvas>
           </Animated.View>
 
+          {/* Arc sweep — evaluating state */}
+          <Animated.View style={[styles.arcSweepWrap, arcStyle]} pointerEvents="none">
+            <Canvas style={styles.arcCanvas}>
+              {/* Glow */}
+              <Path
+                path={arcPath}
+                style="stroke"
+                strokeWidth={6}
+                strokeCap="round"
+                color="rgba(180, 140, 255, 0.25)"
+              />
+              {/* Main arc */}
+              <Path
+                path={arcPath}
+                style="stroke"
+                strokeWidth={2}
+                strokeCap="round"
+                color="rgba(180, 140, 255, 0.85)"
+              />
+            </Canvas>
+          </Animated.View>
+
           {/* Icon overlay — centered on orb */}
           <View style={styles.iconOverlay}>
             {state === 'recording' ? (
@@ -331,7 +404,9 @@ export default function PracticeRecordOrb({
             ) : state === 'success' ? (
               <Ionicons name="checkmark" size={28} color="#fff" style={styles.micIcon} />
             ) : (
-              <Ionicons name="mic" size={24} color="#fff" style={styles.micIcon} />
+              <Animated.View style={iconDimStyle}>
+                <Ionicons name="mic" size={24} color="#fff" style={styles.micIcon} />
+              </Animated.View>
             )}
           </View>
         </View>
@@ -380,6 +455,15 @@ const styles = StyleSheet.create({
     borderColor: RING_COLOR,
   },
   canvasWrap: {
+    width: CANVAS_SIZE,
+    height: CANVAS_SIZE,
+  },
+  arcSweepWrap: {
+    position: 'absolute',
+    width: CANVAS_SIZE,
+    height: CANVAS_SIZE,
+  },
+  arcCanvas: {
     width: CANVAS_SIZE,
     height: CANVAS_SIZE,
   },

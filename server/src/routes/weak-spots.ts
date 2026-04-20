@@ -50,29 +50,61 @@ export async function weakSpotRoutes(fastify: FastifyInstance) {
 
     const activeSpots = await Promise.all(
       activeRows.map(async (spot) => {
-        const [spotCorrections, exercises] = await Promise.all([
+        const [spotCorrections, exerciseRows, passedAttempts] = await Promise.all([
           db
             .select({
               id: corrections.id,
               originalText: corrections.originalText,
               correctedText: corrections.correctedText,
               explanation: corrections.explanation,
+              shortReason: corrections.shortReason,
               correctionType: corrections.correctionType,
               severity: corrections.severity,
-              fullContext: corrections.fullContext,
+              fullContext: sql<string>`COALESCE(${corrections.contextSnippet}, ${corrections.fullContext})`.as('full_context'),
               sentenceIndex: corrections.sentenceIndex,
               sessionId: corrections.sessionId,
               createdAt: corrections.createdAt,
+              practiced: sql<boolean>`EXISTS (
+                SELECT 1 FROM weak_spot_drill_attempts wda
+                WHERE wda.correction_id = ${corrections.id}
+                  AND wda.weak_spot_id = ${spot.id}
+                  AND wda.passed = true
+              )`.as('practiced'),
             })
             .from(weakSpotCorrections)
             .innerJoin(corrections, eq(weakSpotCorrections.correctionId, corrections.id))
             .where(eq(weakSpotCorrections.weakSpotId, spot.id)),
           db
-            .select()
+            .select({
+              id: weakSpotExercises.id,
+              originalText: weakSpotExercises.originalText,
+              correctedText: weakSpotExercises.correctedText,
+              explanation: weakSpotExercises.explanation,
+              orderIndex: weakSpotExercises.orderIndex,
+            })
             .from(weakSpotExercises)
             .where(eq(weakSpotExercises.weakSpotId, spot.id))
             .orderBy(weakSpotExercises.orderIndex),
+          // Fetch IDs of exercises with at least one passed attempt
+          db
+            .select({ exerciseId: weakSpotDrillAttempts.exerciseId })
+            .from(weakSpotDrillAttempts)
+            .where(
+              and(
+                eq(weakSpotDrillAttempts.weakSpotId, spot.id),
+                eq(weakSpotDrillAttempts.passed, true),
+                sql`${weakSpotDrillAttempts.exerciseId} IS NOT NULL`,
+              ),
+            ),
         ]);
+
+        const passedExerciseIds = new Set(passedAttempts.map((a) => a.exerciseId));
+        const exercises = exerciseRows.map((e) => ({
+          ...e,
+          correctionType: spot.correctionType,
+          severity: spot.severity,
+          practiced: passedExerciseIds.has(e.id),
+        }));
 
         const now = new Date();
         const isDue = spot.nextReviewAt === null || spot.nextReviewAt <= now;
@@ -112,28 +144,33 @@ export async function weakSpotRoutes(fastify: FastifyInstance) {
       }),
     );
 
-    // 3. Quick fixes: corrections NOT in any weak spot, not dismissed
+    // 3. Quick fixes: corrections NOT in any weak spot, not dismissed,
+    //    and not already passed. Quick fixes are one-shot — once the user
+    //    says it right, it drops off the list for good.
     const quickFixRows = await db.execute(sql`
       SELECT
         c.id,
         c.original_text,
         c.corrected_text,
         c.explanation,
+        c.short_reason,
         c.correction_type,
         c.severity,
+        c.context_snippet,
         c.full_context,
         c.sentence_index,
         c.session_id,
-        c.created_at,
-        BOOL_OR(pa.passed) AS practiced
+        c.created_at
       FROM corrections c
       JOIN sessions s ON s.id = c.session_id
       LEFT JOIN weak_spot_corrections wsc ON c.id = wsc.correction_id
-      LEFT JOIN practice_attempts pa ON pa.correction_id = c.id AND pa.passed = true
       WHERE s.user_id = ${userId}
         AND wsc.id IS NULL
         AND (c.dismissed IS NOT TRUE)
-      GROUP BY c.id
+        AND NOT EXISTS (
+          SELECT 1 FROM practice_attempts pa
+          WHERE pa.correction_id = c.id AND pa.passed = true
+        )
       ORDER BY c.created_at DESC
     `);
 
@@ -142,13 +179,14 @@ export async function weakSpotRoutes(fastify: FastifyInstance) {
       originalText: row.original_text,
       correctedText: row.corrected_text,
       explanation: row.explanation,
+      shortReason: row.short_reason,
       correctionType: row.correction_type,
       severity: row.severity,
-      fullContext: row.full_context,
+      fullContext: row.context_snippet || row.full_context,
       sentenceIndex: row.sentence_index,
       sessionId: row.session_id,
       createdAt: row.created_at,
-      practiced: row.practiced ?? false,
+      practiced: false,
     }));
 
     return { activeSpots, backlog, quickFixes };
@@ -228,8 +266,9 @@ export async function weakSpotRoutes(fastify: FastifyInstance) {
         // Look up the exercise
         const [exercise] = await db
           .select({
-            prompt: weakSpotExercises.prompt,
-            targetRule: weakSpotExercises.targetRule,
+            originalText: weakSpotExercises.originalText,
+            correctedText: weakSpotExercises.correctedText,
+            explanation: weakSpotExercises.explanation,
           })
           .from(weakSpotExercises)
           .where(and(eq(weakSpotExercises.id, itemId), eq(weakSpotExercises.userId, userId)));
@@ -245,8 +284,9 @@ export async function weakSpotRoutes(fastify: FastifyInstance) {
           .where(eq(weakSpots.id, weakSpotId));
 
         const ctx: WeakSpotExerciseContext = {
-          prompt: exercise.prompt,
-          targetRule: exercise.targetRule,
+          originalText: exercise.originalText,
+          correctedText: exercise.correctedText,
+          explanation: exercise.explanation,
           correctionType: spot?.correctionType ?? 'grammar',
         };
         result = await evaluateWeakSpotExercise(ctx, transcription.text);

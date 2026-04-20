@@ -1,5 +1,6 @@
 import type { ChatTool } from '../tools.js';
 import type { ConversationMessage, UserContext } from '../response-generator.js';
+import type { SpeechTimeline } from '../speech-types.js';
 
 export interface AgentConfig {
   id: number;
@@ -20,7 +21,10 @@ export interface SessionEndResult {
   type: 'analysis' | 'onboarding' | 'agent-created' | 'filler-practice';
   dbSessionId?: number;
   clarityScore?: number;
+  /** @deprecated alias kept for legacy readers — equals languageScore ?? deliveryScore. */
   score?: number | null;
+  deliveryScore?: number | null;
+  languageScore?: number | null;
   correctionIds?: number[];
   analysisResults?: {
     sentences: string[];
@@ -44,6 +48,7 @@ export interface AgentTypeHandler {
   readonly includeElapsedTime?: boolean;
   readonly silenceTimeoutMs?: number;
   readonly maxSessionDurationMs?: number;
+  readonly maxCompletionTokens?: { withTools: number; withoutTools: number };
   buildSystemPrompt(agentConfig: AgentConfig | null, userContext?: FullUserContext, formContext?: Record<string, unknown> | null): string;
   getTools?(): ChatTool[];
   shouldAutoEnd(turnCount: number, conversationHistory: ConversationMessage[]): boolean;
@@ -54,6 +59,7 @@ export interface AgentTypeHandler {
     conversationHistory: ConversationMessage[],
     durationSeconds: number,
     formContext?: Record<string, unknown> | null,
+    speechTimeline?: SpeechTimeline,
   ): Promise<SessionEndResult>;
 
   onSessionEndStreaming?(
@@ -65,5 +71,6 @@ export interface AgentTypeHandler {
     onCorrection: (correction: any) => void,
     formContext?: Record<string, unknown> | null,
     onInsightsReady?: (payload: any, dbSessionId: number) => void,
+    speechTimeline?: SpeechTimeline,
   ): Promise<SessionEndResult>;
 }

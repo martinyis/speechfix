@@ -89,7 +89,7 @@ CONVERSATION CONTEXT
 
 When the input includes conversation context (messages from an AI conversation partner), use that context to:
 1. Understand WHAT the user was trying to say (helps distinguish real errors from transcription artifacts)
-2. Generate better contextSnippet values that capture the conversational moment
+2. Generate smarter contextSnippet values — when the subject, referent, or topic of the flagged sentence is established in a previous sentence (the user's own or an AI turn), pull that preceding sentence in so a reader can tell what was being discussed
 3. Recognize when unusual phrasing is the user echoing or responding to the AI's words (not an error)
 
 ONLY analyze the USER's sentences. Never flag anything from the AI's messages.
@@ -106,10 +106,11 @@ Return ONLY valid JSON. No markdown. No commentary. No text outside the JSON.
       "sentenceIndex": 0,
       "originalText": "exact substring OR full sentence",
       "correctedText": "the fixed version",
+      "shortReason": "2-4 words, what's wrong with this exact span (e.g., \"missing 'to'\", \"wrong tense\", \"plural mismatch\")",
       "explanation": "max 25 words, blunt and practical",
       "correctionType": "article|verb_tense|preposition|word_order|subject_verb_agreement|plural_singular|word_choice|sentence_structure|missing_word|naturalness|hedging|collocation|redundancy|register|fluency|other",
       "severity": "error|improvement|polish",
-      "contextSnippet": "8-12 words from the sentence surrounding the error"
+      "contextSnippet": "a verbatim substring of the input (may span 1–3 adjacent sentences from the numbered list) that gives a reader just enough to understand what the speaker was talking about and why the flagged text reads wrong — as short as possible, as long as needed; must contain originalText verbatim"
     }
   ],
   "sessionInsights": [
@@ -119,6 +120,33 @@ Return ONLY valid JSON. No markdown. No commentary. No text outside the JSON.
     }
   ]
 }
+
+══════════════════════════════════════
+SHORT REASON
+══════════════════════════════════════
+
+shortReason is a 2-4 word diagnostic tag describing WHAT IS WRONG with the exact originalText span. It is not a correction, not an instruction, not a category label — just the precise issue, scoped to this specific error.
+
+Lowercase. No trailing punctuation. Quote single English words inline if needed.
+
+GOOD examples:
+• "depend of" → shortReason: "wrong preposition"
+• "nobody wants hire" → shortReason: "missing 'to'"
+• "I go yesterday" → shortReason: "wrong tense"
+• "many thing" → shortReason: "plural missing"
+• "there is many things" → shortReason: "subject-verb mismatch"
+• "do a decision" → shortReason: "wrong collocation"
+• "I would like to inquire" → shortReason: "too formal"
+• "return back" → shortReason: "redundant 'back'"
+• "I always am late" → shortReason: "wrong word order"
+• "if I would know" → shortReason: "wrong conditional"
+• "I have a question to you" → shortReason: "wrong preposition"
+
+BAD examples (do NOT do these):
+• "It should be 'depend on' because…" (this is the explanation, not the tag)
+• "grammar issue" (too generic — keys off correctionType, not the sentence)
+• "preposition" (not specific enough; say WHICH way it's wrong)
+• "Use 'to' here." (this is an instruction, not a diagnosis)
 
 ══════════════════════════════════════
 EXPLANATION STYLE
@@ -135,7 +163,7 @@ STRICT RULES
 
 1. originalText must be an EXACT character-for-character substring of the original sentence. If you cannot match it exactly, skip that correction.
 2. sentenceIndex is 0-based.
-3. contextSnippet: ~8-12 words from the original sentence centered around the originalText. If the sentence is shorter than 12 words, use the whole sentence.
+3. contextSnippet: a verbatim substring of the input transcript (may span multiple adjacent sentences from the numbered list) that gives a reader just enough to understand what the speaker was talking about and why the flagged text reads wrong. As short as possible, as long as needed. Must contain originalText verbatim. When the subject, referent, or topic is established in the previous sentence, include that sentence. When the sentence alone is self-contained, use just that sentence. Avoid padding with unrelated lists, tangents, or filler. Whole sentences preferred over partial clauses. Typically 1–3 sentences. Never more than ~40 words unless absolutely necessary.
 4. When the transcript looks garbled or doesn't make sense, it's likely a transcription error — skip it rather than flagging.
 5. If a sentence is genuinely clean and natural, return no corrections for it. But err on the side of flagging rather than skipping.
 6. Be exhaustive. It is better to flag a borderline issue than to miss a real one. The user wants to know EVERY way their speech deviates from natural American English.

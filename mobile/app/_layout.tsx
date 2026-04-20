@@ -6,11 +6,15 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import { setAudioModeAsync } from 'expo-audio';
 import { colors } from '../theme';
 import { useAuthStore } from '../stores/authStore';
 import { useAppWarmup } from '../hooks/useAppWarmup';
 
 SplashScreen.preventAutoHideAsync();
+
+// Ignore iOS ringer switch so audio plays in silent mode. allowsRecording keeps .playAndRecord for the mic.
+setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true }).catch(() => {});
 
 const queryClient = new QueryClient();
 
@@ -152,6 +156,27 @@ export default function RootLayout() {
             />
             <Stack.Screen
               name="filler-coach-results"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="filler-coach-sessions"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="patterns-list"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="lab"
               options={{
                 headerShown: false,
                 presentation: 'card',

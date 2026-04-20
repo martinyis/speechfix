@@ -5,6 +5,7 @@ export interface PracticeTask {
   originalText: string;
   correctedText: string;
   explanation: string | null;
+  shortReason: string | null;
   correctionType: string;
   severity: 'error' | 'improvement' | 'polish';
   contextSnippet: string | null;
@@ -91,16 +92,22 @@ export interface WeakSpotCorrection {
   originalText: string;
   correctedText: string;
   explanation: string;
+  shortReason: string | null;
   correctionType: string;
   severity: 'error' | 'improvement' | 'polish';
   fullContext: string | null;
+  practiced: boolean;
 }
 
 export interface WeakSpotExercise {
   id: number;
-  prompt: string;
-  targetRule: string;
+  originalText: string;
+  correctedText: string;
+  explanation: string | null;
+  correctionType: string;
+  severity: 'error' | 'improvement' | 'polish';
   orderIndex: number;
+  practiced: boolean;
 }
 
 export interface QuickFix {
@@ -108,6 +115,7 @@ export interface QuickFix {
   originalText: string;
   correctedText: string;
   explanation: string;
+  shortReason: string | null;
   correctionType: string;
   severity: 'error' | 'improvement' | 'polish';
   fullContext: string | null;

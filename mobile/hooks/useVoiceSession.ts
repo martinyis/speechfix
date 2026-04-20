@@ -5,9 +5,11 @@ import {
   PlaybackModes,
 } from '@mykin-ai/expo-audio-stream';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import * as FileSystem from 'expo-file-system';
+import * as SecureStore from 'expo-secure-store';
 import { useSessionStore } from '../stores/sessionStore';
 import { useAgentStore } from '../stores/agentStore';
-import { wsUrl } from '../lib/api';
+import { wsUrl, authFetch, API_BASE_URL } from '../lib/api';
 import type { Agent, Correction, FillerWord, FillerWordPosition, SessionDetail, SessionInsight } from '../types/session';
 
 // -- WebSocket message types --
@@ -101,6 +103,11 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
   // Track audio chunks sent for periodic logging
   const audioChunkCountRef = useRef(0);
 
+  // Hi-fi mic gating: suppress mic WS forwarding while AI is speaking and for
+  // 500ms after TTS ends (echo grace), since we disabled hardware AEC by
+  // switching to AVAudioSession mode .default.
+  const speakingEndRef = useRef(0);
+
   const startTimer = useCallback(() => {
     tlog('⏱ startTimer');
     timerRef.current = setInterval(() => {
@@ -133,7 +140,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
           const latency = turnSpeakingStartRef.current > 0
             ? Date.now() - turnSpeakingStartRef.current
             : '?';
-          tlog(`🔊 FIRST audio chunk for turn ${msg.turnId ?? turnIdRef.current} — ${latency}ms after turn_state:speaking`);
+          tlog(`🔊 FIRST audio chunk for turn ${msg.turnId ?? turnIdRef.current} — ${latency}ms after turn_state:speaking, base64.len=${msg.data?.length ?? 0}`);
         }
         turnAudioChunksRef.current++;
         const rawBytes = Math.ceil((msg.data?.length ?? 0) * 3 / 4);
@@ -141,8 +148,16 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
         const streamId = String(msg.turnId ?? turnIdRef.current);
         try {
           ExpoPlayAudioStream.playSound(msg.data, streamId, 'pcm_s16le');
-        } catch (e) {
-          tlog('🔊 playSound ERROR:', e);
+        } catch (e: any) {
+          tlog('🔊 playSound THREW:', {
+            name: e?.name,
+            message: e?.message,
+            code: e?.code,
+            stack: e?.stack,
+            streamId,
+            chunkIndex: turnAudioChunksRef.current,
+            base64Len: msg.data?.length ?? 0,
+          });
           console.error('[voice-session] playSound error:', e);
         }
         // Log every 20 audio chunks to track flow
@@ -170,6 +185,7 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
         if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
         playbackTimerRef.current = setTimeout(() => {
           tlog(`⏱ playback timer fired — transitioning to listening (was waiting ${remainingMs.toFixed(0)}ms)`);
+          speakingEndRef.current = Date.now(); // start echo grace window
           const current = store.getState();
           current.setVoiceSessionState(current.isMuted ? 'muted' : 'listening');
           playbackTimerRef.current = null;
@@ -233,6 +249,10 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
         if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
         const dbId = msg.dbSessionId ?? 0;
         s.finalizeStreamingSession(dbId, msg.data, msg.data?.correctionIds);
+        // Fire-and-forget hi-fi upload before cleanup tears down the audio session
+        if (dbId > 0) {
+          uploadHiFiAudio(dbId).catch((e) => console.warn('[voice-session] hifi upload error:', e));
+        }
         // Retrieve the finalized data from the store
         const finalized = store.getState().currentSessionData;
         if (finalized) {
@@ -303,13 +323,15 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
       return;
     }
 
-    // Configure sound for conversation mode
+    // Configure sound for REGULAR mode (not CONVERSATION) — avoids software
+    // voice processing on the output path for hi-fi playback quality.
+    // Trade-off: barge-in is disabled (mic gated while AI speaks).
     try {
       await ExpoPlayAudioStream.setSoundConfig({
         sampleRate: 24000,
-        playbackMode: PlaybackModes.CONVERSATION,
+        playbackMode: PlaybackModes.REGULAR,
       });
-      tlog('setSoundConfig done');
+      tlog('setSoundConfig done (REGULAR mode)');
     } catch (e) { console.error('[voice-session] setSoundConfig failed:', e); }
 
     // Start recording BEFORE connecting WebSocket.
@@ -319,18 +341,21 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
     audioChunkCountRef.current = 0;
     try {
       const { subscription } = await ExpoPlayAudioStream.startRecording({
-        sampleRate: 16000,
+        sampleRate: 48000,
         channels: 1,
         encoding: 'pcm_16bit',
         interval: 100,
         onAudioStream: async (event: any) => {
           const ws = wsRef.current;
-          if (ws?.readyState === WebSocket.OPEN && event.data) {
-            ws.send(JSON.stringify({ type: 'audio', data: event.data }));
-            audioChunkCountRef.current++;
-            if (audioChunkCountRef.current % 50 === 0) {
-              tlog(`🎙 sent ${audioChunkCountRef.current} mic chunks (${(audioChunkCountRef.current * 0.1).toFixed(1)}s of audio)`);
-            }
+          if (!ws || ws.readyState !== WebSocket.OPEN || !event.data) return;
+          // Mic gating: suppress during AI speech + 500ms echo grace
+          const s = store.getState();
+          if (s.voiceSessionState === 'speaking') return;
+          if (speakingEndRef.current > 0 && Date.now() - speakingEndRef.current < 500) return;
+          ws.send(JSON.stringify({ type: 'audio', data: event.data }));
+          audioChunkCountRef.current++;
+          if (audioChunkCountRef.current % 50 === 0) {
+            tlog(`🎙 sent ${audioChunkCountRef.current} mic chunks (${(audioChunkCountRef.current * 0.1).toFixed(1)}s of audio)`);
           }
         },
       });
@@ -368,14 +393,20 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
     };
 
     ws.onmessage = (event) => {
+      tlog('📥 WS raw message len=', event.data?.length ?? 0);
       try {
         const msg = JSON.parse(event.data);
+        tlog('🔀 dispatch type=', msg?.type);
         handleMessage(msg);
-      } catch (e) { console.error('[voice-session] message parse error:', e); }
+      } catch (e) {
+        tlog('📥 WS message parse/handle ERROR:', e);
+        console.error('[voice-session] message parse error:', e);
+      }
     };
 
-    ws.onerror = (e) => {
-      tlog('WS error:', e);
+    ws.onerror = (e: any) => {
+      tlog('WS error:', { message: e?.message, type: e?.type, isTrusted: e?.isTrusted, url });
+      console.error('[voice-session] WS error:', e);
       onError("Couldn't connect. Check your connection and try again.");
       cleanup();
       s.endVoiceSession();
@@ -453,10 +484,56 @@ export function useVoiceSession({ onSessionEnd, onError, onAgentCreated, onInsig
     }
   }, []);
 
+  /**
+   * Upload the hi-fi M4A file to POST /sessions/:id/raw-audio.
+   * On failure, queues the (sessionId, filePath) pair in SecureStore for retry.
+   */
+  const uploadHiFiAudio = useCallback(async (dbSessionId: number) => {
+    try {
+      const hiFiPath = await ExpoPlayAudioStream.getHighFidelityRecordingPath?.();
+      if (!hiFiPath) {
+        tlog('⏫ No hi-fi file to upload');
+        return;
+      }
+      tlog(`⏫ Uploading hi-fi M4A for session ${dbSessionId}: ${hiFiPath}`);
+      const token = await SecureStore.getItemAsync('auth_token');
+      const uploadResult = await FileSystem.uploadAsync(
+        `${API_BASE_URL}/sessions/${dbSessionId}/raw-audio`,
+        hiFiPath,
+        {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'file',
+          mimeType: 'audio/mp4',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        }
+      );
+      if (uploadResult.status >= 200 && uploadResult.status < 300) {
+        tlog(`⏫ Hi-fi upload success (${uploadResult.status})`);
+        await FileSystem.deleteAsync(hiFiPath, { idempotent: true });
+      } else {
+        throw new Error(`HTTP ${uploadResult.status}`);
+      }
+    } catch (err) {
+      tlog('⏫ Hi-fi upload failed, queueing for retry:', err);
+      try {
+        const existing = await SecureStore.getItemAsync('reflexa:hifi-upload-queue');
+        const queue: Array<{ sessionId: number; path: string }> = existing ? JSON.parse(existing) : [];
+        const hiFiPath = await ExpoPlayAudioStream.getHighFidelityRecordingPath?.();
+        if (hiFiPath) {
+          queue.push({ sessionId: dbSessionId, path: hiFiPath });
+          await SecureStore.setItemAsync('reflexa:hifi-upload-queue', JSON.stringify(queue));
+        }
+      } catch (qErr) {
+        console.warn('[voice-session] Failed to queue hi-fi upload:', qErr);
+      }
+    }
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => { cleanup(); };
   }, [cleanup]);
 
-  return { start, stop, toggleMute, cleanup };
+  return { start, stop, toggleMute, cleanup, uploadHiFiAudio };
 }

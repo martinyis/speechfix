@@ -1,5 +1,7 @@
 import Groq from 'groq-sdk';
 import type { Correction, FillerWordCount, FillerWordPosition, SessionInsight, PhasedInsightsPayload } from '../analysis/types.js';
+import type { SpeechTimeline } from '../voice/speech-types.js';
+import { computeDeliveryScore } from './scoring.js';
 
 const groq = new Groq();
 const MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
@@ -98,10 +100,11 @@ interface PhasedInsightsInput {
   fillerPositions: FillerWordPosition[];
   durationSeconds: number;
   existingInsights: SessionInsight[];
+  speechTimeline?: SpeechTimeline;
 }
 
 export async function generatePhasedInsights(input: PhasedInsightsInput): Promise<PhasedInsightsPayload> {
-  const { sentences, fillerWords, fillerPositions, durationSeconds, existingInsights } = input;
+  const { sentences, fillerWords, fillerPositions, durationSeconds, existingInsights, speechTimeline } = input;
 
   // --- Computed metrics ---
   const totalWords = sentences.join(' ').split(/\s+/).filter(Boolean).length;
@@ -127,34 +130,48 @@ export async function generatePhasedInsights(input: PhasedInsightsInput): Promis
     .map(i => i.description)
     .join('; ') || 'none detected';
 
-  const prompt = `Analyze this speech session and return JSON with a score and insights.
+  // Build delivery data section from speech timeline
+  let deliverySection = '';
+  if (speechTimeline) {
+    const st = speechTimeline;
+    const wpmRange = st.utterances.length > 1
+      ? `varied from ${Math.min(...st.utterances.map(u => u.wpm))}-${Math.max(...st.utterances.map(u => u.wpm))} across utterances`
+      : '';
+    const latencyRange = st.utterances.filter(u => u.responseLatencyMs > 0).length > 0
+      ? ` (range: ${Math.min(...st.utterances.filter(u => u.responseLatencyMs > 0).map(u => u.responseLatencyMs))}ms-${Math.max(...st.utterances.map(u => u.responseLatencyMs))}ms)`
+      : '';
+
+    deliverySection = `
+Speech Delivery Data:
+- Overall pace: ${st.overallWpm} wpm${wpmRange ? ` (${wpmRange})` : ''}
+- Pace variability: ${Math.round(st.paceVariability * 100)}%
+- Response latency: avg ${st.avgResponseLatencyMs}ms${latencyRange}
+- Clarity: ${Math.round(st.avgConfidence * 100)}% of words clearly spoken
+- Volume: ${st.volumeTrend} trend, ${Math.round(st.volumeConsistency * 100)}% consistency
+- Pitch: ${st.pitchAssessment} variation (stddev: ${st.pitchVariation} Hz, avg: ${st.avgPitchHz} Hz)
+- Pauses: ${st.totalPauses} pauses, avg ${st.avgPauseDurationMs}ms, longest ${st.longestPauseMs}ms
+- Speech-to-silence ratio: ${Math.round(st.speechToSilenceRatio * 100)}%`;
+  }
+
+  const prompt = `Analyze this speech session and return JSON insights.
 
 Session stats:
 - Duration: ${Math.round(durationSeconds)}s, ${totalWords} words, ${sentences.length} sentences
 - Filler words: ${fillerSummary}
 - Fillers per minute: ${fillersPerMinute}
 - Speech patterns: ${existingPatterns}
+${deliverySection}
 
-Note: Grammar corrections are not yet available. Base your score on fluency, vocabulary richness, sentence structure, and filler usage only.
+Note: Grammar corrections are not yet available. Focus your observations on fluency, vocabulary richness, sentence structure, filler usage${speechTimeline ? ', and delivery quality (pace, volume, expressiveness)' : ''}.
 
 Return ONLY valid JSON with this structure:
 {
-  "score": <number 0-100>,
   "quality_assessment": "<holistic 1-sentence summary>",
   "strengths": ["<specific strength 1>"],
   "focus_areas": ["<specific actionable area>"]
 }
-
-Score guidelines:
-- 90-100: Exceptional fluency, minimal fillers, varied vocabulary
-- 70-89: Good fluency, occasional fillers or simple structures
-- 50-69: Moderate fluency, noticeable filler usage or repetitive patterns
-- 30-49: Below average, frequent fillers or limited vocabulary
-- 0-29: Significant fluency challenges
-
+${speechTimeline ? '\nInclude delivery-focused observations in strengths/focus_areas when notable (pace changes, volume patterns, expressiveness).' : ''}
 Keep text descriptions concise (under 15 words each). Be encouraging but honest.`;
-
-  let score: number | null = null;
 
   try {
     const response = await groq.chat.completions.create({
@@ -172,11 +189,6 @@ Keep text descriptions concise (under 15 words each). Be encouraging but honest.
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
 
-      if (typeof parsed.score === 'number') {
-        score = Math.max(0, Math.min(100, Math.round(parsed.score)));
-        insights.push({ type: 'score', description: 'Session score', value: score });
-      }
-
       if (parsed.quality_assessment) {
         insights.push({ type: 'quality_assessment', description: parsed.quality_assessment });
       }
@@ -193,8 +205,22 @@ Keep text descriptions concise (under 15 words each). Be encouraging but honest.
     }
   } catch (err) {
     console.error('[session-insights] Phased LLM generation failed:', err);
-    // Graceful fallback — computed metrics still returned, score stays null
+    // Graceful fallback — computed metrics still returned
   }
 
-  return { score, insights, fillerWords, fillerPositions, metrics };
+  // Deterministic delivery score (no LLM)
+  const deliveryScore = computeDeliveryScore(speechTimeline, durationSeconds, totalWords);
+  if (deliveryScore !== null) {
+    insights.push({ type: 'delivery_score', description: 'Delivery score', value: deliveryScore });
+  }
+
+  return {
+    score: deliveryScore, // legacy alias; language score is added later in handler
+    deliveryScore,
+    languageScore: null,
+    insights,
+    fillerWords,
+    fillerPositions,
+    metrics,
+  };
 }

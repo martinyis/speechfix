@@ -1,5 +1,6 @@
 import type { AnalysisResult, AnalysisFlags, AnalyzerInput, Correction, PhasedInsightsPayload } from './types.js';
 import { generatePhasedInsights } from '../services/session-insights-generator.js';
+import { enrichFillerTimestamps } from '../services/filler-timestamp-enricher.js';
 import { GrammarAnalyzer } from './analyzers/grammar.js';
 import { FillerAnalyzer } from './analyzers/fillers.js';
 import { db } from '../db/index.js';
@@ -47,7 +48,12 @@ export async function runAnalysis(userId: number, input: AnalyzerInput): Promise
   if (tasks.length === 0) return EMPTY_RESULT;
 
   const results = await Promise.all(tasks);
-  return mergeResults(results);
+  const merged = mergeResults(results);
+  // Enrich filler positions with absolute timestamps from word timings (if available)
+  if (input.speechTimeline) {
+    merged.fillerPositions = enrichFillerTimestamps(merged.fillerPositions, input.speechTimeline.utterances);
+  }
+  return merged;
 }
 
 /**
@@ -62,10 +68,12 @@ export async function runAnalysisPhased(
   onCorrection: (correction: Correction) => void,
 ): Promise<AnalysisResult> {
   if (input.sentences.length === 0) {
-    // Even empty sessions get a default payload
+    // Empty sessions: no scores, no insights.
     const emptyPayload: PhasedInsightsPayload = {
-      score: 100,
-      insights: [{ type: 'score', description: 'Session score', value: 100 }],
+      score: null,
+      deliveryScore: null,
+      languageScore: null,
+      insights: [],
       fillerWords: [],
       fillerPositions: [],
       metrics: { wpm: 0, sentenceCount: 0, fillersPerMinute: 0, totalFillers: 0 },
@@ -80,6 +88,13 @@ export async function runAnalysisPhased(
   let fillerResult: AnalysisResult = EMPTY_RESULT;
   if (flags.fillers) {
     fillerResult = await fillerAnalyzer.analyze(input);
+    // Enrich filler positions with absolute timestamps (for Pitch Ribbon viz)
+    if (input.speechTimeline) {
+      fillerResult = {
+        ...fillerResult,
+        fillerPositions: enrichFillerTimestamps(fillerResult.fillerPositions, input.speechTimeline.utterances),
+      };
+    }
   }
 
   // Phase 2: Insights + Score using fillers (no corrections needed)
@@ -89,6 +104,7 @@ export async function runAnalysisPhased(
     fillerPositions: fillerResult.fillerPositions,
     durationSeconds,
     existingInsights: fillerResult.sessionInsights,
+    speechTimeline: input.speechTimeline,
   });
 
   // Emit insights_ready — caller creates DB session and sends to client

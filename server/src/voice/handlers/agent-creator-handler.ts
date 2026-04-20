@@ -11,6 +11,7 @@ import { generateGreetingForAgent } from '../../services/greeting-generator.js';
 export class AgentCreatorHandler implements AgentTypeHandler {
   readonly needsUserContext = false;
   readonly greetingStrategy = 'none' as const;
+  readonly maxCompletionTokens = { withTools: 150, withoutTools: 100 };
 
   buildSystemPrompt(_agentConfig: AgentConfig | null, _userContext?: FullUserContext, formContext?: Record<string, unknown> | null): string {
     // Agent creator doesn't need the full identity/behavior prompts — those are for conversation mode
@@ -53,6 +54,7 @@ export class AgentCreatorHandler implements AgentTypeHandler {
     conversationHistory: ConversationMessage[],
     _durationSeconds: number,
     formContext?: Record<string, unknown> | null,
+    _speechTimeline?: unknown,
   ): Promise<SessionEndResult> {
     const fullTranscription = transcriptBuffer.join(' ');
 

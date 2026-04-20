@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,10 @@ import { useSessionStore } from '../stores/sessionStore';
 import { useSession } from '../hooks/useSession';
 import { SessionVerdict } from '../components/SessionVerdict';
 import { CorrectionsPreview } from '../components/CorrectionsPreview';
+import { ConversationRhythmStrip } from '../components/ConversationRhythmStrip';
+import { PitchRibbon } from '../components/PitchRibbon';
+import { PitchRibbonCaption } from '../components/PitchRibbonCaption';
+import { SessionFullReport } from '../components/SessionFullReport';
 import { AnalyzingBanner } from '../components/AnalyzingBanner';
 import { ScreenHeader, EmptyState } from '../components/ui';
 import { formatDuration } from '../lib/formatters';
@@ -23,9 +27,10 @@ import { colors, alpha, fonts } from '../theme';
 import type { SessionDetail } from '../types/session';
 
 export default function SessionDetailScreen() {
-  const { sessionId, fresh } = useLocalSearchParams<{
+  const { sessionId, fresh, expanded: expandedParam } = useLocalSearchParams<{
     sessionId: string;
     fresh?: string;
+    expanded?: string;
   }>();
   const insets = useSafeAreaInsets();
   const isFresh = fresh === 'true';
@@ -59,6 +64,14 @@ export default function SessionDetailScreen() {
   const handleSeeAllCorrections = useCallback(() => {
     router.push('/corrections-list');
   }, []);
+
+  // Pitch Ribbon caption state (shown when user taps a moment on the ribbon)
+  const [caption, setCaption] = useState<{
+    visible: boolean;
+    timeSeconds: number;
+    sentence: string;
+    confidence: number;
+  }>({ visible: false, timeSeconds: 0, sentence: '', confidence: 0 });
 
   // -- Loading / error states --
   if (!isFresh && isLoading) {
@@ -105,6 +118,10 @@ export default function SessionDetailScreen() {
   const isClean = !hasCorrections && !correctionsStillStreaming;
   const analysisComplete = !isStreaming;
 
+  // Pitch Ribbon availability (Phase 2) — only when server captured prosody samples.
+  const prosodySamples = session.speechTimeline?.prosodySamples ?? [];
+  const showPitchRibbon = prosodySamples.length > 0;
+
   return (
     <View style={styles.container}>
       <ScreenHeader
@@ -133,6 +150,37 @@ export default function SessionDetailScreen() {
               isLoading={isFresh && !hasInsights && !isClean}
             />
           </Animated.View>
+        )}
+
+        {/* Pitch Ribbon — prosody timeline with tap-to-play (Phase 2) */}
+        {insightsAvailable && showPitchRibbon && session.speechTimeline && (
+          <>
+            <PitchRibbon
+              sessionId={session.id}
+              samples={prosodySamples}
+              fillers={session.fillerPositions}
+              durationSeconds={session.durationSeconds}
+              utterances={session.speechTimeline.utterances}
+              sentences={session.sentences}
+              audioPath={session.audioPath ?? null}
+              onScrub={(t, meta) => setCaption({ visible: true, timeSeconds: t, sentence: meta.sentence, confidence: meta.confidence })}
+            />
+            <PitchRibbonCaption
+              visible={caption.visible}
+              timeSeconds={caption.timeSeconds}
+              sentence={caption.sentence}
+              confidence={caption.confidence}
+              onTimeout={() => setCaption(c => ({ ...c, visible: false }))}
+            />
+          </>
+        )}
+
+        {/* Conversation Rhythm Strip — legacy timeline fallback when no prosody samples */}
+        {insightsAvailable && !showPitchRibbon && session.speechTimeline && session.speechTimeline.utterances.length > 1 && (
+          <ConversationRhythmStrip
+            timeline={session.speechTimeline}
+            animate={isFresh}
+          />
         )}
 
         {/* "Checking grammar..." indicator while corrections stream in */}
@@ -179,6 +227,15 @@ export default function SessionDetailScreen() {
             iconColor={alpha(colors.severityPolish, 0.5)}
             title="Clean session"
             subtitle="No corrections detected"
+          />
+        )}
+
+        {/* Full report expand — delivery strip, patterns, strengths, focus, transcript */}
+        {insightsAvailable && analysisComplete && (
+          <SessionFullReport
+            session={session}
+            animate={isFresh}
+            initialExpanded={expandedParam === '1'}
           />
         )}
 

@@ -17,6 +17,51 @@ import { writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import path from 'path';
 
+/**
+ * Mark the given active pattern as practiced and promote the next queued pattern
+ * (generating its Level 1 exercises). If the queue is empty, kicks off re-analysis
+ * when enough new session material exists.
+ *
+ * Called from two places:
+ *  - POST /pattern-evaluate when the final L2 exercise passes (auto-finalize), so
+ *    the DB never sits in an orphan state where all exercises are practiced but
+ *    the pattern is still `active`.
+ *  - POST /pattern-complete as a no-op-safe fallback for clients that still
+ *    invoke the explicit completion endpoint.
+ */
+async function finalizeActivePattern(userId: number, patternId: number) {
+  await db
+    .update(speechPatterns)
+    .set({ status: 'practiced', completedAt: new Date() })
+    .where(eq(speechPatterns.id, patternId));
+
+  const [nextPattern] = await db
+    .select({ id: speechPatterns.id })
+    .from(speechPatterns)
+    .where(and(eq(speechPatterns.userId, userId), eq(speechPatterns.status, 'queued')))
+    .orderBy(sql`${speechPatterns.queuePosition} NULLS LAST, ${speechPatterns.id}`)
+    .limit(1);
+
+  if (!nextPattern) {
+    const needsReanalysis = await checkReanalysisNeeded(userId);
+    if (needsReanalysis) {
+      runPatternAnalysisForUser(userId).catch((err) =>
+        console.error('[finalizeActivePattern] Re-analysis failed:', err),
+      );
+    }
+    return { active: null as { patternId: number } | null, promoted: false };
+  }
+
+  await db
+    .update(speechPatterns)
+    .set({ status: 'active', queuePosition: null })
+    .where(eq(speechPatterns.id, nextPattern.id));
+
+  await generateAndStorePatternExercises([nextPattern.id], userId);
+
+  return { active: { patternId: nextPattern.id }, promoted: true };
+}
+
 export async function practiceRoutes(fastify: FastifyInstance) {
   // GET /tasks — List all practice tasks for user
   fastify.get('/tasks', async (request, reply) => {
@@ -29,9 +74,11 @@ export async function practiceRoutes(fastify: FastifyInstance) {
         c.original_text,
         c.corrected_text,
         c.explanation,
+        c.short_reason,
         c.correction_type,
         c.severity,
         c.context_snippet,
+        c.full_context,
         c.scenario,
         c.created_at,
         s.created_at AS session_date,
@@ -53,9 +100,10 @@ export async function practiceRoutes(fastify: FastifyInstance) {
       originalText: row.original_text,
       correctedText: row.corrected_text,
       explanation: row.explanation,
+      shortReason: row.short_reason,
       correctionType: row.correction_type,
       severity: row.severity,
-      contextSnippet: row.context_snippet,
+      contextSnippet: row.context_snippet || row.full_context,
       scenario: row.scenario ?? null,
       practiced: row.practiced ?? false,
       lastPracticedAt: row.last_practiced_at ?? null,
@@ -293,55 +341,40 @@ export async function practiceRoutes(fastify: FastifyInstance) {
     return { active, queued };
   });
 
-  // POST /pattern-complete — Mark active pattern as practiced, promote next
+  // POST /pattern-complete — Idempotent fallback. Normally auto-finalize in
+  // /pattern-evaluate has already promoted the next pattern, so this endpoint
+  // will either find no active pattern or find the newly-promoted one (with
+  // fresh unpracticed exercises) and return a no-op.
   fastify.post('/pattern-complete', async (request, reply) => {
     const userId = request.user.userId;
 
-    // Find active pattern
     const [activePattern] = await db
       .select({ id: speechPatterns.id })
       .from(speechPatterns)
       .where(and(eq(speechPatterns.userId, userId), eq(speechPatterns.status, 'active')));
 
     if (!activePattern) {
-      return reply.code(404).send({ error: 'No active pattern found' });
-    }
-
-    // Mark as practiced
-    await db
-      .update(speechPatterns)
-      .set({ status: 'practiced', completedAt: new Date() })
-      .where(eq(speechPatterns.id, activePattern.id));
-
-    // Promote next queued pattern (lowest queue_position)
-    const [nextPattern] = await db
-      .select({ id: speechPatterns.id })
-      .from(speechPatterns)
-      .where(and(eq(speechPatterns.userId, userId), eq(speechPatterns.status, 'queued')))
-      .orderBy(sql`${speechPatterns.queuePosition} NULLS LAST, ${speechPatterns.id}`)
-      .limit(1);
-
-    if (!nextPattern) {
-      // Queue empty — check if re-analysis is needed
-      const needsReanalysis = await checkReanalysisNeeded(userId);
-      if (needsReanalysis) {
-        runPatternAnalysisForUser(userId).catch(err =>
-          console.error('[pattern-complete] Re-analysis failed:', err)
-        );
-      }
       return { active: null, promoted: false };
     }
 
-    // Promote to active
-    await db
-      .update(speechPatterns)
-      .set({ status: 'active', queuePosition: null })
-      .where(eq(speechPatterns.id, nextPattern.id));
+    // Guard: only finalize if the active pattern truly has every exercise practiced.
+    // Prevents accidentally finalizing a freshly-promoted pattern whose L1 exercises
+    // haven't been touched yet.
+    const exercises = await db
+      .select({ practiced: patternExercises.practiced })
+      .from(patternExercises)
+      .where(
+        and(
+          eq(patternExercises.patternId, activePattern.id),
+          eq(patternExercises.userId, userId),
+        ),
+      );
 
-    // Generate Level 1 exercises for the newly active pattern
-    await generateAndStorePatternExercises([nextPattern.id], userId);
+    if (exercises.length === 0 || !exercises.every((e) => e.practiced)) {
+      return { active: { patternId: activePattern.id }, promoted: false };
+    }
 
-    return { active: { patternId: nextPattern.id }, promoted: true };
+    return finalizeActivePattern(userId, activePattern.id);
   });
 
   // POST /pattern-evaluate — Evaluate a pattern practice attempt
@@ -479,6 +512,15 @@ export async function practiceRoutes(fastify: FastifyInstance) {
               await generateAndStorePatternExercises([exerciseMeta.patternId], userId, 2);
               responseExtra.levelCompleted = 1;
             } else {
+              // L2 all done — auto-finalize so the DB never sits in an orphan state
+              // (pattern still `active` with every exercise `practiced`). This is
+              // what leaves the Practice tab stuck on a 4/4 pattern whose
+              // "Continue Practicing" button hangs on an empty queue.
+              try {
+                await finalizeActivePattern(userId, exerciseMeta.patternId);
+              } catch (err) {
+                console.error('[Practice/pattern-evaluate] Auto-finalize failed:', err);
+              }
               responseExtra.patternCompleted = true;
             }
           }

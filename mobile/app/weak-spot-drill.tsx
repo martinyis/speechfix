@@ -2,7 +2,6 @@ import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  Pressable,
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
@@ -13,18 +12,16 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   FadeIn,
   FadeInDown,
-  useSharedValue,
   useAnimatedStyle,
   withTiming,
-  interpolate,
-  Easing,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenHeader, GlassIconPillButton } from '../components/ui';
 import PracticeRecordOrb from '../components/PracticeRecordOrb';
 import PracticeFeedbackPanel from '../components/PracticeFeedbackPanel';
 import SuccessCelebration from '../components/SuccessCelebration';
-import { wordDiff, formatCorrectionTypeLabel } from '../lib/wordDiff';
+import ErrorReasonHeader from '../components/practice/ErrorReasonHeader';
+import { wordDiff } from '../lib/wordDiff';
 import { useWeakSpots } from '../hooks/useWeakSpots';
 import { useDrillRecording } from '../hooks/useDrillRecording';
 import { authFetch } from '../lib/api';
@@ -49,12 +46,12 @@ export default function WeakSpotDrillScreen() {
     return data?.activeSpots.find((ws) => ws.id === Number(weakSpotId)) ?? null;
   }, [data, weakSpotId]);
 
-  // Build drill queue: corrections first, then exercises
+  // Build drill queue: unpracticed corrections first, then unpracticed exercises
   const initialQueue = useMemo((): DrillItem[] => {
     if (!weakSpot) return [];
     const items: DrillItem[] = [
-      ...weakSpot.corrections.map((c): DrillItem => ({ type: 'correction', data: c })),
-      ...weakSpot.exercises.map((e): DrillItem => ({ type: 'exercise', data: e })),
+      ...weakSpot.corrections.filter((c) => !c.practiced).map((c): DrillItem => ({ type: 'correction', data: c })),
+      ...weakSpot.exercises.filter((e) => !e.practiced).map((e): DrillItem => ({ type: 'exercise', data: e })),
     ];
     return items;
   }, [weakSpot]);
@@ -65,50 +62,29 @@ export default function WeakSpotDrillScreen() {
   const retriesRef = useRef(0);
   const [summary, setSummary] = useState<DrillSummary | null>(null);
 
-  // Initialize queue when data arrives
+  // Initialize queue when data arrives; if all practiced, complete immediately
   useEffect(() => {
+    if (weakSpot && initialQueue.length === 0 && queue.length === 0 && !summary) {
+      completeDrill();
+      return;
+    }
     if (initialQueue.length > 0 && queue.length === 0) {
       setQueue(initialQueue);
     }
-  }, [initialQueue]);
+  }, [initialQueue, weakSpot]);
 
   const currentItem = queue[currentIndex] ?? null;
-  const totalItems = initialQueue.length;
+
+  // Total items across ALL corrections + exercises (practiced and unpracticed)
+  const totalAllItems = weakSpot ? weakSpot.corrections.length + weakSpot.exercises.length : 0;
+  const alreadyPracticed = weakSpot
+    ? weakSpot.corrections.filter(c => c.practiced).length + weakSpot.exercises.filter(e => e.practiced).length
+    : 0;
 
   // Unique key for a drill item
   const itemKey = useCallback((item: DrillItem) => {
     return `${item.type}-${item.data.id}`;
   }, []);
-
-  // Collapsable explanation state
-  const [explanationExpanded, setExplanationExpanded] = useState(false);
-  const explanationAnim = useSharedValue(0);
-
-  const toggleExplanation = useCallback(() => {
-    const next = !explanationExpanded;
-    setExplanationExpanded(next);
-    explanationAnim.value = withTiming(next ? 1 : 0, {
-      duration: 250,
-      easing: Easing.out(Easing.cubic),
-    });
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [explanationExpanded, explanationAnim]);
-
-  const explanationBodyStyle = useAnimatedStyle(() => ({
-    height: interpolate(explanationAnim.value, [0, 1], [0, 60]),
-    opacity: interpolate(explanationAnim.value, [0, 0.4, 1], [0, 0, 1]),
-    overflow: 'hidden' as const,
-  }));
-
-  const explanationChevronStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${interpolate(explanationAnim.value, [0, 1], [0, 180])}deg` }],
-  }));
-
-  // Reset explanation state when switching items
-  useEffect(() => {
-    setExplanationExpanded(false);
-    explanationAnim.value = 0;
-  }, [currentIndex]);
 
   // Recording handlers
   const handleStartRecording = useCallback(async () => {
@@ -154,7 +130,7 @@ export default function WeakSpotDrillScreen() {
         setSummary(data);
       } else {
         setSummary({
-          totalItems,
+          totalItems: totalAllItems,
           retriesCount: retriesRef.current,
           resolved: false,
           nextReviewAt: null,
@@ -163,14 +139,14 @@ export default function WeakSpotDrillScreen() {
       }
     } catch {
       setSummary({
-        totalItems,
+        totalItems: totalAllItems,
         retriesCount: retriesRef.current,
         resolved: false,
         nextReviewAt: null,
         srsStage: 0,
       });
     }
-  }, [weakSpotId, totalItems]);
+  }, [weakSpotId, totalAllItems]);
 
   // Handle pass/fail
   const handlePass = useCallback(() => {
@@ -241,6 +217,7 @@ export default function WeakSpotDrillScreen() {
 
   // Summary / completion screen
   if (summary) {
+    const totalItems = summary.totalItems;
     const firstTryCount = totalItems - (summary.retriesCount > 0 ? Math.min(summary.retriesCount, totalItems) : 0);
 
     return (
@@ -296,7 +273,7 @@ export default function WeakSpotDrillScreen() {
     );
   }
 
-  const progressFraction = totalItems > 0 ? passedSet.size / totalItems : 0;
+  const progressFraction = totalAllItems > 0 ? (alreadyPracticed + passedSet.size) / totalAllItems : 0;
 
   return (
     <View style={styles.container}>
@@ -315,27 +292,35 @@ export default function WeakSpotDrillScreen() {
         </Animated.View>
       </View>
 
-      <View style={styles.body}>
-        {/* Prompt content */}
-        <Animated.View style={[styles.promptContainer, contentOpacity]}>
-          {currentItem.type === 'correction' ? (
-            <>
-              {/* Original sentence with error underlined */}
+      {(() => {
+        const { originalText, correctedText, explanation, correctionType, severity } = currentItem.data;
+        const fullContext = currentItem.type === 'correction' ? currentItem.data.fullContext : null;
+        const shortReason = currentItem.type === 'correction' ? currentItem.data.shortReason : null;
+        const sectionLabel = currentItem.type === 'correction' ? 'YOUR ORIGINAL' : 'PRACTICE SENTENCE';
+        const instruction =
+          currentItem.type === 'correction'
+            ? 'Now say the corrected version'
+            : 'Say it the correct way';
+        const itemSevColor = SEVERITY_COLOR[severity] ?? sevColor;
+
+        return (
+          <View style={styles.body}>
+            {/* Prompt content */}
+            <Animated.View style={[styles.promptContainer, contentOpacity]}>
               <View>
-                <Text style={styles.sectionLabel}>YOUR ORIGINAL</Text>
+                <Text style={styles.sectionLabel}>{sectionLabel}</Text>
                 <Text style={styles.originalText}>
                   {(() => {
-                    const ctx = currentItem.data.fullContext;
-                    if (ctx) {
-                      const idx = ctx.toLowerCase().indexOf(currentItem.data.originalText.toLowerCase());
+                    if (fullContext) {
+                      const idx = fullContext.toLowerCase().indexOf(originalText.toLowerCase());
                       if (idx >= 0) {
-                        const before = ctx.slice(0, idx);
-                        const match = ctx.slice(idx, idx + currentItem.data.originalText.length);
-                        const after = ctx.slice(idx + currentItem.data.originalText.length);
+                        const before = fullContext.slice(0, idx);
+                        const match = fullContext.slice(idx, idx + originalText.length);
+                        const after = fullContext.slice(idx + originalText.length);
                         return (
                           <>
                             {before ? <Text>{before}</Text> : null}
-                            <Text style={[styles.errorUnderline, { textDecorationColor: sevColor }]}>
+                            <Text style={[styles.errorUnderline, { textDecorationColor: itemSevColor }]}>
                               {match}
                             </Text>
                             {after ? <Text>{after}</Text> : null}
@@ -343,14 +328,13 @@ export default function WeakSpotDrillScreen() {
                         );
                       }
                     }
-                    // Fallback: wordDiff
-                    return wordDiff(currentItem.data.originalText, currentItem.data.correctedText).map((seg, i) => (
+                    return wordDiff(originalText, correctedText).map((seg, i) => (
                       <Text
                         key={i}
                         style={
                           seg.type === 'equal'
                             ? undefined
-                            : [styles.errorUnderline, { textDecorationColor: sevColor }]
+                            : [styles.errorUnderline, { textDecorationColor: itemSevColor }]
                         }
                       >
                         {i > 0 ? ' ' : ''}{seg.text}
@@ -360,76 +344,46 @@ export default function WeakSpotDrillScreen() {
                 </Text>
               </View>
 
-              {/* Correction type pill + Why? toggle */}
-              <View style={styles.hintArea}>
-                <View style={styles.hintRow}>
-                  <View style={styles.correctionTypePill}>
-                    <Text style={[styles.correctionTypePillText, { color: sevColor }]}>
-                      {formatCorrectionTypeLabel(currentItem.data.correctionType)}
-                    </Text>
-                  </View>
-                  {currentItem.data.explanation ? (
-                    <Pressable onPress={toggleExplanation} hitSlop={8} style={styles.explainToggle}>
-                      <Text style={styles.explainToggleText}>Why?</Text>
-                      <Animated.View style={explanationChevronStyle}>
-                        <Ionicons name="chevron-down" size={12} color={alpha(colors.white, 0.3)} />
-                      </Animated.View>
-                    </Pressable>
-                  ) : null}
-                </View>
-                {currentItem.data.explanation ? (
-                  <Animated.View style={explanationBodyStyle}>
-                    <Text style={styles.hintText}>{currentItem.data.explanation}</Text>
-                  </Animated.View>
-                ) : null}
-              </View>
-
-              <Text style={styles.instructionText}>Now say the corrected version</Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.sectionLabel}>PRACTICE SENTENCE</Text>
-              <Text style={styles.heroText}>{currentItem.data.prompt}</Text>
-              <Text style={styles.instructionText}>Say it naturally</Text>
-            </>
-          )}
-        </Animated.View>
-
-        {/* Feedback panel (failure) or record area */}
-        {recording.state === 'result' && recording.result && !recording.result.passed ? (
-          <PracticeFeedbackPanel
-            passed={false}
-            feedback={recording.result.feedback}
-            transcript={recording.result.transcript}
-            correctAnswer={
-              currentItem.type === 'correction' ? currentItem.data.correctedText : undefined
-            }
-            onTryAgain={handleTryAgain}
-            onSkip={handleSkipToEnd}
-            onDone={() => router.back()}
-            bottomInset={insets.bottom}
-          />
-        ) : (
-          <View style={[styles.recordArea, { paddingBottom: insets.bottom + 16 }]}>
-            {recording.state === 'evaluating' ? (
-              <View style={styles.evaluatingWrap}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.evaluatingText}>Evaluating...</Text>
-              </View>
-            ) : (
-              <PracticeRecordOrb
-                state={orbState}
-                audioLevel={recording.audioLevel}
-                onPress={() => { recording.state === 'recording' ? handleStopRecording() : handleStartRecording(); }}
+              <ErrorReasonHeader
+                key={`${currentItem.type}-${currentItem.data.id}`}
+                correctionType={correctionType}
+                severity={severity}
+                explanation={explanation}
+                shortReason={shortReason}
+                originalText={originalText}
               />
-            )}
 
-            {recording.error && (
-              <Text style={styles.errorText}>{recording.error}</Text>
+              <Text style={styles.instructionText}>{instruction}</Text>
+            </Animated.View>
+
+            {/* Feedback panel (failure) or record area */}
+            {recording.state === 'result' && recording.result && !recording.result.passed ? (
+              <PracticeFeedbackPanel
+                passed={false}
+                feedback={recording.result.feedback}
+                transcript={recording.result.transcript}
+                correctAnswer={correctedText}
+                onTryAgain={handleTryAgain}
+                onSkip={handleSkipToEnd}
+                onDone={() => router.back()}
+                bottomInset={insets.bottom}
+              />
+            ) : (
+              <View style={[styles.recordArea, { paddingBottom: insets.bottom + 16 }]}>
+                <PracticeRecordOrb
+                  state={orbState}
+                  audioLevel={recording.audioLevel}
+                  onPress={() => { recording.state === 'recording' ? handleStopRecording() : handleStartRecording(); }}
+                />
+
+                {recording.error && (
+                  <Text style={styles.errorText}>{recording.error}</Text>
+                )}
+              </View>
             )}
           </View>
-        )}
-      </View>
+        );
+      })()}
     </View>
   );
 }
@@ -486,54 +440,6 @@ const styles = StyleSheet.create({
     textDecorationStyle: 'solid' as const,
   },
 
-  // Hint area (correction type + explanation)
-  hintArea: {
-    gap: 10,
-  },
-  hintRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  correctionTypePill: {
-    alignSelf: 'flex-start' as const,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: alpha(colors.white, 0.06),
-  },
-  correctionTypePillText: {
-    fontSize: 9,
-    fontFamily: fonts.bold,
-    letterSpacing: 1,
-  },
-  explainToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-  },
-  explainToggleText: {
-    fontSize: 12,
-    fontFamily: fonts.semibold,
-    color: alpha(colors.white, 0.3),
-  },
-  hintText: {
-    fontSize: 14,
-    fontFamily: fonts.medium,
-    color: alpha(colors.white, 0.4),
-    lineHeight: 20,
-    fontStyle: 'italic' as const,
-  },
-
-  heroText: {
-    fontSize: 22,
-    fontFamily: fonts.semibold,
-    color: alpha(colors.white, 0.9),
-    lineHeight: 32,
-  },
   instructionText: {
     fontSize: 13,
     fontFamily: fonts.semibold,
@@ -545,17 +451,6 @@ const styles = StyleSheet.create({
   recordArea: {
     alignItems: 'center',
     gap: spacing.md,
-  },
-  evaluatingWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: spacing.xl,
-  },
-  evaluatingText: {
-    fontSize: 15,
-    fontFamily: fonts.medium,
-    color: alpha(colors.white, 0.5),
   },
   errorText: {
     fontSize: 13,

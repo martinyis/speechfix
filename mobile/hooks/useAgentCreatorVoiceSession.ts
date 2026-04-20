@@ -46,6 +46,8 @@ export function useAgentCreatorVoiceSession({
   const playbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingAgentRef = useRef<Agent | null>(null);
 
+  const speakingEndRef = useRef(0);
+
   const store = useSessionStore;
 
   const cleanup = useCallback(async () => {
@@ -73,15 +75,17 @@ export function useAgentCreatorVoiceSession({
 
     try {
       const { subscription } = await ExpoPlayAudioStream.startRecording({
-        sampleRate: 16000,
+        sampleRate: 48000,
         channels: 1,
         encoding: 'pcm_16bit',
         interval: 100,
         onAudioStream: async (event: any) => {
           const ws = wsRef.current;
-          if (ws?.readyState === WebSocket.OPEN && event.data) {
-            ws.send(JSON.stringify({ type: 'audio', data: event.data }));
-          }
+          if (!ws || ws.readyState !== WebSocket.OPEN || !event.data) return;
+          const s = store.getState();
+          if (s.voiceSessionState === 'speaking') return;
+          if (speakingEndRef.current > 0 && Date.now() - speakingEndRef.current < 500) return;
+          ws.send(JSON.stringify({ type: 'audio', data: event.data }));
         },
       });
       isRecordingRef.current = true;
@@ -121,6 +125,7 @@ export function useAgentCreatorVoiceSession({
 
         if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
         playbackTimerRef.current = setTimeout(() => {
+          speakingEndRef.current = Date.now();
           playbackTimerRef.current = null;
           if (pendingAgentRef.current) {
             const agent = pendingAgentRef.current;
@@ -200,7 +205,7 @@ export function useAgentCreatorVoiceSession({
     try {
       await ExpoPlayAudioStream.setSoundConfig({
         sampleRate: 24000,
-        playbackMode: PlaybackModes.CONVERSATION,
+        playbackMode: PlaybackModes.REGULAR,
       });
     } catch {}
 

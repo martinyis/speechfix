@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Correction, SessionDetail } from '../types/session';
+import type { Correction, SessionDetail, SpeechTimeline } from '../types/session';
 
 export type VoiceSessionState =
   | 'connecting'
@@ -40,10 +40,13 @@ interface SessionStore {
   startStreamingAnalysis: () => void;
   setInsightsReady: (dbSessionId: number, data: {
     score?: number | null;
+    deliveryScore?: number | null;
+    languageScore?: number | null;
     insights?: any[];
     fillerWords?: any[];
     fillerPositions?: any[];
     metrics?: any;
+    speechTimeline?: SpeechTimeline | null;
   }) => void;
   addStreamingCorrection: (correction: Correction) => void;
   finalizeStreamingSession: (dbSessionId: number, data: {
@@ -53,6 +56,10 @@ interface SessionStore {
     sessionInsights?: any[];
     clarityScore?: number;
     score?: number | null;
+    deliveryScore?: number | null;
+    languageScore?: number | null;
+    speechTimeline?: SpeechTimeline | null;
+    audioPath?: string | null;
   }, correctionIds?: number[]) => void;
 }
 
@@ -125,6 +132,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         })),
         fillerPositions: data.fillerPositions ?? [],
         sessionInsights: data.insights ?? [],
+        speechTimeline: data.speechTimeline ?? null,
       },
     });
   },
@@ -172,7 +180,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       sessionId: dbSessionId,
     }));
 
-    // Merge streamed corrections with the rest of the session data
+    // Merge streamed corrections with the rest of the session data.
+    // IMPORTANT: preserve speechTimeline + audioPath from the earlier
+    // `setInsightsReady` payload — they're what drives the Pitch Ribbon.
     const finalized: SessionDetail = {
       id: dbSessionId,
       transcription: existing?.transcription ?? '',
@@ -181,8 +191,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       sentences: data.sentences ?? existing?.sentences ?? [],
       corrections: mergedCorrections,
       fillerWords: data.fillerWords ?? [],
-      fillerPositions: data.fillerPositions ?? [],
-      sessionInsights: data.sessionInsights ?? [],
+      fillerPositions: data.fillerPositions ?? existing?.fillerPositions ?? [],
+      sessionInsights: data.sessionInsights ?? existing?.sessionInsights ?? [],
+      speechTimeline: data.speechTimeline ?? existing?.speechTimeline ?? null,
+      audioPath: data.audioPath ?? existing?.audioPath ?? null,
     };
 
     set({

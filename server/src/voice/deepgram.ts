@@ -10,7 +10,8 @@ export interface TranscriptResult {
 
 export interface DeepgramCallbacks {
   onTranscript: (result: TranscriptResult) => void;
-  onUtteranceEnd: () => void;
+  onUtteranceEnd: (lastWordEnd: number | null) => void;
+  onSpeechStarted: (timestamp: number) => void;
   onError: (error: Error) => void;
   onClose: () => void;
 }
@@ -31,15 +32,16 @@ export class DeepgramClient {
       const params = new URLSearchParams({
         model: 'nova-3',
         encoding: 'linear16',
-        sample_rate: '16000',
+        sample_rate: '48000',
         channels: '1',
         language: 'en',
         interim_results: 'true',
-        utterance_end_ms: '1500',
-        endpointing: '500',
+        utterance_end_ms: '1000',
+        endpointing: '300',
         smart_format: 'true',
         filler_words: 'true',
         punctuate: 'true',
+        vad_events: 'true',
       });
 
       const url = `wss://api.deepgram.com/v1/listen?${params.toString()}`;
@@ -120,8 +122,10 @@ export class DeepgramClient {
       };
 
       this.callbacks.onTranscript(result);
+    } else if (message.type === 'SpeechStarted') {
+      this.callbacks.onSpeechStarted(message.timestamp ?? 0);
     } else if (message.type === 'UtteranceEnd') {
-      this.callbacks.onUtteranceEnd();
+      this.callbacks.onUtteranceEnd(message.last_word_end ?? null);
     }
   }
 

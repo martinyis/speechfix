@@ -24,13 +24,14 @@ export async function* generateResponse(
   systemPrompt: string,
   tools?: ChatTool[],
   meta?: ResponseMeta,
+  maxCompletionTokens?: number,
 ): AsyncGenerator<string> {
   const recentHistory = conversationHistory.slice(-20);
 
   const brevityInstructions = [
-    'Keep responses short and conversational (1-2 sentences typically).',
-    'Only give longer responses when the user explicitly asks for explanation or clarification.',
-    'Prioritize being a responsive conversation partner over being thorough.',
+    'Keep responses to 1-2 sentences. Maximum 3 only if coaching or clarifying.',
+    'Never list, enumerate, or give multi-part answers. One thought per turn.',
+    'This is spoken conversation — be concise.',
   ].join(' ');
 
   const fullSystemPrompt = `${systemPrompt}\n\n${brevityInstructions}`;
@@ -45,7 +46,7 @@ export async function* generateResponse(
 
   const stream = await groq.chat.completions.create({
     model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-    max_completion_tokens: tools && tools.length > 0 ? 250 : 150,
+    max_completion_tokens: maxCompletionTokens ?? (tools && tools.length > 0 ? 250 : 150),
     temperature: 0.8,
     stop: ['\n\n', '**', '\n- ', '\n1.'],
     messages,

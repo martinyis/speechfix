@@ -13,12 +13,37 @@ import {
   WeakSpotsMode,
   FillerWordsMode,
   PatternsMode,
-  OrbitModeSwitcher,
 } from '../../components/practice';
+import { FrequencyStrip } from '../../components/lab';
+import type { StripMode } from '../../components/lab';
 import { useWeakSpots } from '../../hooks/useWeakSpots';
 import { usePatternTasks } from '../../hooks/usePatternTasks';
 import { usePracticeModes, type PracticeModeName } from '../../hooks/usePracticeModes';
 import { colors, spacing } from '../../theme';
+
+// ---------------------------------------------------------------------------
+// Mode → StripMode color mapping
+// ---------------------------------------------------------------------------
+
+const MODE_COLORS: Record<PracticeModeName, string> = {
+  weak_spots: colors.tertiary,
+  filler_words: colors.secondary,
+  patterns: '#34d399',
+};
+
+function toStripModes(
+  modes: { key: PracticeModeName; label: string }[],
+): StripMode[] {
+  return modes.map((m) => ({
+    key: m.key,
+    label: m.label,
+    color: MODE_COLORS[m.key],
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// PracticeScreen
+// ---------------------------------------------------------------------------
 
 export default function PracticeScreen() {
   const { data: weakSpotsData, isLoading, refetch: refetchWeakSpots } = useWeakSpots();
@@ -44,7 +69,8 @@ export default function PracticeScreen() {
   );
 
   const handleModeChange = useCallback(
-    (mode: PracticeModeName) => {
+    (key: string) => {
+      const mode = key as PracticeModeName;
       if (mode === activeMode) return;
       fadeOpacity.value = withSequence(
         withTiming(0, { duration: 150 }),
@@ -87,13 +113,14 @@ export default function PracticeScreen() {
     );
   }
 
+  const stripModes = toStripModes(enabledModes);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.md }]}>
-      <OrbitModeSwitcher
-        modes={enabledModes}
-        activeModeKey={activeMode}
-        onModeChange={handleModeChange}
-        topOffset={insets.top + spacing.md}
+      <FrequencyStrip
+        modes={stripModes}
+        activeKey={activeMode}
+        onSelect={handleModeChange}
       />
 
       <Animated.View style={[styles.content, fadeStyle]}>
@@ -133,6 +160,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    marginTop: spacing.lg,
   },
   scroll: {
     flex: 1,

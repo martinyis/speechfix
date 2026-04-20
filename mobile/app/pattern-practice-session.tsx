@@ -33,6 +33,24 @@ const REFRAME_LABELS: Record<string, string> = {
   negative_framing: 'Negative Framing',
 };
 
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+// Icon per pattern type. Reframes get a "sparkles" feel; repeated-use patterns
+// get a "repeat" feel. Keeps the header lightly themed without a headline.
+function patternIcon(patternType: string): IoniconName {
+  switch (patternType) {
+    case 'hedging':
+    case 'negative_framing':
+      return 'sparkles-outline';
+    case 'overused_word':
+    case 'crutch_phrase':
+    case 'repetitive_starter':
+      return 'repeat-outline';
+    default:
+      return 'sparkles-outline';
+  }
+}
+
 const INSTRUCTION_LABELS: Record<string, (identifier: string | null) => string> = {
   overused_word: (id) => `Say it without "${id}"`,
   repetitive_starter: () => 'Start it differently',
@@ -127,17 +145,30 @@ export default function PatternPracticeSessionScreen() {
   >(null);
   const [altIndex, setAltIndex] = useState(0);
 
-  // Build exercise queue on mount / when active changes
+  // Build exercise queue on mount / when active changes.
+  // Heal orphan state: if the active pattern has no exercises at the current
+  // level, or every exercise is already practiced, surface the pattern-complete
+  // screen so the user can tap through. That POSTs /pattern-complete, which
+  // finalizes the pattern server-side and promotes the next queued one.
   useEffect(() => {
-    if (active && exerciseQueue.length === 0) {
-      const unpracticed = active.exercises
-        .filter((e) => !e.practiced)
-        .map((e) => e.id);
-      if (unpracticed.length > 0) {
-        setExerciseQueue(unpracticed);
-      }
+    if (!active || completionState !== null) return;
+    if (exerciseQueue.length > 0) return;
+
+    const unpracticed = active.exercises
+      .filter((e) => !e.practiced)
+      .map((e) => e.id);
+
+    if (unpracticed.length > 0) {
+      setExerciseQueue(unpracticed);
+      return;
     }
-  }, [active]);
+
+    // Orphan state: active pattern with nothing left to practice.
+    // No exercises at all (L2 generation failed) → fall back to pattern-complete
+    // rather than hang on a loader. Otherwise it's a classic "user backed out
+    // before acknowledging completion" — same handling.
+    setCompletionState('pattern_complete');
+  }, [active, completionState, exerciseQueue.length]);
 
   const currentExerciseId = exerciseQueue[queueIndex];
   const currentExercise = useMemo(() => {
@@ -363,7 +394,14 @@ export default function PatternPracticeSessionScreen() {
           {isReframe ? (
             <>
               <View>
-                <Text style={styles.sectionLabel}>REFRAME</Text>
+                <View style={styles.sectionLabelRow}>
+                  <Ionicons
+                    name={patternIcon(currentExercise.patternType)}
+                    size={12}
+                    color={alpha(colors.tertiary, 0.75)}
+                  />
+                  <Text style={styles.sectionLabel}>REFRAME</Text>
+                </View>
                 <Text style={styles.targetWord}>
                   {REFRAME_LABELS[currentExercise.patternType] ?? currentExercise.patternType}
                 </Text>
@@ -403,7 +441,14 @@ export default function PatternPracticeSessionScreen() {
           ) : (
             <>
               <View>
-                <Text style={styles.sectionLabel}>TARGET</Text>
+                <View style={styles.sectionLabelRow}>
+                  <Ionicons
+                    name={patternIcon(currentExercise.patternType)}
+                    size={12}
+                    color={alpha(colors.tertiary, 0.75)}
+                  />
+                  <Text style={styles.sectionLabel}>TARGET</Text>
+                </View>
                 <Text style={styles.targetWord}>"{currentExercise.targetWord}"</Text>
               </View>
 
@@ -470,18 +515,11 @@ export default function PatternPracticeSessionScreen() {
           />
         ) : (
           <View style={[styles.recordArea, { paddingBottom: insets.bottom + 16 }]}>
-            {recording.state === 'evaluating' ? (
-              <View style={styles.evaluatingWrap}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.evaluatingText}>Evaluating...</Text>
-              </View>
-            ) : (
-              <PracticeRecordOrb
-                state={orbState}
-                audioLevel={recording.audioLevel}
-                onPress={recording.state === 'recording' ? handleStopRecording : handleStartRecording}
-              />
-            )}
+            <PracticeRecordOrb
+              state={orbState}
+              audioLevel={recording.audioLevel}
+              onPress={recording.state === 'recording' ? handleStopRecording : handleStartRecording}
+            />
 
             {recording.error && (
               <Text style={styles.errorText}>{recording.error}</Text>
@@ -526,6 +564,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.screenPadding + 4,
     gap: 32,
   },
+  sectionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
   sectionLabel: {
     fontSize: 10,
     fontFamily: fonts.bold,
@@ -567,17 +611,6 @@ const styles = StyleSheet.create({
   recordArea: {
     alignItems: 'center',
     gap: spacing.md,
-  },
-  evaluatingWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: spacing.xl,
-  },
-  evaluatingText: {
-    fontSize: 15,
-    fontFamily: fonts.medium,
-    color: alpha(colors.white, 0.5),
   },
   errorText: {
     fontSize: 13,

@@ -43,6 +43,7 @@ app-example
 
 # editor
 .vscode/
+.claude/
 
 # generated native folders
 ios/

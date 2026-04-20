@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Pressable,
   ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -11,11 +10,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated, {
-  useSharedValue,
   useAnimatedStyle,
   withTiming,
-  interpolate,
-  Easing,
   FadeIn,
   FadeInDown,
 } from 'react-native-reanimated';
@@ -23,12 +19,12 @@ import { ScreenHeader, GlassIconPillButton } from '../components/ui';
 import PracticeRecordOrb from '../components/PracticeRecordOrb';
 import PracticeFeedbackPanel from '../components/PracticeFeedbackPanel';
 import SuccessCelebration from '../components/SuccessCelebration';
-import { wordDiff, formatCorrectionTypeLabel } from '../lib/wordDiff';
+import ErrorReasonHeader from '../components/practice/ErrorReasonHeader';
+import { wordDiff } from '../lib/wordDiff';
 import { usePracticeTasks } from '../hooks/usePracticeTasks';
 import { usePracticeRecording } from '../hooks/usePracticeRecording';
 import { colors, alpha, spacing, layout, fonts } from '../theme';
 import { usePreloadSuccessSound, playSuccessSound } from '../lib/sounds';
-import type { PracticeTask } from '../types/practice';
 
 const SEVERITY_COLOR: Record<string, string> = {
   error: colors.severityError,
@@ -187,36 +183,6 @@ export default function PracticeSessionScreen() {
 
   const severityColor = task ? (SEVERITY_COLOR[task.severity] ?? colors.severityError) : colors.severityError;
 
-  // Collapsable explanation state
-  const [explanationExpanded, setExplanationExpanded] = useState(false);
-  const explanationAnim = useSharedValue(0);
-
-  const toggleExplanation = useCallback(() => {
-    const next = !explanationExpanded;
-    setExplanationExpanded(next);
-    explanationAnim.value = withTiming(next ? 1 : 0, {
-      duration: 250,
-      easing: Easing.out(Easing.cubic),
-    });
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [explanationExpanded, explanationAnim]);
-
-  const explanationBodyStyle = useAnimatedStyle(() => ({
-    height: interpolate(explanationAnim.value, [0, 1], [0, 60]),
-    opacity: interpolate(explanationAnim.value, [0, 0.4, 1], [0, 0, 1]),
-    overflow: 'hidden' as const,
-  }));
-
-  const explanationChevronStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${interpolate(explanationAnim.value, [0, 1], [0, 180])}deg` }],
-  }));
-
-  // Reset explanation state when switching corrections
-  useEffect(() => {
-    setExplanationExpanded(false);
-    explanationAnim.value = 0;
-  }, [currentCorrectionId]);
-
   // Compute orb state: success when passed, otherwise map normally
   const passed = recording.state === 'result' && recording.result?.passed;
   const orbState: 'idle' | 'recording' | 'evaluating' | 'success' =
@@ -371,29 +337,14 @@ export default function PracticeSessionScreen() {
             </Text>
           </View>
 
-          {/* Collapsable explanation + correction type */}
-          <View style={styles.hintArea}>
-            <View style={styles.hintRow}>
-              <View style={styles.correctionTypePill}>
-                <Text style={[styles.correctionTypePillText, { color: severityColor }]}>
-                  {formatCorrectionTypeLabel(task.correctionType)}
-                </Text>
-              </View>
-              {task.explanation ? (
-                <Pressable onPress={toggleExplanation} hitSlop={8} style={styles.explainToggle}>
-                  <Text style={styles.explainToggleText}>Why?</Text>
-                  <Animated.View style={explanationChevronStyle}>
-                    <Ionicons name="chevron-down" size={12} color={alpha(colors.white, 0.3)} />
-                  </Animated.View>
-                </Pressable>
-              ) : null}
-            </View>
-            {task.explanation ? (
-              <Animated.View style={explanationBodyStyle}>
-                <Text style={styles.hintText}>{task.explanation}</Text>
-              </Animated.View>
-            ) : null}
-          </View>
+          <ErrorReasonHeader
+            key={`err-${currentCorrectionId}`}
+            correctionType={task.correctionType}
+            severity={task.severity}
+            explanation={task.explanation}
+            shortReason={task.shortReason}
+            originalText={task.originalText}
+          />
 
           {/* Instruction */}
           <Animated.Text style={[styles.instructionText, instructionFadeStyle]}>Now say the corrected version</Animated.Text>
@@ -415,18 +366,11 @@ export default function PracticeSessionScreen() {
           />
         ) : (
           <View style={[styles.recordArea, { paddingBottom: insets.bottom + 16 }]}>
-            {recording.state === 'evaluating' ? (
-              <View style={styles.evaluatingWrap}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.evaluatingText}>Evaluating...</Text>
-              </View>
-            ) : (
-              <PracticeRecordOrb
-                state={orbState}
-                audioLevel={recording.audioLevel}
-                onPress={recording.state === 'recording' ? handleStopRecording : handleStartRecording}
-              />
-            )}
+            <PracticeRecordOrb
+              state={orbState}
+              audioLevel={recording.audioLevel}
+              onPress={recording.state === 'recording' ? handleStopRecording : handleStartRecording}
+            />
 
             {recording.error && (
               <Text style={styles.errorText}>{recording.error}</Text>
@@ -479,47 +423,6 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline' as const,
     textDecorationStyle: 'solid' as const,
   },
-  // Hint area
-  hintArea: {
-    gap: 10,
-  },
-  hintRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  explainToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-  },
-  explainToggleText: {
-    fontSize: 12,
-    fontFamily: fonts.semibold,
-    color: alpha(colors.white, 0.3),
-  },
-  hintText: {
-    fontSize: 14,
-    fontFamily: fonts.medium,
-    color: alpha(colors.white, 0.4),
-    lineHeight: 20,
-    fontStyle: 'italic' as const,
-  },
-  correctionTypePill: {
-    alignSelf: 'flex-start' as const,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: alpha(colors.white, 0.06),
-  },
-  correctionTypePillText: {
-    fontSize: 9,
-    fontFamily: fonts.bold,
-    letterSpacing: 1,
-  },
   instructionText: {
     fontSize: 13,
     fontFamily: fonts.semibold,
@@ -540,17 +443,6 @@ const styles = StyleSheet.create({
   recordArea: {
     alignItems: 'center',
     gap: spacing.md,
-  },
-  evaluatingWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: spacing.xl,
-  },
-  evaluatingText: {
-    fontSize: 15,
-    fontFamily: fonts.medium,
-    color: alpha(colors.white, 0.5),
   },
   errorText: {
     fontSize: 13,

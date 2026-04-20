@@ -1,9 +1,9 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { QueuedPatternCard } from '../QueuedPatternCard';
+import * as Haptics from 'expo-haptics';
 import { GlassIconPillButton } from '../ui';
-import { colors, alpha, fonts, spacing, layout } from '../../theme';
+import { colors, alpha, fonts, typography, spacing, layout } from '../../theme';
 import type { ActivePattern, QueuedPattern } from '../../types/practice';
 
 const PATTERN_TYPE_LABEL: Record<string, string> = {
@@ -45,123 +45,168 @@ export function PatternsMode({ active, queued }: PatternsModeProps) {
     });
   };
 
+  const handleQueueTap = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/patterns-list');
+  };
+
+  const progressPct =
+    active && active.levelProgress.total > 0
+      ? (active.levelProgress.completed / active.levelProgress.total) * 100
+      : 0;
+
   return (
     <View style={styles.container}>
-      {/* Active pattern */}
-      {active && (
-        <>
-          <Text style={styles.sectionLabel}>ACTIVE PATTERN</Text>
-          <View style={styles.activeCard}>
-            <View style={styles.activeHeader}>
-              <Text style={styles.activeTitle} numberOfLines={1}>
-                {active.identifier ? `"${active.identifier}"` : PATTERN_TYPE_LABEL[active.type] ?? active.type}
-              </Text>
-              {active.isReturning && (
-                <View style={styles.returningBadge}>
-                  <Text style={styles.returningText}>Came back</Text>
-                </View>
-              )}
-            </View>
-            {active.identifier && (
-              <Text style={styles.activeType}>
-                {PATTERN_TYPE_LABEL[active.type] ?? active.type}
-              </Text>
-            )}
+      <InlineStats
+        parts={[{ value: queued.length, label: 'in queue' }]}
+      />
 
-            {/* Level indicator */}
-            <Text style={styles.levelLabel}>
+      {/* Hero — compact active pattern */}
+      {active && (
+        <View style={styles.hero}>
+          <View style={styles.heroHeader}>
+            <Text style={styles.heroId} numberOfLines={1}>
+              {active.identifier ? `"${active.identifier}"` : PATTERN_TYPE_LABEL[active.type] ?? active.type}
+            </Text>
+            {active.isReturning && (
+              <View style={styles.returningBadge}>
+                <Text style={styles.returningText}>Came back</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.progressRow}>
+            <View style={styles.progressBarBg}>
+              <View style={[styles.progressBarFill, { width: `${progressPct}%` }]} />
+            </View>
+            <Text style={styles.progressFraction}>
+              {active.levelProgress.completed}/{active.levelProgress.total}
+            </Text>
+          </View>
+
+          <View style={styles.heroMeta}>
+            <Text style={styles.heroLevel}>
               {LEVEL_LABEL[active.currentLevel] ?? `Level ${active.currentLevel}`}
             </Text>
-
-            {/* Progress bar */}
-            <View style={styles.progressRow}>
-              <View style={styles.progressBarBg}>
-                <View
-                  style={[
-                    styles.progressBarFill,
-                    {
-                      width: active.levelProgress.total > 0
-                        ? `${(active.levelProgress.completed / active.levelProgress.total) * 100}%`
-                        : '0%',
-                    },
-                  ]}
-                />
-              </View>
-              <Text style={styles.progressText}>
-                {active.levelProgress.completed}/{active.levelProgress.total}
-              </Text>
-            </View>
-
-            <GlassIconPillButton
-              label="Continue Practicing"
-              icon="play"
-              variant="primary"
-              fullWidth
-              onPress={handleStartPracticing}
-            />
+            {active.identifier && (
+              <>
+                <Text style={styles.heroMetaDot}>·</Text>
+                <Text style={styles.heroType} numberOfLines={1}>
+                  {PATTERN_TYPE_LABEL[active.type] ?? active.type}
+                </Text>
+              </>
+            )}
           </View>
-        </>
+
+          <GlassIconPillButton
+            icon="play"
+            label="Continue Practicing"
+            variant="primary"
+            fullWidth
+            onPress={handleStartPracticing}
+          />
+        </View>
       )}
 
-      {/* Queued patterns */}
+      {/* UP NEXT — compact flow rows */}
       {queued.length > 0 && (
-        <>
-          <Text style={[styles.sectionLabel, active && { marginTop: spacing.xl }]}>
-            UP NEXT
-          </Text>
-          {queued.map((pattern) => (
-            <QueuedPatternCard key={pattern.patternId} pattern={pattern} />
+        <View style={styles.flowQueue}>
+          <Text style={styles.sectionLabel}>UP NEXT</Text>
+          {queued.map((p) => (
+            <Pressable
+              key={p.patternId}
+              style={styles.flowQueueRow}
+              onPress={handleQueueTap}
+            >
+              <Text style={styles.flowQueueId} numberOfLines={1}>
+                {p.identifier ? `"${p.identifier}"` : PATTERN_TYPE_LABEL[p.type] ?? p.type}
+              </Text>
+              <Text style={styles.flowQueueType} numberOfLines={1}>
+                {PATTERN_TYPE_LABEL[p.type] ?? p.type}
+              </Text>
+              <View style={{ flex: 1 }} />
+              <Text style={styles.flowQueueFreq}>{p.frequency}x</Text>
+            </Pressable>
           ))}
-        </>
+        </View>
       )}
 
-      {/* See all link */}
-      <View style={styles.buttonsWrap}>
-        <GlassIconPillButton
-          label="See All Patterns"
-          variant="secondary"
-          fullWidth
-          noIcon
-          onPress={() => router.push('/patterns-list')}
-        />
-      </View>
+      {/* See all link — route to full list (incl. resolved) */}
+      <View style={styles.divider} />
+      <Pressable style={styles.seeAllRow} onPress={handleQueueTap}>
+        <Text style={styles.seeAllText}>See all patterns</Text>
+        <Ionicons name="chevron-forward" size={16} color={alpha(colors.white, 0.3)} />
+      </Pressable>
     </View>
   );
 }
 
+// ── InlineStats ───────────────────────────────────────────────────────
+
+function InlineStats({ parts }: { parts: { value: number; label: string }[] }) {
+  return (
+    <Text style={styles.inlineStats}>
+      {parts.map((p, i) => (
+        <Text key={p.label}>
+          {i > 0 && <Text style={styles.inlineStatsSep}> · </Text>}
+          <Text style={styles.inlineStatsValue}>{p.value}</Text> {p.label}
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingHorizontal: layout.screenPadding,
+    gap: spacing.lg,
   },
+
+  // Inline stats
+  inlineStats: {
+    ...typography.bodySm,
+    color: alpha(colors.white, 0.35),
+  },
+  inlineStatsValue: {
+    ...typography.bodySmMedium,
+    color: alpha(colors.white, 0.5),
+  },
+  inlineStatsSep: {
+    color: alpha(colors.white, 0.2),
+  },
+
+  // Section label
   sectionLabel: {
     fontSize: 10,
     fontFamily: fonts.bold,
     color: alpha(colors.white, 0.2),
     letterSpacing: 1.5,
-    paddingHorizontal: layout.screenPadding,
-    marginBottom: 12,
   },
-  activeCard: {
-    marginHorizontal: layout.screenPadding,
-    gap: 12,
+
+  // Divider
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: alpha(colors.white, 0.06),
   },
-  activeHeader: {
+
+  // Hero
+  hero: {
+    gap: spacing.md,
+  },
+  heroHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
-  activeTitle: {
-    fontSize: 22,
+  heroId: {
+    fontSize: 24,
     fontFamily: fonts.extrabold,
     color: colors.onSurface,
-    letterSpacing: -0.5,
+    letterSpacing: -0.75,
     flex: 1,
-  },
-  activeType: {
-    fontSize: 13,
-    fontFamily: fonts.medium,
-    color: alpha(colors.white, 0.35),
-    marginTop: -6,
   },
   returningBadge: {
     backgroundColor: alpha(colors.tertiary, 0.15),
@@ -175,17 +220,10 @@ const styles = StyleSheet.create({
     color: colors.tertiary,
     letterSpacing: 0.5,
   },
-  levelLabel: {
-    fontSize: 11,
-    fontFamily: fonts.bold,
-    color: alpha(colors.primary, 0.7),
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
   progressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: spacing.md,
   },
   progressBarBg: {
     flex: 1,
@@ -199,16 +237,69 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: 2,
   },
-  progressText: {
-    fontSize: 12,
-    fontFamily: fonts.semibold,
+  progressFraction: {
+    ...typography.bodySmMedium,
+    color: alpha(colors.white, 0.4),
+  },
+  heroMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flexWrap: 'wrap',
+  },
+  heroLevel: {
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    color: alpha(colors.primary, 0.7),
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  heroMetaDot: {
+    ...typography.bodySm,
+    color: alpha(colors.white, 0.2),
+  },
+  heroType: {
+    ...typography.bodySm,
     color: alpha(colors.white, 0.35),
   },
-  buttonsWrap: {
-    gap: 10,
-    paddingHorizontal: layout.screenPadding,
-    marginTop: spacing.xxl,
+
+  // Flow queue
+  flowQueue: {
+    gap: spacing.sm,
   },
+  flowQueueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  flowQueueId: {
+    ...typography.bodyMdMedium,
+    color: colors.onSurface,
+    maxWidth: '45%',
+  },
+  flowQueueType: {
+    ...typography.bodySm,
+    color: alpha(colors.white, 0.3),
+  },
+  flowQueueFreq: {
+    ...typography.bodySmMedium,
+    color: alpha(colors.white, 0.35),
+  },
+
+  // See all
+  seeAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+  },
+  seeAllText: {
+    ...typography.bodyMdMedium,
+    color: alpha(colors.white, 0.4),
+  },
+
+  // Empty
   emptyWrap: {
     flex: 1,
     alignItems: 'center',

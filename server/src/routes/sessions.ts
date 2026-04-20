@@ -86,10 +86,12 @@ export async function sessionRoutes(fastify: FastifyInstance) {
             originalText: c.originalText,
             correctedText: c.correctedText,
             explanation: c.explanation || null,
+            shortReason: c.shortReason || null,
             correctionType: c.correctionType || 'other',
             sentenceIndex: c.sentenceIndex,
             severity: c.severity,
             contextSnippet: c.contextSnippet || null,
+            fullContext: c.contextSnippet || null,
           }))
         ).returning();
 
@@ -168,15 +170,17 @@ export async function sessionRoutes(fastify: FastifyInstance) {
     const sessionCorrections = await db.select().from(corrections).where(eq(corrections.sessionId, sessionId));
     const sessionFillerWords = await db.select().from(fillerWords).where(eq(fillerWords.sessionId, sessionId));
 
-    // Extract sentences, fillerPositions, and sessionInsights from the analysis JSON column
+    // Extract sentences, fillerPositions, sessionInsights, and speechTimeline from the analysis JSON column
     const analysisData = session.analysis as {
       sentences?: string[];
       fillerPositions?: Array<{ sentenceIndex: number; word: string; startIndex: number }>;
       sessionInsights?: Array<{ type: string; description: string }>;
+      speechTimeline?: Record<string, unknown>;
     } | null;
     const sentences = analysisData?.sentences ?? [];
     const fillerPositions = analysisData?.fillerPositions ?? [];
     const sessionInsights = analysisData?.sessionInsights ?? [];
+    const speechTimeline = analysisData?.speechTimeline ?? null;
 
     return {
       session: {
@@ -186,6 +190,7 @@ export async function sessionRoutes(fastify: FastifyInstance) {
         fillerWords: sessionFillerWords,
         fillerPositions,
         sessionInsights,
+        speechTimeline,
       },
     };
   });

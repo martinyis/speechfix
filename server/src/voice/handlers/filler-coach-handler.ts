@@ -17,6 +17,7 @@ export class FillerCoachHandler implements AgentTypeHandler {
   readonly greetingStrategy = 'pregenerated' as const;
   readonly includeElapsedTime = true;
   readonly maxSessionDurationMs = 10 * 60 * 1000; // 10 min hard cap
+  readonly maxCompletionTokens = { withTools: 220, withoutTools: 160 };
 
   buildSystemPrompt(
     _agentConfig: AgentConfig | null,
@@ -61,6 +62,7 @@ export class FillerCoachHandler implements AgentTypeHandler {
     conversationHistory: ConversationMessage[],
     durationSeconds: number,
     formContext?: Record<string, unknown> | null,
+    _speechTimeline?: unknown,
   ): Promise<SessionEndResult> {
     const userUtterances = transcriptBuffer;
 

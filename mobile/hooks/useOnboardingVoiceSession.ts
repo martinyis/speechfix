@@ -31,6 +31,8 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
   const pendingCompleteRef = useRef<{ displayName: string | null; speechObservation: string | null; farewellMessage: string | null } | null>(null);
   const cleanedUpRef = useRef(false);
 
+  const speakingEndRef = useRef(0);
+
   const store = useSessionStore;
 
   const cleanup = useCallback(async () => {
@@ -61,15 +63,17 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
 
     try {
       const { subscription } = await ExpoPlayAudioStream.startRecording({
-        sampleRate: 16000,
+        sampleRate: 48000,
         channels: 1,
         encoding: 'pcm_16bit',
         interval: 100,
         onAudioStream: async (event: any) => {
           const ws = wsRef.current;
-          if (ws?.readyState === WebSocket.OPEN && event.data) {
-            ws.send(JSON.stringify({ type: 'audio', data: event.data }));
-          }
+          if (!ws || ws.readyState !== WebSocket.OPEN || !event.data) return;
+          const s = store.getState();
+          if (s.voiceSessionState === 'speaking') return;
+          if (speakingEndRef.current > 0 && Date.now() - speakingEndRef.current < 500) return;
+          ws.send(JSON.stringify({ type: 'audio', data: event.data }));
         },
       });
       isRecordingRef.current = true;
@@ -113,6 +117,7 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
 
         if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
         playbackTimerRef.current = setTimeout(() => {
+          speakingEndRef.current = Date.now();
           playbackTimerRef.current = null;
           if (pendingCompleteRef.current && !cleanedUpRef.current) {
             const { displayName, speechObservation, farewellMessage } = pendingCompleteRef.current;
@@ -191,7 +196,7 @@ export function useOnboardingVoiceSession({ onComplete, onError }: UseOnboarding
     try {
       await ExpoPlayAudioStream.setSoundConfig({
         sampleRate: 24000,
-        playbackMode: PlaybackModes.CONVERSATION,
+        playbackMode: PlaybackModes.REGULAR,
       });
     } catch {}
 

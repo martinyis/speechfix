@@ -16,6 +16,7 @@ export class OnboardingHandler implements AgentTypeHandler {
   readonly greetingStrategy = 'none' as const;
   readonly silenceTimeoutMs = 30_000;
   readonly maxSessionDurationMs = 3 * 60 * 1000;
+  readonly maxCompletionTokens = { withTools: 180, withoutTools: 150 };
 
   buildSystemPrompt(_agentConfig: AgentConfig | null, _userContext?: FullUserContext, _formContext?: Record<string, unknown> | null): string {
     return [IDENTITY_PROMPT, BEHAVIOR_PROMPT, ONBOARDING_SESSION_PROMPT].join('\n\n');
@@ -36,6 +37,7 @@ export class OnboardingHandler implements AgentTypeHandler {
     conversationHistory: ConversationMessage[],
     _durationSeconds: number,
     _formContext?: Record<string, unknown> | null,
+    _speechTimeline?: unknown,
   ): Promise<SessionEndResult> {
     try {
       const profile = await extractUserProfile(conversationHistory);

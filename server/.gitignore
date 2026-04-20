@@ -4,3 +4,5 @@ dist/
 .cache/
 *.m4a
 *.wav
+*.ogg
+audio/

@@ -45,6 +45,8 @@ export interface FillerWordPosition {
   sentenceIndex: number;
   word: string;
   startIndex: number;
+  /** Absolute time in seconds from session start. Populated when word timings are available. */
+  timeSeconds?: number;
 }
 
 export interface SessionInsight {
@@ -56,9 +58,58 @@ export interface SessionInsight {
     | 'strength'
     | 'focus_area'
     | 'metric'
-    | 'score';
+    | 'score'
+    | 'delivery_score'
+    | 'language_score';
   description: string;
   value?: string | number;
+}
+
+export interface WordTimingData {
+  word: string;
+  start: number;
+  end: number;
+  confidence: number;
+}
+
+export interface UtteranceMetadata {
+  text: string;
+  words: WordTimingData[];
+  startTime: number;
+  endTime: number;
+  durationMs: number;
+  wpm: number;
+  avgConfidence: number;
+  lowConfidenceWords: string[];
+  responseLatencyMs: number;
+}
+
+/**
+ * Per-moment prosody sample for visualizing the conversation timeline.
+ * Gaps in the sample array represent silences.
+ */
+export interface ProsodySample {
+  t: number;                 // seconds from session start
+  pitchHz: number | null;    // F0 in Hz, null if unvoiced
+  volume: number;            // 0-1 normalized volume
+}
+
+export interface SpeechTimeline {
+  utterances: UtteranceMetadata[];
+  overallWpm: number;
+  paceVariability: number;
+  avgResponseLatencyMs: number;
+  avgConfidence: number;
+  totalPauses: number;
+  avgPauseDurationMs: number;
+  longestPauseMs: number;
+  speechToSilenceRatio: number;
+  volumeConsistency: number;
+  volumeTrend: 'steady' | 'declining' | 'rising' | 'erratic';
+  pitchVariation: number;
+  pitchAssessment: 'monotone' | 'limited' | 'varied' | 'expressive';
+  avgPitchHz: number;
+  prosodySamples?: ProsodySample[];  // may be empty/absent for legacy sessions
 }
 
 export interface SessionDetail {
@@ -71,6 +122,9 @@ export interface SessionDetail {
   fillerWords: FillerWord[];
   fillerPositions: FillerWordPosition[];
   sessionInsights: SessionInsight[];
+  speechTimeline?: SpeechTimeline | null;
+  /** Relative path to persisted audio file; null while encoding or for legacy sessions. */
+  audioPath?: string | null;
 }
 
 export type TopicCategory =

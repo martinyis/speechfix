@@ -1,4 +1,6 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import Animated, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { colors, alpha, spacing, fonts } from '../../theme';
@@ -102,6 +104,22 @@ export default function ProfileScreen() {
           </GlassCard>
         </View>
 
+        {__DEV__ && (
+          <Pressable
+            style={styles.labRow}
+            onPress={() => router.push('/lab')}
+          >
+            <View style={styles.labIcon}>
+              <Ionicons name="flask-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.labTextWrap}>
+              <Text style={styles.labLabel}>Lab (dev)</Text>
+              <Text style={styles.labDesc}>Prototypes, variants, design experiments</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={alpha(colors.white, 0.3)} />
+          </Pressable>
+        )}
+
         <View style={styles.logoutWrap}>
           <GlassIconPillButton
             variant="danger"
@@ -148,6 +166,42 @@ const styles = StyleSheet.create({
   },
   logoutWrap: {
     marginTop: spacing.xl,
+  },
+
+  // Lab (dev-only)
+  labRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: alpha(colors.primary, 0.05),
+    borderWidth: 1,
+    borderColor: alpha(colors.primary, 0.18),
+    borderRadius: 16,
+    marginTop: spacing.xl,
+  },
+  labIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: alpha(colors.primary, 0.12),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  labTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  labLabel: {
+    fontSize: 15,
+    fontFamily: fonts.semibold,
+    color: colors.onSurface,
+  },
+  labDesc: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: alpha(colors.white, 0.4),
   },
 
   // Toggle

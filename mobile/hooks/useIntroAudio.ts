@@ -1,14 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { API_BASE_URL } from '../lib/api';
+import { Asset } from 'expo-asset';
 import { ALL_WORDS, INTRO_SEGMENTS } from '../lib/introTimestamps';
+
+const INTRO_AUDIO_MODULE = require('../assets/sounds/intro.wav');
 
 export function useIntroAudio() {
   const [isComplete, setIsComplete] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [revealedWordCount, setRevealedWordCount] = useState(0);
   const [currentWordIndex, setCurrentWordIndex] = useState(-1);
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(-1);
+  const [audioSource, setAudioSource] = useState<{ uri: string } | null>(null);
 
   const mountedRef = useRef(true);
   const playStartedRef = useRef(false);
@@ -16,12 +18,25 @@ export function useIntroAudio() {
   const prevSegmentIndexRef = useRef(-1);
   const prevRevealedRef = useRef(0);
 
-  // Create audio player — downloadFirst downloads via fetch then loads from local file
-  const audioUrl = `${API_BASE_URL}/intro-audio/stream`;
-  const player = useAudioPlayer(audioUrl, { downloadFirst: true });
+  // Dev builds don't bundle assets natively — expo-asset must download + cache first so we get a playable localUri
+  useEffect(() => {
+    (async () => {
+      try {
+        const asset = Asset.fromModule(INTRO_AUDIO_MODULE);
+        if (!asset.localUri) {
+          await asset.downloadAsync();
+        }
+        const uri = asset.localUri ?? asset.uri;
+        if (mountedRef.current) setAudioSource({ uri });
+      } catch (err) {
+        console.error('[intro-audio] Asset load failed:', err);
+      }
+    })();
+  }, []);
+
+  const player = useAudioPlayer(audioSource);
   const status = useAudioPlayerStatus(player);
 
-  // Ensure volume is set
   useEffect(() => {
     if (player) {
       if (player.volume < 1) {
@@ -34,18 +49,7 @@ export function useIntroAudio() {
   }, [player]);
 
   const isLoading = !status.isLoaded;
-
-  // Timeout: if audio never loads after 15s, show error
-  useEffect(() => {
-    if (status.isLoaded) return;
-    const timeout = setTimeout(() => {
-      if (!status.isLoaded && mountedRef.current) {
-        console.error('[intro-audio] Failed: audio load timeout (15s)');
-        setError('Audio failed to load. Check your connection.');
-      }
-    }, 15000);
-    return () => clearTimeout(timeout);
-  }, [status.isLoaded]);
+  const error = null as string | null;
 
   // Detect playback completion via didJustFinish
   useEffect(() => {

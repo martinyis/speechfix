@@ -1,0 +1,16 @@
+diff --git a/node_modules/@mykin-ai/expo-audio-stream/ios/AudioSessionManager.swift b/node_modules/@mykin-ai/expo-audio-stream/ios/AudioSessionManager.swift
+index 512d46f..af66525 100644
+--- a/node_modules/@mykin-ai/expo-audio-stream/ios/AudioSessionManager.swift
++++ b/node_modules/@mykin-ai/expo-audio-stream/ios/AudioSessionManager.swift
+@@ -427,7 +427,10 @@ class AudioSessionManager {
+                 newSettings.sampleRate = session.sampleRate
+             }
+
+-            try session.setCategory(.playAndRecord, mode: .videoChat, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
++            // Reflexa patch: use `.default` mode instead of `.videoChat` to avoid
++            // iOS hardware voice processing (AGC, echo cancel, 16kHz lock).
++            // Trade-off: barge-in is disabled (mic muted while AI talks).
++            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
+             try session.setPreferredSampleRate(settings.sampleRate)
+             try session.setPreferredIOBufferDuration(1024 / settings.sampleRate)
+             try session.setActive(true)

@@ -55,8 +55,9 @@ Fail if:
 }
 
 export interface WeakSpotExerciseContext {
-  prompt: string;
-  targetRule: string;
+  originalText: string;
+  correctedText: string;
+  explanation: string | null;
   correctionType: string;
 }
 
@@ -64,29 +65,39 @@ export async function evaluateWeakSpotExercise(
   exercise: WeakSpotExerciseContext,
   transcript: string,
 ): Promise<EvaluationResult> {
-  const systemPrompt = `You are an expert English language evaluator for non-native speakers. You evaluate whether a speaker correctly fixed a grammar error in a practice sentence. Return JSON results.
+  const systemPrompt = `You are an expert English language evaluator for non-native speakers. You evaluate practice attempts and return JSON results.
 
 RULES:
 - Return ONLY valid JSON: {"passed": true/false, "feedback": "1-2 sentences"}
+- NEVER reveal the corrected reference text in feedback
 - On pass: set feedback to an empty string
-- On fail: hint at what's still wrong WITHOUT giving the answer
+- On fail: name the specific word or phrase the speaker got wrong (e.g., "You're still missing 'to' before 'understand'.", "'goed' isn't right — think about the past-tense form.") — be concrete, never generic
 - Be direct, precise, expert tone`;
 
-  const userPrompt = `The speaker was given a sentence with an intentional "${exercise.correctionType}" error and asked to say it correctly.
+  const userPrompt = `The speaker was shown a sentence that intentionally contained a "${exercise.correctionType}" error and asked to say it the correct way.
 
-SENTENCE WITH ERROR: "${exercise.prompt}"
-GRAMMAR RULE: "${exercise.targetRule}"
+ORIGINAL (the wrong version they saw): "${exercise.originalText}"
+RULE: "${exercise.explanation ?? ''}"
 
 They said:
 SPOKEN: "${transcript}"
 
-Evaluate whether:
-1. The specific error type (${exercise.correctionType}) is correctly fixed
-2. The sentence is grammatically correct and natural
-3. The meaning is preserved
+REFERENCE (do NOT reveal this to the user): "${exercise.correctedText}"
 
-Pass if the error is fixed and the sentence is correct. Minor rephrasing is fine.
-Fail if the original error persists, a new error of the same type is introduced, or the sentence is unintelligible.`;
+Evaluate whether they successfully fixed the specific ${exercise.correctionType} error. Accept ANY valid fix that resolves the error — the user does not need to match the reference exactly.
+
+Pass if:
+- The specific error described by RULE is correctly fixed
+- The sentence is grammatically correct and natural
+- The core meaning of the original is preserved
+- Minor synonyms or rephrasings are fine as long as the target error is resolved
+
+Fail if:
+- The original error still persists (same mistake repeated)
+- A new error of the same type is introduced
+- The sentence is unintelligible or completely off-topic
+
+On failure, your feedback MUST name the exact word or phrase that's still wrong (drawing from ORIGINAL and RULE) — do not say "restructure differently" or other vague hints.`;
 
   return callGroq(systemPrompt, userPrompt);
 }

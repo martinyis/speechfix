@@ -207,29 +207,36 @@ export async function generateWeakSpotExercises(
 
   const correctionType = correctionData[0]?.correctionType ?? 'grammar';
   const examples = correctionData
-    .map((c, i) => `${i + 1}. Wrong: "${c.originalText}" → Right: "${c.correctedText}" (${c.explanation ?? ''})`)
+    .map(
+      (c, i) =>
+        `${i + 1}. Wrong: "${c.originalText}" → Right: "${c.correctedText}"${
+          c.explanation ? ` — ${c.explanation}` : ''
+        }`,
+    )
     .join('\n');
 
-  const systemPrompt = `You generate practice sentences for English language learners. Return ONLY valid JSON: {"exercises": [{"prompt": "sentence with intentional error", "targetRule": "what the user needs to fix"}]}
+  const systemPrompt = `You generate practice sentences for non-native English speakers to drill a specific recurring error.
 
-RULES:
-- Generate ${EXERCISES_PER_SPOT.min}-${EXERCISES_PER_SPOT.max} exercises
-- Each exercise is a sentence containing the SAME type of error the user keeps making
-- The user will need to say the sentence correctly (fixing the error)
-- Keep sentences short and conversational (10-20 words)
-- Vary the topics — everyday situations
-- targetRule should be a brief description of the grammar rule being tested`;
+OUTPUT FORMAT — return ONLY valid JSON:
+{"exercises": [{"originalText": "...", "correctedText": "...", "explanation": "..."}]}
 
-  const userPrompt = `The user repeatedly makes "${correctionType}" errors. Here are examples from their sessions:
+CRITICAL RULES:
+1. Every "originalText" must contain the SAME SPECIFIC grammatical error as the user's real examples. Not a related error. Not a different error of the same broad category. The same micro-pattern (e.g. if the user kept dropping "to" before an infinitive, every originalText must drop "to" before an infinitive).
+2. "correctedText" must be byte-identical to "originalText" except for the minimal edit that fixes the error. No rephrasing, no synonyms, no restructure. Just the fix.
+3. "explanation" must be concrete and point at the exact word/phrase. Max 15 words. Good: "missing 'to' before 'understand'". Good: "past tense should be 'went', not 'go'". Good: "subject-verb disagreement — 'people are' not 'people is'". Bad: "grammar error", "verb tense issue", "incorrect usage".
+4. Generate ${EXERCISES_PER_SPOT.min}-${EXERCISES_PER_SPOT.max} exercises. 10-20 words each. Everyday conversational topics. Vary the surface vocabulary — do NOT reuse the user's example sentences.
+5. The error must be natural-sounding for a non-native speaker — plausible, not contrived.`;
+
+  const userPrompt = `The user keeps making "${correctionType}" errors. Here are their real corrections (wrong → right):
 
 ${examples}
 
-Generate practice sentences with similar errors that the user must correct when speaking aloud.`;
+Study the SHARED micro-pattern across these examples. Then generate fresh sentences that reproduce the exact same micro-pattern on different topics. Each exercise must let the user feel the same fix they needed in their own speech.`;
 
   try {
     const response = await groq.chat.completions.create({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 1536,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },
@@ -244,19 +251,31 @@ Generate practice sentences with similar errors that the user must correct when 
     }
 
     const parsed = JSON.parse(text);
-    const exercises: { prompt: string; targetRule: string }[] = parsed.exercises ?? [];
+    const exercises: { originalText?: string; correctedText?: string; explanation?: string }[] =
+      parsed.exercises ?? [];
 
-    if (exercises.length === 0) return;
+    const valid = exercises.filter(
+      (ex) =>
+        typeof ex.originalText === 'string' &&
+        ex.originalText.trim().length > 0 &&
+        typeof ex.correctedText === 'string' &&
+        ex.correctedText.trim().length > 0,
+    );
 
-    // Clamp to max
-    const toInsert = exercises.slice(0, EXERCISES_PER_SPOT.max);
+    if (valid.length === 0) {
+      console.error('[weak-spots] LLM returned no valid exercises');
+      return;
+    }
+
+    const toInsert = valid.slice(0, EXERCISES_PER_SPOT.max);
 
     await db.insert(weakSpotExercises).values(
       toInsert.map((ex, i) => ({
         weakSpotId,
         userId,
-        prompt: ex.prompt,
-        targetRule: ex.targetRule,
+        originalText: ex.originalText!.trim(),
+        correctedText: ex.correctedText!.trim(),
+        explanation: ex.explanation?.trim() || null,
         orderIndex: i,
       })),
     );

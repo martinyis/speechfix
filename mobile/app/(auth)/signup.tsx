@@ -77,6 +77,33 @@ export default function SignupScreen() {
     }
   };
 
+  // ⚠️ FOR TESTING PURPOSES ONLY — DO NOT COMMIT TO GIT ⚠️
+  // Quick auto-login with hardcoded dev credentials. Remove before pushing.
+  const handleTestLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'test@gmail.com', password: 'test1234' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Test login failed');
+        return;
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await useAuthStore.getState().setAuth(data.token, data.user);
+      router.replace('/(tabs)');
+    } catch {
+      setError('Network error. Check your connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  // ⚠️ END TEST-ONLY BLOCK ⚠️
+
   return (
     <View style={styles.root}>
       {/* Purple bloom: diagonal from top-right */}
@@ -128,6 +155,19 @@ export default function SignupScreen() {
               Precision speech coaching powered by AI.
             </Text>
           </Animated.View>
+
+          {/* ⚠️ FOR TESTING PURPOSES ONLY — DO NOT COMMIT TO GIT ⚠️ */}
+          <Pressable
+            onPress={handleTestLogin}
+            style={styles.devTestButton}
+            disabled={loading}
+          >
+            <Ionicons name="flash" size={14} color={colors.black} />
+            <Text style={styles.devTestButtonText}>
+              DEV: Auto-login (test@gmail.com)
+            </Text>
+          </Pressable>
+          {/* ⚠️ END TEST-ONLY BLOCK ⚠️ */}
 
           {/* Form */}
           <Animated.View
@@ -449,4 +489,24 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontFamily: fonts.semibold,
   },
+
+  // ⚠️ FOR TESTING PURPOSES ONLY — DO NOT COMMIT TO GIT ⚠️
+  devTestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    alignSelf: 'center',
+    backgroundColor: '#FFD60A',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.default,
+    marginBottom: spacing.xl,
+  },
+  devTestButtonText: {
+    ...typography.bodySm,
+    color: colors.black,
+    fontFamily: fonts.semibold,
+  },
+  // ⚠️ END TEST-ONLY BLOCK ⚠️
 });

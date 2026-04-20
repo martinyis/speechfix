@@ -43,6 +43,23 @@ export const sessions = pgTable('sessions', {
   description: text('description'),
   topicCategory: varchar('topic_category', { length: 50 }),
   clarityScore: integer('clarity_score'),
+  /**
+   * Relative path to the persisted user audio for this session (e.g., "42/1234.ogg").
+   * Resolved by AudioStorage. Null while encoding, or for legacy sessions.
+   */
+  audioPath: text('audio_path'),
+  /**
+   * Which encoder produced `audio_path`: 'pcm' (legacy server-side 16kHz PCM)
+   * or 'hifi' (client-uploaded M4A at 48kHz). 'hifi' takes precedence so the
+   * two pipelines can race without overwriting the higher-quality file.
+   */
+  audioSource: text('audio_source'),
+  /**
+   * Relative path to the raw client-uploaded M4A (before trim+Opus encode).
+   * Kept on disk so the encoder can re-run after a server crash. Cleared after
+   * successful encode (or kept for debugging — cheap).
+   */
+  audioRawPath: text('audio_raw_path'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -52,6 +69,7 @@ export const corrections = pgTable('corrections', {
   originalText: text('original_text').notNull(),
   correctedText: text('corrected_text').notNull(),
   explanation: text('explanation'),
+  shortReason: text('short_reason'),
   correctionType: text('correction_type').notNull(),
   sentenceIndex: integer('sentence_index').notNull().default(0),
   severity: text('severity').notNull().default('error'),
@@ -174,8 +192,9 @@ export const weakSpotExercises = pgTable('weak_spot_exercises', {
   id: serial('id').primaryKey(),
   weakSpotId: integer('weak_spot_id').references(() => weakSpots.id, { onDelete: 'cascade' }).notNull(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  prompt: text('prompt').notNull(),
-  targetRule: text('target_rule').notNull(),
+  originalText: text('original_text').notNull(),
+  correctedText: text('corrected_text').notNull(),
+  explanation: text('explanation'),
   orderIndex: integer('order_index').notNull(),
   createdAt: timestamp('created_at').defaultNow(),
 });

@@ -1,73 +1,40 @@
-import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import Animated, {
-  useSharedValue,
-  withTiming,
-  Easing,
-  runOnJS,
-  useAnimatedReaction,
-} from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { colors, alpha, fonts, spacing, layout } from '../theme';
+import { ScoreRing } from './ScoreRing';
 import type { SessionInsight, FillerWord } from '../types/session';
 
 interface SessionVerdictProps {
   insights: SessionInsight[];
+  /** Not used in Phase 1 render but kept for upstream compatibility */
   fillerWords: FillerWord[];
+  /** Not used in Phase 1 render but kept for upstream compatibility */
   durationSeconds: number;
   isFresh?: boolean;
   isLoading?: boolean;
 }
 
-// Score color interpolation: red (0) → amber (50) → green (80+)
-function scoreColor(score: number): string {
-  if (score >= 80) return '#34d399'; // green
-  if (score >= 60) return '#fbbf24'; // amber
-  if (score >= 40) return '#fb923c'; // orange
-  return '#ff6e84'; // red
+// Narrative fades in ~1.1s after rings start, matching the ~1.0s sweep + settle
+const NARRATIVE_DELAY_MS = 1100;
+const LANGUAGE_STAGGER_MS = 150;
+
+function readScore(insights: SessionInsight[], type: SessionInsight['type']): number | null {
+  const hit = insights.find(i => i.type === type);
+  return typeof hit?.value === 'number' ? hit.value : null;
 }
 
 export function SessionVerdict({
   insights,
-  fillerWords,
-  durationSeconds,
   isFresh,
   isLoading,
 }: SessionVerdictProps) {
-  const scoreInsight = insights.find(i => i.type === 'score');
-  const score = typeof scoreInsight?.value === 'number' ? scoreInsight.value : null;
+  const delivery = readScore(insights, 'delivery_score');
+  const language = readScore(insights, 'language_score');
+  const legacy = readScore(insights, 'score');
   const qualityAssessment = insights.find(i => i.type === 'quality_assessment');
-  const strengths = insights.filter(i => i.type === 'strength');
-  const focusAreas = insights.filter(i => i.type === 'focus_area');
 
-  // Filler data
-  const totalFillers = fillerWords.reduce((sum, f) => sum + f.count, 0);
-  const minutes = durationSeconds / 60;
-  const fillersPerMin = minutes > 0 ? +(totalFillers / minutes).toFixed(1) : 0;
-  const hasFillers = totalFillers > 0;
-
-  // Animated score count-up using shared value → JS state bridge
-  const [displayScore, setDisplayScore] = useState(isFresh ? 0 : (score ?? 0));
-  const animatedScore = useSharedValue(isFresh ? 0 : (score ?? 0));
-
-  useAnimatedReaction(
-    () => Math.round(animatedScore.value),
-    (current) => { runOnJS(setDisplayScore)(current); },
-  );
-
-  useEffect(() => {
-    if (score != null && isFresh) {
-      animatedScore.value = 0;
-      animatedScore.value = withTiming(score, {
-        duration: 800,
-        easing: Easing.out(Easing.cubic),
-      });
-    } else if (score != null) {
-      animatedScore.value = score;
-      setDisplayScore(score);
-    }
-  }, [score, isFresh]);
-
-  const color = score != null ? scoreColor(score) : alpha(colors.white, 0.3);
+  const hasTwin = delivery !== null || language !== null;
+  const hasLegacy = !hasTwin && legacy !== null;
 
   if (isLoading) {
     return (
@@ -78,62 +45,52 @@ export function SessionVerdict({
     );
   }
 
-  // Don't render if no meaningful data
-  if (!qualityAssessment && score == null) return null;
+  // Nothing renderable
+  if (!hasTwin && !hasLegacy && !qualityAssessment) return null;
 
   return (
     <View style={styles.container}>
-      {/* Score */}
-      {score != null && (
-        <View style={styles.scoreSection}>
-          <Text style={[styles.scoreNumber, { color }]}>
-            {displayScore}
-          </Text>
-          <Text style={[styles.scoreLabel, { color: alpha(color, 0.6) }]}>
-            / 100
-          </Text>
+      {hasTwin && (
+        <View style={styles.ringsRow}>
+          <View style={styles.ringCell}>
+            <ScoreRing
+              score={delivery}
+              label="Delivery"
+              size={140}
+              animate={isFresh}
+              startDelayMs={0}
+            />
+          </View>
+          <View style={styles.ringCell}>
+            <ScoreRing
+              score={language}
+              label="Language"
+              size={140}
+              animate={isFresh}
+              startDelayMs={LANGUAGE_STAGGER_MS}
+            />
+          </View>
         </View>
       )}
 
-      {/* Quality assessment */}
+      {hasLegacy && (
+        <View style={styles.legacyWrap}>
+          <ScoreRing
+            score={legacy}
+            label="Session"
+            size={160}
+            animate={isFresh}
+          />
+        </View>
+      )}
+
       {qualityAssessment && (
-        <Text style={styles.assessment}>
+        <Animated.Text
+          entering={isFresh ? FadeIn.duration(500).delay(NARRATIVE_DELAY_MS) : undefined}
+          style={styles.assessment}
+        >
           {qualityAssessment.description}
-        </Text>
-      )}
-
-      {/* Filler chips */}
-      {hasFillers && (
-        <View style={styles.fillerRow}>
-          {fillerWords.map(f => (
-            <View key={f.word} style={styles.fillerChip}>
-              <Text style={styles.fillerChipText}>
-                "{f.word}" <Text style={styles.fillerChipCount}>{'\u00D7'}{f.count}</Text>
-              </Text>
-            </View>
-          ))}
-          <Text style={styles.fillerRate}>{fillersPerMin}/min</Text>
-        </View>
-      )}
-
-      {/* Strength */}
-      {strengths.length > 0 && (
-        <View style={styles.insightLine}>
-          <View style={[styles.dot, { backgroundColor: colors.severityPolish }]} />
-          <Text style={styles.insightText}>
-            {strengths.map(s => s.description).join('. ')}
-          </Text>
-        </View>
-      )}
-
-      {/* Focus area */}
-      {focusAreas.length > 0 && (
-        <View style={styles.insightLine}>
-          <View style={[styles.dot, { backgroundColor: colors.secondary }]} />
-          <Text style={styles.insightText}>
-            {focusAreas.map(f => f.description).join('. ')}
-          </Text>
-        </View>
+        </Animated.Text>
       )}
     </View>
   );
@@ -142,7 +99,7 @@ export function SessionVerdict({
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: layout.screenPadding,
-    paddingTop: 8,
+    paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
   },
   loadingContainer: {
@@ -157,75 +114,25 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     color: alpha(colors.white, 0.4),
   },
-  scoreSection: {
+  ringsRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xl,
   },
-  scoreNumber: {
-    fontSize: 56,
-    fontFamily: fonts.extrabold,
-    letterSpacing: -2,
-    lineHeight: 64,
+  ringCell: {
+    flex: 1,
+    alignItems: 'center',
   },
-  scoreLabel: {
-    fontSize: 20,
-    fontFamily: fonts.medium,
-    marginLeft: 4,
+  legacyWrap: {
+    alignItems: 'center',
   },
   assessment: {
     fontSize: 15,
     fontFamily: fonts.regular,
-    color: alpha(colors.white, 0.55),
+    color: alpha(colors.white, 0.6),
     lineHeight: 22,
-    marginBottom: spacing.lg,
-  },
-  fillerRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: spacing.lg,
-  },
-  fillerChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: alpha(colors.white, 0.05),
-    borderWidth: 1,
-    borderColor: alpha(colors.white, 0.08),
-  },
-  fillerChipText: {
-    fontSize: 13,
-    fontFamily: fonts.medium,
-    color: alpha(colors.white, 0.55),
-  },
-  fillerChipCount: {
-    fontFamily: fonts.bold,
-    color: alpha(colors.white, 0.35),
-  },
-  fillerRate: {
-    fontSize: 13,
-    fontFamily: fonts.medium,
-    color: alpha(colors.white, 0.3),
-  },
-  insightLine: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 8,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginTop: 6,
-  },
-  insightText: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: alpha(colors.white, 0.5),
-    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: spacing.xl,
   },
 });
