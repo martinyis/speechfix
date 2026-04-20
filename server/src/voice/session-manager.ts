@@ -928,8 +928,6 @@ export class VoiceSession {
             type: 'insights_ready',
             dbSessionId,
             data: {
-              // Legacy alias (kept for one release)
-              score: payload.score,
               deliveryScore: payload.deliveryScore ?? null,
               languageScore: payload.languageScore ?? null,
               insights: payload.insights,
