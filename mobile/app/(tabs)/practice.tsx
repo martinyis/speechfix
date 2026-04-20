@@ -14,8 +14,8 @@ import {
   FillerWordsMode,
   PatternsMode,
 } from '../../components/practice';
-import { FrequencyStrip } from '../../components/lab';
-import type { StripMode } from '../../components/lab';
+import { FrequencyStrip } from '../../components/practice/FrequencyStrip';
+import type { StripMode } from '../../components/practice/FrequencyStrip';
 import { useWeakSpots } from '../../hooks/useWeakSpots';
 import { usePatternTasks } from '../../hooks/usePatternTasks';
 import { usePracticeModes, type PracticeModeName } from '../../hooks/usePracticeModes';
