@@ -21,8 +21,6 @@ export interface SessionEndResult {
   type: 'analysis' | 'onboarding' | 'agent-created' | 'filler-practice';
   dbSessionId?: number;
   clarityScore?: number;
-  /** @deprecated alias kept for legacy readers — equals languageScore ?? deliveryScore. */
-  score?: number | null;
   deliveryScore?: number | null;
   languageScore?: number | null;
   correctionIds?: number[];

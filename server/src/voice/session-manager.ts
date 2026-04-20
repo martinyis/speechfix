@@ -967,8 +967,6 @@ export class VoiceSession {
               fillerPositions: result.analysisResults?.fillerPositions ?? [],
               sessionInsights: result.analysisResults?.sessionInsights ?? [],
               clarityScore: result.clarityScore,
-              // Legacy alias (kept for one release)
-              score: result.score,
               deliveryScore: result.deliveryScore ?? null,
               languageScore: result.languageScore ?? null,
               correctionIds: result.correctionIds ?? [],

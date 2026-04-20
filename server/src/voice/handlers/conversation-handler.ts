@@ -402,7 +402,6 @@ export class ConversationHandler implements AgentTypeHandler {
       type: 'analysis',
       dbSessionId,
       clarityScore,
-      score: languageScore ?? deliveryScore ?? null,
       deliveryScore,
       languageScore,
       correctionIds,
