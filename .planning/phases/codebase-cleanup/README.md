@@ -21,13 +21,21 @@ After all 6 phases ship cleanly, proceed to the **session-manager.ts SRP split**
 
 | Phase | Scope | Plan file | Status |
 |---|---|---|---|
-| A | Safe dead-file removal (pure deletion) | `phase-a.md` | **IN PROGRESS** |
-| B | Legacy `score` alias removal | `phase-b.md` (TBD) | pending |
+| A | Safe dead-file removal (pure deletion) | `phase-a.md` | **SHIPPED 2026-04-20** — ~6,240 LOC deleted, merged to main |
+| B | Legacy `score` alias removal | `phase-b.md` (TBD) | next |
 | C | Rename + move (SessionRow, FrequencyStrip) | `phase-c.md` (TBD) | pending |
 | D | Hook consolidation (voice + recording) | `phase-d.md` (TBD) | pending |
 | E | Server handler dedup (onSessionEnd paths) | `phase-e.md` (TBD) | pending |
 | F | Cosmetic component reorganization | `phase-f.md` (TBD) | pending |
 | — | **Follow-up**: session-manager.ts SRP split | separate initiative | later |
+
+### Phase A — shipped summary
+- 9 atomic commits on `cleanup/phase-a-dead-code`, fast-forwarded to `main`.
+- Mobile: 6,018 LOC deleted (button-showcase, patterns tree, 5 session cards, FillerWordsSummary, old SessionRow, FrequencySwitcher + mockModes).
+- Server: 222 LOC deleted (/patterns route, dead POST /sessions + computeClarityScore, transcribe + stripSilence, runAnalysisStreaming).
+- A10 (root /ios/ orphan) and A11 (.design-extract/) resolved as untracked-dir cleanups; A12 (mobile/dist/) was already clean.
+- Typecheck parity: mobile 7 baseline errors + server 1 baseline error, both pre-existing and unrelated to cleanup. Zero new errors introduced.
+- Smoke matrix passed on device by Martin.
 
 Each phase plan file will be written **only when starting that phase** (to reflect the actual state after the previous phase lands).
 
