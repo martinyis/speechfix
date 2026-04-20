@@ -8,7 +8,7 @@ import { BEHAVIOR_PROMPT, CUSTOM_AGENT_BEHAVIOR_PROMPT } from '../prompts/behavi
 import { REFLEXA_SESSION_PROMPT, CUSTOM_AGENT_SESSION_PROMPT } from '../prompts/session-types/conversation.js';
 import { buildUserContextPrompt } from '../prompts/context.js';
 import { resolveElicitationStyle, ELICITATION_PROMPTS } from '../prompts/elicitation.js';
-import { runAnalysis, runAnalysisStreaming, runAnalysisPhased } from '../../analysis/index.js';
+import { runAnalysis, runAnalysisPhased } from '../../analysis/index.js';
 import type { PhasedInsightsPayload } from '../../analysis/types.js';
 import { generateSessionMetadata } from '../../services/title-generator.js';
 import { extractConversationNotes } from '../../services/context-extractor.js';

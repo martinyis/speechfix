@@ -1,4 +1,4 @@
-export { runAnalysis, runAnalysisStreaming, runAnalysisPhased } from './runner.js';
+export { runAnalysis, runAnalysisPhased } from './runner.js';
 export type {
   Correction,
   FillerWordCount,

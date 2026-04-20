@@ -119,27 +119,3 @@ export async function runAnalysisPhased(
   // Merge everything
   return mergeResults([fillerResult, grammarResult]);
 }
-
-/** Run analyzers with streaming corrections from the grammar analyzer. */
-export async function runAnalysisStreaming(
-  userId: number,
-  input: AnalyzerInput,
-  onCorrection: (correction: Correction) => void,
-): Promise<AnalysisResult> {
-  if (input.sentences.length === 0) return EMPTY_RESULT;
-
-  const flags = await getAnalysisFlags(userId);
-  const tasks: Promise<AnalysisResult>[] = [];
-
-  if (flags.grammar) {
-    tasks.push(grammarAnalyzer.analyzeStreaming(input, onCorrection));
-  }
-  if (flags.fillers) {
-    tasks.push(fillerAnalyzer.analyze(input));
-  }
-
-  if (tasks.length === 0) return EMPTY_RESULT;
-
-  const results = await Promise.all(tasks);
-  return mergeResults(results);
-}
