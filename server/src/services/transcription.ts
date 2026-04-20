@@ -1,27 +1,4 @@
 import fs from 'fs';
-import { execSync } from 'child_process';
-import path from 'path';
-import { randomUUID } from 'crypto';
-
-/**
- * Strip leading and trailing silence from audio using ffmpeg.
- * Keeps natural pauses between speech intact.
- * Falls back to original file if ffmpeg fails.
- */
-export function stripSilence(inputPath: string): string {
-  const outputPath = path.join('/tmp', `${randomUUID()}_stripped.wav`);
-
-  try {
-    execSync(
-      `ffmpeg -i "${inputPath}" -af "silenceremove=start_periods=1:start_duration=0.1:start_threshold=-40dB,areverse,silenceremove=start_periods=1:start_duration=0.1:start_threshold=-40dB,areverse" -y "${outputPath}"`,
-      { stdio: 'pipe' }
-    );
-    return outputPath;
-  } catch (err) {
-    console.warn('[transcription] ffmpeg silence stripping failed, using original file:', err);
-    return inputPath;
-  }
-}
 
 /**
  * Send audio to Deepgram and return transcript.
@@ -69,34 +46,6 @@ async function callDeepgram(
     .filter((s: string) => s.length > 0);
 
   return { text: fullText, sentences: sentenceArray };
-}
-
-/**
- * Transcribe audio using Deepgram Nova-3 with filler word preservation.
- * Strips silence first, then sends to Deepgram's pre-recorded API.
- */
-export async function transcribe(
-  audioPath: string,
-): Promise<{ text: string; sentences: string[] }> {
-  const processedAudioPath = stripSilence(audioPath);
-
-  try {
-    const stats = fs.statSync(processedAudioPath);
-    if (stats.size === 0) {
-      return { text: '', sentences: [] };
-    }
-  } catch {
-    return { text: '', sentences: [] };
-  }
-
-  try {
-    const audioBuffer = fs.readFileSync(processedAudioPath);
-    return await callDeepgram(audioBuffer, 'audio/wav');
-  } finally {
-    if (processedAudioPath !== audioPath) {
-      fs.unlink(processedAudioPath, () => {});
-    }
-  }
 }
 
 /**
