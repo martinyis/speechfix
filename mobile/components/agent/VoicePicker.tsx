@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, alpha, glass, spacing, fonts } from '../theme';
-import type { Voice } from '../types/session';
+import { colors, alpha, glass, spacing, fonts } from '../../theme';
+import type { Voice } from '../../types/session';
 
 interface VoicePreviewProps {
   previewVoiceId?: string | null;

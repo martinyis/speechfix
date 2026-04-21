@@ -13,9 +13,9 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
 } from 'react-native-reanimated';
-import { colors, alpha, fonts } from '../theme';
+import { colors, alpha, fonts } from '../../theme';
 import { AgentAvatar } from './AgentAvatar';
-import type { Agent } from '../types/session';
+import type { Agent } from '../../types/session';
 
 // ---------------------------------------------------------------------------
 // Types

@@ -19,8 +19,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import MicBloomOrb from '../../components/MicBloomOrb';
-import { AgentSelector } from '../../components/AgentSelector';
-import { AgentCreationSheet } from '../../components/AgentCreationSheet';
+import { AgentSelector } from '../../components/agent/AgentSelector';
+import { AgentCreationSheet } from '../../components/agent/AgentCreationSheet';
 import { VoiceSessionOverlay } from '../../components/VoiceSessionOverlay';
 import { SessionRow } from '../../components/SessionRow';
 import { SectionHeader } from '../../components/ui';

@@ -33,9 +33,9 @@ import {
   typography,
   spacing,
   layout,
-} from '../theme';
-import { GlassIconPillButton } from './ui';
-import { GradientText } from './GradientText';
+} from '../../theme';
+import { GlassIconPillButton } from '../ui';
+import { GradientText } from '../GradientText';
 
 // ── Palette ──────────────────────────────────────────────────────────────
 const PURPLE_PALETTE = {

@@ -7,8 +7,8 @@ import { authFetch } from '../lib/api';
 import { useAgentStore } from '../stores/agentStore';
 import { useVoices } from '../hooks/useVoices';
 import { useVoicePreview } from '../hooks/useVoicePreview';
-import { VoicePicker } from '../components/VoicePicker';
-import { AgentAvatar } from '../components/AgentAvatar';
+import { VoicePicker } from '../components/agent/VoicePicker';
+import { AgentAvatar } from '../components/agent/AgentAvatar';
 import { ALL_AVATAR_IDS, resolveAvatarId, type AvatarId } from '../lib/avatars';
 import { ScreenHeader, GlassIconPillButton } from '../components/ui';
 

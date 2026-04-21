@@ -1,6 +1,6 @@
 import { View, Image, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { resolveAvatarId, getAvatarImage, getAvatarGradient } from '../lib/avatars';
+import { resolveAvatarId, getAvatarImage, getAvatarGradient } from '../../lib/avatars';
 
 interface AgentAvatarProps {
   /** Seed string for avatar selection. null = Reflexa default. */

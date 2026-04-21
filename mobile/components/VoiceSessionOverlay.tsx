@@ -4,7 +4,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AISpeakingOrb } from './AISpeakingOrb';
-import { AgentAvatar } from './AgentAvatar';
+import { AgentAvatar } from './agent/AgentAvatar';
 import type { AISpeakingOrbState } from './AISpeakingOrb';
 import { colors, alpha, fonts } from '../theme';
 import { formatTime } from '../lib/formatters';
