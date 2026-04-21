@@ -15,7 +15,7 @@ import Animated, {
 import { LinearGradient } from 'expo-linear-gradient';
 import { scheduleOnUI } from 'react-native-worklets';
 import { ExpoPlayAudioStream } from '@mykin-ai/expo-audio-stream';
-import { AISpeakingOrb } from '../../components/AISpeakingOrb';
+import { AISpeakingOrb } from '../../components/orbs/AISpeakingOrb';
 import { useIntroAudio } from '../../hooks/useIntroAudio';
 import { INTRO_SEGMENTS, type SegmentTimings } from '../../lib/introTimestamps';
 import { colors, alpha, fonts } from '../../theme';

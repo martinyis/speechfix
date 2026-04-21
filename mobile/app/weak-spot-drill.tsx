@@ -17,7 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenHeader, GlassIconPillButton } from '../components/ui';
-import PracticeRecordOrb from '../components/PracticeRecordOrb';
+import PracticeRecordOrb from '../components/orbs/PracticeRecordOrb';
 import PracticeFeedbackPanel from '../components/PracticeFeedbackPanel';
 import SuccessCelebration from '../components/SuccessCelebration';
 import ErrorReasonHeader from '../components/practice/ErrorReasonHeader';

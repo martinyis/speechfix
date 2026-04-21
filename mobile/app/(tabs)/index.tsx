@@ -18,7 +18,7 @@ import Animated, {
   interpolateColor,
 } from 'react-native-reanimated';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
-import MicBloomOrb from '../../components/MicBloomOrb';
+import MicBloomOrb from '../../components/orbs/MicBloomOrb';
 import { AgentSelector } from '../../components/agent/AgentSelector';
 import { AgentCreationSheet } from '../../components/agent/AgentCreationSheet';
 import { VoiceSessionOverlay } from '../../components/VoiceSessionOverlay';

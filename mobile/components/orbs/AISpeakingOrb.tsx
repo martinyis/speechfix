@@ -18,7 +18,7 @@ import Animated, {
   cancelAnimation,
   Easing,
 } from 'react-native-reanimated';
-import { colors, alpha } from '../theme';
+import { colors, alpha } from '../../theme';
 
 // -- Orb dimensions --
 const ORB_SIZE = 170;
