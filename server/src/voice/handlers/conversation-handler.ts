@@ -16,7 +16,7 @@ import { db } from '../../db/index.js';
 import { sessions, users } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { generateSessionBriefInsights } from '../../services/session-insights-generator.js';
-import { computeLanguageScore } from '../../services/scoring.js';
+import { computeLanguageScore } from '../../modules/sessions/scoring.js';
 import {
   handleEmptyTranscript,
   computeCorrectionClarityScore,

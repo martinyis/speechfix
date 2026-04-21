@@ -1,7 +1,7 @@
 import Groq from 'groq-sdk';
 import type { Correction, FillerWordCount, FillerWordPosition, SessionInsight, PhasedInsightsPayload } from '../analysis/types.js';
 import type { SpeechTimeline } from '../voice/speech-types.js';
-import { computeDeliveryScore } from './scoring.js';
+import { computeDeliveryScore } from '../modules/sessions/scoring.js';
 
 const groq = new Groq();
 const MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
