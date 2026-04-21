@@ -1,6 +1,6 @@
 import Groq from 'groq-sdk';
-import { db } from '../db/index.js';
-import { patternExercises, speechPatterns } from '../db/schema.js';
+import { db } from '../../db/index.js';
+import { patternExercises, speechPatterns } from '../../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 
 const groq = new Groq();

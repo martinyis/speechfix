@@ -2,7 +2,7 @@ import { db } from '../db/index.js';
 import { users, sessions, speechPatterns } from '../db/schema.js';
 import { eq, sql, and, notInArray } from 'drizzle-orm';
 import { analyzePatterns } from '../analysis/analyzers/patterns.js';
-import { generateAndStorePatternExercises } from '../services/pattern-exercise-generator.js';
+import { generateAndStorePatternExercises } from '../modules/patterns/exercise-generator.js';
 import type { AnalysisFlags, SpeechPattern } from '../analysis/types.js';
 
 const MAX_SESSIONS = 20;

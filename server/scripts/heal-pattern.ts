@@ -1,7 +1,7 @@
 import { db } from '../src/db/index.js';
 import { speechPatterns } from '../src/db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
-import { generateAndStorePatternExercises } from '../src/services/pattern-exercise-generator.js';
+import { generateAndStorePatternExercises } from '../src/modules/patterns/exercise-generator.js';
 
 const userId = Number(process.argv[2]);
 const patternId = Number(process.argv[3]);

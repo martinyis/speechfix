@@ -3,7 +3,7 @@ import { db } from '../db/index.js';
 import { corrections, sessions, practiceAttempts, patternExercises, patternPracticeAttempts, speechPatterns } from '../db/schema.js';
 import { eq, sql, and } from 'drizzle-orm';
 import { runPatternAnalysisForUser, checkReanalysisNeeded } from '../jobs/patterns.js';
-import { generateAndStorePatternExercises } from '../services/pattern-exercise-generator.js';
+import { generateAndStorePatternExercises } from '../modules/patterns/exercise-generator.js';
 import { transcribeRawPCM } from '../shared/transcription/index.js';
 import {
   evaluateSayItRight,
