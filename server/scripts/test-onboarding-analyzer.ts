@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { analyzeOnboardingProfile } from '../src/modules/onboarding/profile-analyzer.js';
-import { decideInitialFlags } from '../src/services/practice-modes/decide-flags.js';
-import type { AnalysisFlagKey, AnalysisFlags, SpeechSignals } from '../src/services/practice-modes/types.js';
+import { decideInitialFlags } from '../src/modules/practice/modes/decide-flags.js';
+import type { AnalysisFlagKey, AnalysisFlags, SpeechSignals } from '../src/modules/practice/modes/types.js';
 
 type Msg = { role: 'user' | 'assistant'; content: string };
 

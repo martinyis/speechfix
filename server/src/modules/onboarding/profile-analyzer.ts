@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { SPEECH_SIGNALS_VERSION, type SpeechSignals } from '../../services/practice-modes/types.js';
+import { SPEECH_SIGNALS_VERSION, type SpeechSignals } from '../practice/modes/types.js';
 
 const anthropic = new Anthropic();
 
