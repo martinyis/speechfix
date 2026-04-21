@@ -2,7 +2,7 @@ import type { ConversationMessage } from '../response-generator.js';
 import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from './types.js';
 import type { ChatTool } from '../tools.js';
 import { END_SESSION_TOOL } from '../tools.js';
-import { FILLER_COACH_IDENTITY_PROMPT, FILLER_COACH_SESSION_PROMPT } from '../prompts/session-types/filler-coach.js';
+import { FILLER_COACH_IDENTITY_PROMPT, FILLER_COACH_SESSION_PROMPT } from '../../modules/filler-coach/prompts.js';
 import { FILLER_COACH_BEHAVIOR_PROMPT } from '../prompts/behavior.js';
 import { FillerAnalyzer } from '../../analysis/analyzers/fillers.js';
 import { regenerateAllGreetings } from '../../services/greeting-generator.js';
