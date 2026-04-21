@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { runPatternAnalysisAll, runPatternAnalysisForUser } from '../modules/patterns/job.js';
+import { runPatternAnalysisAll, runPatternAnalysisForUser } from './job.js';
 
 export async function jobRoutes(fastify: FastifyInstance) {
   // Cron endpoint — protected by JOB_SECRET, not by auth (public path)
