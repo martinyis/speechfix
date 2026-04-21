@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
-import { getFillerSummary } from '../voice/prompts/filler-context.js';
-import { db } from '../db/index.js';
-import { sessions, corrections, fillerWords, agents } from '../db/schema.js';
+import { getFillerSummary } from '../../voice/prompts/filler-context.js';
+import { db } from '../../db/index.js';
+import { sessions, corrections, fillerWords, agents } from '../../db/schema.js';
 import { eq, desc, sql, and } from 'drizzle-orm';
 
 export async function sessionRoutes(fastify: FastifyInstance) {
