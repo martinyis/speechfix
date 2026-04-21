@@ -21,7 +21,7 @@ import PracticeRecordOrb from '../components/orbs/PracticeRecordOrb';
 import PracticeFeedbackPanel from '../components/PracticeFeedbackPanel';
 import SuccessCelebration from '../components/SuccessCelebration';
 import { usePatternTasks } from '../hooks/usePatternTasks';
-import { usePatternPracticeRecording } from '../hooks/usePatternPracticeRecording';
+import { usePatternPracticeRecording } from '../hooks/recording/usePatternPracticeRecording';
 import { authFetch } from '../lib/api';
 import { usePreloadSuccessSound, playSuccessSound } from '../lib/sounds';
 import { colors, alpha, spacing, layout, fonts } from '../theme';

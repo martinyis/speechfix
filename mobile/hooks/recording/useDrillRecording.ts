@@ -1,5 +1,5 @@
-import { useRecordAndSubmit } from './recording/useRecordAndSubmit';
-import type { DrillItem, DrillResult } from '../types/practice';
+import { useRecordAndSubmit } from './useRecordAndSubmit';
+import type { DrillItem, DrillResult } from '../../types/practice';
 
 export type DrillRecordingState = 'idle' | 'recording' | 'evaluating' | 'result';
 

@@ -1,5 +1,5 @@
-import { useRecordAndSubmit } from './recording/useRecordAndSubmit';
-import type { PracticeResult, PracticeMode } from '../types/practice';
+import { useRecordAndSubmit } from './useRecordAndSubmit';
+import type { PracticeResult, PracticeMode } from '../../types/practice';
 
 export type PracticeRecordingState = 'idle' | 'recording' | 'evaluating' | 'result';
 
