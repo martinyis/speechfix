@@ -27,7 +27,8 @@ After all 6 phases ship cleanly, proceed to the **session-manager.ts SRP split**
 | D | Hook consolidation (voice + recording) | `phase-d.md` | **SHIPPED 2026-04-20** — 8 atomic commits, 9 files, ~747 LOC net removed, merged to main |
 | E | Server handler dedup (onSessionEnd paths) | `phase-e.md` | **SHIPPED 2026-04-20** — 3 atomic commits, 2 files, ~110 LOC net removed, merged to main |
 | F | Cosmetic component reorganization | `phase-f.md` | **SHIPPED 2026-04-20** — 6 atomic commits, 27 files moved into 6 new feature folders (+2 intra-component re-pathings), 13 app screens re-imported, ~0 net LOC, merged to main |
-| — | **Follow-up**: session-manager.ts SRP split | separate initiative | **next flagged initiative** |
+| G | Hooks reshuffle (`voice/` + `recording/` + `data/` subdirs) | — | **SHIPPED 2026-04-20** — 3 atomic commits, 17 hook files moved, 20 importer lines rewritten, ~0 net LOC, merged to main |
+| — | **Follow-up**: session-manager.ts SRP split | separate initiative | **deferred** |
 
 ### Phase A — shipped summary
 - 9 atomic commits on `cleanup/phase-a-dead-code`, fast-forwarded to `main`.
@@ -66,6 +67,19 @@ After all 6 phases ship cleanly, proceed to the **session-manager.ts SRP split**
 - Scope-preserving choices: both session-end entry points kept (audit's option (b), not option (a)); `FillerCoachHandler` / `OnboardingHandler` / `AgentCreatorHandler` untouched; streaming path's DB-session-created-inside-phased-callback order preserved so `insights_ready` client UX still fires before corrections stream in; 4-path log line ordering preserved.
 - Typecheck parity: mobile 1 / server 1 (both baseline, untouched).
 - Smoke matrix passed on device: Reflexa voice, custom agent (conversation), custom agent (roleplay — inheritance guard), filler coach (regression guard), past-session open.
+
+### Phase G — shipped summary
+- 3 atomic commits on `cleanup/phase-g-hooks-reshuffle`, fast-forwarded to `main`: G1, G2, G3.
+- Closes the gap between Phase D (which extracted `useVoiceSessionCore` + `useRecordAndSubmit` + the 6 wrappers but explicitly left wrappers at `mobile/hooks/<name>.ts`) and the audit §5 target tree. Phase F as originally planned was scoped only to `mobile/components/`, so the hooks-layer reshuffle was the last remaining structural gap vs §5.
+- G1: moved 3 voice wrappers into `mobile/hooks/voice/` (now contains `useVoiceSessionCore.ts` + `useVoiceSession.ts` + `useOnboardingVoiceSession.ts` + `useAgentCreatorVoiceSession.ts`). 4 external importers updated (`app/filler-coach.tsx`, `app/(tabs)/index.tsx`, `app/(onboarding)/voice-session.tsx`, `app/agent-create.tsx`). Also rolled in the pre-existing stale `mobile/scripts/reset-project.js` deletion that was uncommitted in the working tree.
+- G2: moved 3 recording wrappers into `mobile/hooks/recording/` (now contains `useRecordAndSubmit.ts` + `usePracticeRecording.ts` + `usePatternPracticeRecording.ts` + `useDrillRecording.ts`). 3 external importers updated (`practice-session.tsx`, `weak-spot-drill.tsx`, `pattern-practice-session.tsx`).
+- G3: created `mobile/hooks/data/` and moved 11 react-query hooks (`useAgents`, `useFillerCoachSessions`, `useFillerCoachStats`, `useFillerSummary`, `usePatternTasks`, `usePracticeTasks`, `useSession`, `useSessions`, `useVoicePreview`, `useVoices`, `useWeakSpots`). 13 external importer lines updated across 10 files (7 app screens + `components/practice/FillerWordsMode.tsx`).
+- `useFillerCoachStats` kept in-scope even though it has no external importers (audit §5 explicitly lists it under `data/`); follow-up dead-code sweep can remove it if truly unreferenced.
+- `hooks/` root now contains exactly the 4 files the audit intended: `useAppWarmup`, `useAudioPlayback`, `useIntroAudio`, `usePracticeModes`.
+- Net LOC: ~0 (pure moves + import-path edits, plus −114 from the reset-project.js deletion).
+- Typecheck parity: mobile 1 / server 1 (both baseline, unchanged).
+- Smoke passed on device by Martin.
+- **All audit §5 structural shuffles are now complete.** The only remaining audit item is `server/src/voice/session-manager.ts` SRP split (N4), which the audit itself flagged as "not urgent, larger refactor, flag for later." Deferred by explicit user decision.
 
 ### Phase F — shipped summary
 - 6 atomic commits on `cleanup/phase-f-component-reshuffle`, fast-forwarded to `main`: F2, F3, F4, F5, F6, F7 (F8 sweep unnecessary — zero leftover root-level imports).
