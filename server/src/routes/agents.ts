@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { db } from '../db/index.js';
 import { agents } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
-import { pcmToWav } from '../utils/audio.js';
+import { pcmToWav } from '../shared/audio/wav.js';
 import { AVAILABLE_VOICES, TTS_MODEL, TTS_SPEED, TTS_EMOTION } from '../voice/voice-config.js';
 import { generateGreetingForAgent } from '../services/greeting-generator.js';
 
