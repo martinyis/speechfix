@@ -16,7 +16,7 @@ import {
   evaluateWeakSpotExercise,
   type CorrectionContext,
   type WeakSpotExerciseContext,
-} from '../services/practice-evaluator.js';
+} from '../modules/practice/evaluator.js';
 import {
   advanceSRS,
   dismissWeakSpot,

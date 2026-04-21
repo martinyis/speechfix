@@ -12,7 +12,7 @@ import {
   type CorrectionContext,
   type PatternExerciseContext,
   type ReframeExerciseContext,
-} from '../services/practice-evaluator.js';
+} from '../modules/practice/evaluator.js';
 import { writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import path from 'path';
