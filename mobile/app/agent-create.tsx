@@ -31,7 +31,7 @@ import { authFetch } from '../lib/api';
 import { useVoices } from '../hooks/useVoices';
 import { useAgentStore } from '../stores/agentStore';
 import { useSessionStore } from '../stores/sessionStore';
-import { useAgentCreatorVoiceSession } from '../hooks/useAgentCreatorVoiceSession';
+import { useAgentCreatorVoiceSession } from '../hooks/voice/useAgentCreatorVoiceSession';
 import { VoicePicker } from '../components/agent/VoicePicker';
 import { useVoicePreview } from '../hooks/useVoicePreview';
 import { VoiceSessionOverlay } from '../components/voice/VoiceSessionOverlay';

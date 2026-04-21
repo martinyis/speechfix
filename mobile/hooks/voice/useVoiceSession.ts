@@ -2,11 +2,11 @@ import { useCallback, useRef } from 'react';
 import * as FileSystem from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import { ExpoPlayAudioStream } from '@mykin-ai/expo-audio-stream';
-import { useVoiceSessionCore, type CoreMessage } from './voice/useVoiceSessionCore';
-import { useSessionStore } from '../stores/sessionStore';
-import { useAgentStore } from '../stores/agentStore';
-import { wsUrl, API_BASE_URL } from '../lib/api';
-import type { Agent, SessionDetail } from '../types/session';
+import { useVoiceSessionCore, type CoreMessage } from './useVoiceSessionCore';
+import { useSessionStore } from '../../stores/sessionStore';
+import { useAgentStore } from '../../stores/agentStore';
+import { wsUrl, API_BASE_URL } from '../../lib/api';
+import type { Agent, SessionDetail } from '../../types/session';
 
 const T0 = { v: 0 };
 const t = () => (T0.v ? Date.now() - T0.v : 0);

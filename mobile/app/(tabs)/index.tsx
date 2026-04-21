@@ -28,7 +28,7 @@ import { useSessionStore } from '../../stores/sessionStore';
 import { useAgentStore, getSelectedAgentDisplay } from '../../stores/agentStore';
 import { useAgents } from '../../hooks/useAgents';
 import { useSessions } from '../../hooks/useSessions';
-import { useVoiceSession } from '../../hooks/useVoiceSession';
+import { useVoiceSession } from '../../hooks/voice/useVoiceSession';
 import { colors, alpha, fonts } from '../../theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);

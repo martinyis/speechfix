@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { VoiceSessionOverlay } from '../components/voice/VoiceSessionOverlay';
 import { useSessionStore } from '../stores/sessionStore';
-import { useVoiceSession } from '../hooks/useVoiceSession';
+import { useVoiceSession } from '../hooks/voice/useVoiceSession';
 import { colors } from '../theme';
 
 export default function FillerCoachScreen() {

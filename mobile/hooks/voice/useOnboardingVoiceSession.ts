@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react';
-import { useVoiceSessionCore, type CoreMessage } from './voice/useVoiceSessionCore';
-import { useSessionStore } from '../stores/sessionStore';
-import { wsUrl, authFetch } from '../lib/api';
+import { useVoiceSessionCore, type CoreMessage } from './useVoiceSessionCore';
+import { useSessionStore } from '../../stores/sessionStore';
+import { wsUrl, authFetch } from '../../lib/api';
 
 interface UseOnboardingVoiceSessionCallbacks {
   onComplete: (

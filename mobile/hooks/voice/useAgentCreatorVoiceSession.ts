@@ -1,9 +1,9 @@
 import { useCallback, useRef } from 'react';
-import { useVoiceSessionCore, type CoreMessage } from './voice/useVoiceSessionCore';
-import { useSessionStore } from '../stores/sessionStore';
-import { useAgentStore } from '../stores/agentStore';
-import { wsUrl } from '../lib/api';
-import type { Agent } from '../types/session';
+import { useVoiceSessionCore, type CoreMessage } from './useVoiceSessionCore';
+import { useSessionStore } from '../../stores/sessionStore';
+import { useAgentStore } from '../../stores/agentStore';
+import { wsUrl } from '../../lib/api';
+import type { Agent } from '../../types/session';
 
 interface FormContext {
   name: string;

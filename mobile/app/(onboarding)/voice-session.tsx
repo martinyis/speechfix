@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { VoiceSessionOverlay } from '../../components/voice/VoiceSessionOverlay';
-import { useOnboardingVoiceSession } from '../../hooks/useOnboardingVoiceSession';
+import { useOnboardingVoiceSession } from '../../hooks/voice/useOnboardingVoiceSession';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useOnboardingStore } from '../../stores/onboardingStore';
 import { useAuthStore } from '../../stores/authStore';
