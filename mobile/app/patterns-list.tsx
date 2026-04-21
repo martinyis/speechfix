@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenHeader } from '../components/ui';
-import { PatternTaskCard } from '../components/PatternTaskCard';
-import { QueuedPatternCard } from '../components/QueuedPatternCard';
+import { PatternTaskCard } from '../components/pattern/PatternTaskCard';
+import { QueuedPatternCard } from '../components/pattern/QueuedPatternCard';
 import { usePatternTasks } from '../hooks/usePatternTasks';
 import { colors, alpha, fonts, layout, spacing } from '../theme';
 

@@ -7,8 +7,8 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-import { colors, alpha, fonts } from '../theme';
-import type { PatternGroup } from '../types/practice';
+import { colors, alpha, fonts } from '../../theme';
+import type { PatternGroup } from '../../types/practice';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 

@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, alpha, fonts, layout } from '../theme';
-import type { QueuedPattern } from '../types/practice';
+import { colors, alpha, fonts, layout } from '../../theme';
+import type { QueuedPattern } from '../../types/practice';
 
 const PATTERN_TYPE_LABEL: Record<string, string> = {
   overused_word: 'Overused Word',
