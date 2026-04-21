@@ -9,7 +9,7 @@ import { extractUserProfile } from './profile-extractor.js';
 import { analyzeOnboardingProfile } from './profile-analyzer.js';
 import { decideInitialFlags } from '../practice/modes/decide-flags.js';
 import type { AnalysisFlags, SpeechSignals } from '../practice/modes/types.js';
-import { ensureGreetingsExist } from '../../services/greeting-generator.js';
+import { ensureGreetingsExist } from '../agents/greeting-generator.js';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';

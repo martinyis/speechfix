@@ -9,7 +9,7 @@ import type { AgentTypeHandler, AgentConfig, FullUserContext } from './handlers/
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq, and, isNull, or } from 'drizzle-orm';
-import { fetchGreeting, regenerateAllGreetings } from '../services/greeting-generator.js';
+import { fetchGreeting, regenerateAllGreetings } from '../modules/agents/greeting-generator.js';
 import { FillerCoachHandler } from '../modules/filler-coach/handler.js';
 import { hasLowConfidenceWords, correctTranscript, type WordWithConfidence } from '../services/transcript-corrector.js';
 import { PitchAccumulator } from './pitch-detector.js';

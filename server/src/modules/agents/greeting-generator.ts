@@ -1,6 +1,6 @@
 import Groq from 'groq-sdk';
-import { db } from '../db/index.js';
-import { agentGreetings, agents, users, sessions } from '../db/schema.js';
+import { db } from '../../db/index.js';
+import { agentGreetings, agents, users, sessions } from '../../db/schema.js';
 import { eq, and, desc, isNull } from 'drizzle-orm';
 
 const groq = new Groq();

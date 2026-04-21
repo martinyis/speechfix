@@ -6,7 +6,7 @@ import { AGENT_CREATOR_SESSION_PROMPT } from '../prompts/session-types/agent-cre
 import { extractAgentConfig } from '../../services/agent-config-extractor.js';
 import { db } from '../../db/index.js';
 import { agents } from '../../db/schema.js';
-import { generateGreetingForAgent } from '../../services/greeting-generator.js';
+import { generateGreetingForAgent } from '../../modules/agents/greeting-generator.js';
 
 export class AgentCreatorHandler implements AgentTypeHandler {
   readonly needsUserContext = false;

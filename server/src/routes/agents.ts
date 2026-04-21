@@ -8,7 +8,7 @@ import { agents } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { pcmToWav } from '../shared/audio/wav.js';
 import { AVAILABLE_VOICES, TTS_MODEL, TTS_SPEED, TTS_EMOTION } from '../voice/voice-config.js';
-import { generateGreetingForAgent } from '../services/greeting-generator.js';
+import { generateGreetingForAgent } from '../modules/agents/greeting-generator.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VOICE_SAMPLE_CACHE_DIR = join(__dirname, '..', '..', '.cache', 'voice-samples');
