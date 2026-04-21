@@ -10,7 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import * as Haptics from 'expo-haptics';
-import { colors, alpha, fonts, layout } from '../theme';
+import { colors, alpha, fonts, layout } from '../../theme';
 
 interface CorrectionCardProps {
   sentence: string;

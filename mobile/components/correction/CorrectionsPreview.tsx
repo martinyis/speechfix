@@ -2,8 +2,8 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { CorrectionCard } from './CorrectionCard';
-import { colors, alpha, fonts, spacing, layout } from '../theme';
-import type { Correction } from '../types/session';
+import { colors, alpha, fonts, spacing, layout } from '../../theme';
+import type { Correction } from '../../types/session';
 
 interface CorrectionsPreviewProps {
   corrections: Correction[];

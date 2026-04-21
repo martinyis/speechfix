@@ -2,7 +2,7 @@ import { Fragment, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { PracticeTaskCard } from '../PracticeTaskCard';
+import { PracticeTaskCard } from '../correction/PracticeTaskCard';
 import { GlassIconPillButton } from '../ui';
 import { colors, alpha, fonts, spacing, layout } from '../../theme';
 import type { PracticeTask } from '../../types/practice';

@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSessionStore } from '../stores/sessionStore';
 import { useSession } from '../hooks/useSession';
 import { SessionVerdict } from '../components/SessionVerdict';
-import { CorrectionsPreview } from '../components/CorrectionsPreview';
+import { CorrectionsPreview } from '../components/correction/CorrectionsPreview';
 import { ConversationRhythmStrip } from '../components/ConversationRhythmStrip';
 import { PitchRibbon } from '../components/PitchRibbon';
 import { PitchRibbonCaption } from '../components/PitchRibbonCaption';
