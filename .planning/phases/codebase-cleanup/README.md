@@ -24,8 +24,8 @@ After all 6 phases ship cleanly, proceed to the **session-manager.ts SRP split**
 | A | Safe dead-file removal (pure deletion) | `phase-a.md` | **SHIPPED 2026-04-20** — ~6,240 LOC deleted, merged to main |
 | B | Legacy `score` alias removal | `phase-b.md` | **SHIPPED 2026-04-20** — 13 LOC deleted across 7 files, merged to main |
 | C | Rename + move (SessionRow, FrequencyStrip) | `phase-c.md` | **SHIPPED 2026-04-20** — 3 atomic commits, 7 files touched, ~0 net LOC, merged to main |
-| D | Hook consolidation (voice + recording) | `phase-d.md` (TBD) | next |
-| E | Server handler dedup (onSessionEnd paths) | `phase-e.md` (TBD) | pending |
+| D | Hook consolidation (voice + recording) | `phase-d.md` | **SHIPPED 2026-04-20** — 8 atomic commits, 9 files, ~747 LOC net removed, merged to main |
+| E | Server handler dedup (onSessionEnd paths) | `phase-e.md` (TBD) | next |
 | F | Cosmetic component reorganization | `phase-f.md` (TBD) | pending |
 | — | **Follow-up**: session-manager.ts SRP split | separate initiative | later |
 
@@ -44,6 +44,18 @@ After all 6 phases ship cleanly, proceed to the **session-manager.ts SRP split**
 - Plan deviations (all approved mid-phase): B2a extended with the `session-insights-generator.ts` producer the audit missed; B2b extended to include the `conversation-handler.ts` producer + `analysis_complete` consumer (plan's sub-step order could not satisfy tsc-at-baseline otherwise); B2d added for the mobile store gap.
 - Net 13 LOC deleted across 7 files. Typecheck parity: mobile 7 / server 1 (both baseline, unchanged).
 - Smoke passed on device by Martin.
+
+### Phase D — shipped summary
+- 8 atomic commits on `cleanup/phase-d-hook-consolidation`, fast-forwarded to `main`: D2–D9.
+- Extracted `useVoiceSessionCore` (344 LOC, `mobile/hooks/voice/`) — owns mic/WS/timer/app-state/keep-awake/echo-grace/cleanup plumbing + generic `turn_state`/`audio`/`audio_end`/`ready`/`mute_state`/`error` handling. Forwards all messages to a caller-supplied `onMessage` dispatcher plus emits synthetic `playback_complete`/`ws_error`/`ws_close` events. Tunable via `pcmBytesPerSec`, `playbackPaddingMs`, `micStartBehavior`, `avSessionInitDelayMs`, `logTag`.
+- Extracted `useRecordAndSubmit<TParams, TResult>` (192 LOC, `mobile/hooks/recording/`) — owns mic (16kHz) + chunk collection + RMS visualizer + 1s timer + 15s max + multipart POST. Generic over `endpoint` + `formFields(params)` builder + `parseResponse(json)`.
+- Extracted `computeRMS()` to `mobile/lib/rms.ts` (45 LOC) — pure function, verbatim copy from the original hooks (identical across all three).
+- Migrated wrappers kept their original paths so call-site imports are unchanged: `useVoiceSession` 539→204, `useOnboardingVoiceSession` 290→108, `useAgentCreatorVoiceSession` 287→103, `usePracticeRecording` 282→33, `usePatternPracticeRecording` 223→27, `useDrillRecording` 215→33.
+- Plan deviation 1: during D3, the core's `wsUrl` config was widened from `string` to `string | (() => string)` so `useVoiceSession` could resolve `selectedAgentId` lazily at start-time instead of hook-init time. Bundled into D3 commit.
+- Plan deviation 2: plan targeted "baseline 7" on mobile typecheck, but the wrapper rewrites incidentally cleaned up 6 pre-existing type-def issues (invalid `SampleRate` literal, missing `getHighFidelityRecordingPath`/`FileSystemUploadType` types) via narrow `as any` casts. Mobile typecheck ended at 1 (just the unrelated GradientText baseline). No behavior change — purely type-surface.
+- Net 747 LOC removed (1,836 wrappers → 508 wrappers + 581 shared core/util = 1,089 total). Typecheck parity: mobile 1 (down from 7) / server 1 (baseline, untouched).
+- Full 8-flow smoke matrix passed on device (onboarding voice, Home voice, Filler Coach, session detail, correction/pattern/weak-spot practice, agent creation).
+- `app/lab/` route tree still intact. Wrappers still at `mobile/hooks/<name>.ts` (moving them under `hooks/voice/` + `hooks/recording/` is Phase F cosmetic).
 
 ### Phase C — shipped summary
 - 3 atomic commits on `cleanup/phase-c-rename-move`, fast-forwarded to `main`: C1, C2, C3.
