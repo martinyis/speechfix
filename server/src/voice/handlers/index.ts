@@ -2,7 +2,7 @@ import type { AgentTypeHandler, AgentConfig } from './types.js';
 import { ConversationHandler } from './conversation-handler.js';
 import { RoleplayHandler } from './roleplay-handler.js';
 import { OnboardingHandler } from '../../modules/onboarding/handler.js';
-import { AgentCreatorHandler } from './agent-creator-handler.js';
+import { AgentCreatorHandler } from '../../modules/agents/creator-handler.js';
 import { FillerCoachHandler } from '../../modules/filler-coach/handler.js';
 
 export type SystemAgentMode = 'conversation' | 'onboarding' | 'agent-creator' | 'filler-coach';

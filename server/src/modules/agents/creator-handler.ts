@@ -1,12 +1,12 @@
-import type { ConversationMessage } from '../response-generator.js';
-import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from './types.js';
-import type { ChatTool } from '../tools.js';
-import { END_SESSION_TOOL } from '../tools.js';
-import { AGENT_CREATOR_SESSION_PROMPT } from '../prompts/session-types/agent-creator.js';
-import { extractAgentConfig } from '../../modules/agents/config-extractor.js';
+import type { ConversationMessage } from '../../voice/response-generator.js';
+import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from '../../voice/handlers/types.js';
+import type { ChatTool } from '../../voice/tools.js';
+import { END_SESSION_TOOL } from '../../voice/tools.js';
+import { AGENT_CREATOR_SESSION_PROMPT } from './creator-prompt.js';
+import { extractAgentConfig } from './config-extractor.js';
 import { db } from '../../db/index.js';
 import { agents } from '../../db/schema.js';
-import { generateGreetingForAgent } from '../../modules/agents/greeting-generator.js';
+import { generateGreetingForAgent } from './greeting-generator.js';
 
 export class AgentCreatorHandler implements AgentTypeHandler {
   readonly needsUserContext = false;
