@@ -17,7 +17,7 @@ import { practiceRoutes } from './modules/practice/routes.js';
 import { jobRoutes } from './modules/patterns/job-routes.js';
 import { greetingRoutes } from './routes/greetings.js';
 import { fillerCoachRoutes } from './routes/filler-coach.js';
-import { weakSpotRoutes } from './routes/weak-spots.js';
+import { weakSpotRoutes } from './modules/weak-spots/routes.js';
 import authPlugin from './plugins/auth.js';
 
 const app = Fastify({ logger: true });

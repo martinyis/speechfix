@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { db } from '../db/index.js';
+import { db } from '../../db/index.js';
 import {
   corrections,
   sessions,
@@ -8,21 +8,21 @@ import {
   weakSpotExercises,
   weakSpotDrillAttempts,
   practiceAttempts,
-} from '../db/schema.js';
+} from '../../db/schema.js';
 import { eq, and, sql, isNull } from 'drizzle-orm';
-import { transcribeRawPCM } from '../shared/transcription/index.js';
+import { transcribeRawPCM } from '../../shared/transcription/index.js';
 import {
   evaluateSayItRight,
   evaluateWeakSpotExercise,
   type CorrectionContext,
   type WeakSpotExerciseContext,
-} from '../modules/practice/evaluator.js';
+} from '../practice/evaluator.js';
 import {
   advanceSRS,
   dismissWeakSpot,
   dismissQuickFix,
   backfillWeakSpots,
-} from '../modules/weak-spots/manager.js';
+} from './manager.js';
 import { writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import path from 'path';
