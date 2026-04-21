@@ -5,7 +5,10 @@ import { IDENTITY_PROMPT } from '../prompts/identity.js';
 import { BEHAVIOR_PROMPT } from '../prompts/behavior.js';
 import { ONBOARDING_SESSION_PROMPT } from '../prompts/session-types/onboarding.js';
 import { END_ONBOARDING_TOOL } from '../tools.js';
-import { extractUserProfile } from '../../services/profile-extractor.js';
+import { extractUserProfile } from '../../modules/onboarding/profile-extractor.js';
+import { analyzeOnboardingProfile } from '../../modules/onboarding/profile-analyzer.js';
+import { decideInitialFlags } from '../../services/practice-modes/decide-flags.js';
+import type { AnalysisFlags, SpeechSignals } from '../../services/practice-modes/types.js';
 import { ensureGreetingsExist } from '../../services/greeting-generator.js';
 import { db } from '../../db/index.js';
 import { users } from '../../db/schema.js';
@@ -40,16 +43,41 @@ export class OnboardingHandler implements AgentTypeHandler {
     _speechTimeline?: unknown,
   ): Promise<SessionEndResult> {
     try {
-      const profile = await extractUserProfile(conversationHistory);
+      const [profileRes, analyzerRes] = await Promise.allSettled([
+        extractUserProfile(conversationHistory),
+        analyzeOnboardingProfile(conversationHistory),
+      ]);
+
+      const profile = profileRes.status === 'fulfilled'
+        ? profileRes.value
+        : { displayName: null, context: null, goals: [] };
+
+      let analysisFlags: AnalysisFlags | undefined;
+      let onboardingAnalysis: SpeechSignals | undefined;
+      if (analyzerRes.status === 'fulfilled') {
+        if (analyzerRes.value.ok) {
+          onboardingAnalysis = analyzerRes.value.signals;
+          analysisFlags = decideInitialFlags(onboardingAnalysis);
+        } else {
+          console.log(`[onboarding-handler] Skipping auto-flags for user ${userId}: ${analyzerRes.value.reason}`);
+        }
+      } else {
+        console.log(`[onboarding-handler] Analyzer rejected for user ${userId}:`, analyzerRes.reason);
+      }
 
       await db.update(users).set({
         displayName: profile.displayName,
         context: profile.context,
         goals: profile.goals,
         onboardingComplete: true,
+        ...(analysisFlags ? { analysisFlags } : {}),
+        ...(onboardingAnalysis ? { onboardingAnalysis } : {}),
       }).where(eq(users.id, userId));
 
-      console.log(`[onboarding-handler] Profile saved for user ${userId}: ${profile.displayName}`);
+      console.log(
+        `[onboarding-handler] Profile saved for user ${userId}: ${profile.displayName}` +
+        (analysisFlags ? ` | flags=${JSON.stringify(analysisFlags)}` : ''),
+      );
 
       // Generate greetings for Reflexa + filler-coach (await so they're ready)
       await ensureGreetingsExist(userId);
