@@ -4,7 +4,7 @@ import { corrections, sessions, practiceAttempts, patternExercises, patternPract
 import { eq, sql, and } from 'drizzle-orm';
 import { runPatternAnalysisForUser, checkReanalysisNeeded } from '../jobs/patterns.js';
 import { generateAndStorePatternExercises } from '../services/pattern-exercise-generator.js';
-import { transcribeRawPCM } from '../services/transcription.js';
+import { transcribeRawPCM } from '../shared/transcription/index.js';
 import {
   evaluateSayItRight,
   evaluatePatternExercise,

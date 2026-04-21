@@ -10,7 +10,7 @@ import {
   practiceAttempts,
 } from '../db/schema.js';
 import { eq, and, sql, isNull } from 'drizzle-orm';
-import { transcribeRawPCM } from '../services/transcription.js';
+import { transcribeRawPCM } from '../shared/transcription/index.js';
 import {
   evaluateSayItRight,
   evaluateWeakSpotExercise,
