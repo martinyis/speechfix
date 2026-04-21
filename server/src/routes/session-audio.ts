@@ -21,7 +21,7 @@ import { db } from '../db/index.js';
 import { sessions } from '../db/schema.js';
 import { and, eq } from 'drizzle-orm';
 import { audioStorage, buildSessionAudioPath } from '../services/audio-storage.js';
-import { encodeM4aToOpusWithTrim } from '../services/audio-encoder.js';
+import { encodeM4aToOpusWithTrim } from '../shared/audio/encoder.js';
 
 /**
  * Kick off the M4A→Ogg-Opus encode, trimming to utterance segments if the

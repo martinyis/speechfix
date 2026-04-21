@@ -18,7 +18,7 @@ import { createWriteStream, type WriteStream } from 'node:fs';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { encodePcmToOpus } from '../services/audio-encoder.js';
+import { encodePcmToOpus } from '../shared/audio/encoder.js';
 import { audioStorage, buildSessionAudioPath } from '../services/audio-storage.js';
 import { sessions as sessionsTable } from '../db/schema.js';
 
