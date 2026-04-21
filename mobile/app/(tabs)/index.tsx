@@ -21,7 +21,7 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import MicBloomOrb from '../../components/orbs/MicBloomOrb';
 import { AgentSelector } from '../../components/agent/AgentSelector';
 import { AgentCreationSheet } from '../../components/agent/AgentCreationSheet';
-import { VoiceSessionOverlay } from '../../components/VoiceSessionOverlay';
+import { VoiceSessionOverlay } from '../../components/voice/VoiceSessionOverlay';
 import { SessionRow } from '../../components/session/SessionRow';
 import { SectionHeader } from '../../components/ui';
 import { useSessionStore } from '../../stores/sessionStore';

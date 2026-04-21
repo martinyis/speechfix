@@ -34,7 +34,7 @@ import { useSessionStore } from '../stores/sessionStore';
 import { useAgentCreatorVoiceSession } from '../hooks/useAgentCreatorVoiceSession';
 import { VoicePicker } from '../components/agent/VoicePicker';
 import { useVoicePreview } from '../hooks/useVoicePreview';
-import { VoiceSessionOverlay } from '../components/VoiceSessionOverlay';
+import { VoiceSessionOverlay } from '../components/voice/VoiceSessionOverlay';
 import { StyleChips } from '../components/StyleChips';
 import { AgentAvatar } from '../components/agent/AgentAvatar';
 import { ALL_AVATAR_IDS, resolveAvatarId, type AvatarId } from '../lib/avatars';

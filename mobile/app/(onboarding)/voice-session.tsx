@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { VoiceSessionOverlay } from '../../components/VoiceSessionOverlay';
+import { VoiceSessionOverlay } from '../../components/voice/VoiceSessionOverlay';
 import { useOnboardingVoiceSession } from '../../hooks/useOnboardingVoiceSession';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useOnboardingStore } from '../../stores/onboardingStore';

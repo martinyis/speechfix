@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
-import { VoiceSessionOverlay } from '../components/VoiceSessionOverlay';
+import { VoiceSessionOverlay } from '../components/voice/VoiceSessionOverlay';
 import { useSessionStore } from '../stores/sessionStore';
 import { useVoiceSession } from '../hooks/useVoiceSession';
 import { colors } from '../theme';

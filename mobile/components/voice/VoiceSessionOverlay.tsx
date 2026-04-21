@@ -3,13 +3,13 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AISpeakingOrb } from './orbs/AISpeakingOrb';
-import { AgentAvatar } from './agent/AgentAvatar';
-import type { AISpeakingOrbState } from './orbs/AISpeakingOrb';
-import { colors, alpha, fonts } from '../theme';
-import { formatTime } from '../lib/formatters';
-import { getSessionAvatarId } from '../lib/avatars';
-import type { VoiceSessionState } from '../stores/sessionStore';
+import { AISpeakingOrb } from '../orbs/AISpeakingOrb';
+import { AgentAvatar } from '../agent/AgentAvatar';
+import type { AISpeakingOrbState } from '../orbs/AISpeakingOrb';
+import { colors, alpha, fonts } from '../../theme';
+import { formatTime } from '../../lib/formatters';
+import { getSessionAvatarId } from '../../lib/avatars';
+import type { VoiceSessionState } from '../../stores/sessionStore';
 
 interface VoiceSessionOverlayProps {
   voiceState: VoiceSessionState;
