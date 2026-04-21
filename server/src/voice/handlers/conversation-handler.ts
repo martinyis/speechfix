@@ -15,7 +15,7 @@ import { extractConversationNotes } from '../../services/context-extractor.js';
 import { db } from '../../db/index.js';
 import { sessions, users } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { generateSessionBriefInsights } from '../../services/session-insights-generator.js';
+import { generateSessionBriefInsights } from '../../modules/sessions/insights-generator.js';
 import { computeLanguageScore } from '../../modules/sessions/scoring.js';
 import {
   handleEmptyTranscript,

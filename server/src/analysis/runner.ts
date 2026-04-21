@@ -1,5 +1,5 @@
 import type { AnalysisResult, AnalysisFlags, AnalyzerInput, Correction, PhasedInsightsPayload } from './types.js';
-import { generatePhasedInsights } from '../services/session-insights-generator.js';
+import { generatePhasedInsights } from '../modules/sessions/insights-generator.js';
 import { enrichFillerTimestamps } from '../services/filler-timestamp-enricher.js';
 import { GrammarAnalyzer } from './analyzers/grammar.js';
 import { FillerAnalyzer } from './analyzers/fillers.js';
