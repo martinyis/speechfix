@@ -11,7 +11,7 @@ import { users } from '../../db/schema.js';
 import { eq, and, isNull, or } from 'drizzle-orm';
 import { fetchGreeting, regenerateAllGreetings } from '../agents/greeting-generator.js';
 import { FillerCoachHandler } from '../filler-coach/handler.js';
-import { hasLowConfidenceWords, correctTranscript, type WordWithConfidence } from '../../services/transcript-corrector.js';
+import { hasLowConfidenceWords, correctTranscript, type WordWithConfidence } from './transcript-corrector.js';
 import { PitchAccumulator } from './pitch-detector.js';
 import type { WordTimingData, UtteranceMetadata, SpeechTimeline } from './speech-types.js';
 import { createWriteStream, type WriteStream } from 'node:fs';

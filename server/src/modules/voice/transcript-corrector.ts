@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { ConversationMessage } from '../modules/voice/response-generator.js';
+import type { ConversationMessage } from './response-generator.js';
 
 const anthropic = new Anthropic();
 const CORRECTION_TIMEOUT_MS = 3000;
