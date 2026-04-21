@@ -11,7 +11,7 @@ import { sessionAudioRoutes, encodeAndPersistHifi } from './modules/sessions/aud
 import { voiceSessionRoute } from './routes/voice-session-ws.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { onboardingRoutes } from './modules/onboarding/routes.js';
-import { agentRoutes } from './routes/agents.js';
+import { agentRoutes } from './modules/agents/routes.js';
 import { introAudioRoute } from './routes/intro-audio.js';
 import { practiceRoutes } from './modules/practice/routes.js';
 import { jobRoutes } from './modules/patterns/job-routes.js';

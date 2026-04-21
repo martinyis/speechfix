@@ -3,15 +3,15 @@ import { z } from 'zod';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { db } from '../db/index.js';
-import { agents } from '../db/schema.js';
+import { db } from '../../db/index.js';
+import { agents } from '../../db/schema.js';
 import { eq, and } from 'drizzle-orm';
-import { pcmToWav } from '../shared/audio/wav.js';
-import { AVAILABLE_VOICES, TTS_MODEL, TTS_SPEED, TTS_EMOTION } from '../voice/voice-config.js';
-import { generateGreetingForAgent } from '../modules/agents/greeting-generator.js';
+import { pcmToWav } from '../../shared/audio/wav.js';
+import { AVAILABLE_VOICES, TTS_MODEL, TTS_SPEED, TTS_EMOTION } from '../../voice/voice-config.js';
+import { generateGreetingForAgent } from './greeting-generator.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const VOICE_SAMPLE_CACHE_DIR = join(__dirname, '..', '..', '.cache', 'voice-samples');
+const VOICE_SAMPLE_CACHE_DIR = join(__dirname, '..', '..', '..', '.cache', 'voice-samples');
 
 const updateAgentSchema = z.object({
   name: z.string().min(1).max(255).optional(),
