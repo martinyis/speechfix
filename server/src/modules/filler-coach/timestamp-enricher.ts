@@ -7,8 +7,8 @@
  * position to an absolute `timeSeconds` value from the start of the session.
  */
 
-import type { FillerWordPosition } from '../analysis/types.js';
-import type { UtteranceMetadata } from '../voice/speech-types.js';
+import type { FillerWordPosition } from '../../analysis/types.js';
+import type { UtteranceMetadata } from '../../voice/speech-types.js';
 
 /**
  * Given filler positions + utterance metadata with word timings, return the
