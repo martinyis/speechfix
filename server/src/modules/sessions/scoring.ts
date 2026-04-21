@@ -9,7 +9,7 @@
  */
 
 import type { Correction, SpeechPattern } from '../../analysis/types.js';
-import type { SpeechTimeline } from '../../voice/speech-types.js';
+import type { SpeechTimeline } from '../voice/speech-types.js';
 
 // --- Thresholds ---
 const MIN_WORDS = 15;

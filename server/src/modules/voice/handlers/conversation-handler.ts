@@ -8,15 +8,15 @@ import { BEHAVIOR_PROMPT, CUSTOM_AGENT_BEHAVIOR_PROMPT } from '../prompts/behavi
 import { REFLEXA_SESSION_PROMPT, CUSTOM_AGENT_SESSION_PROMPT } from '../prompts/session-types/conversation.js';
 import { buildUserContextPrompt } from '../prompts/context.js';
 import { resolveElicitationStyle, ELICITATION_PROMPTS } from '../prompts/elicitation.js';
-import { runAnalysis, runAnalysisPhased } from '../../analysis/index.js';
-import type { PhasedInsightsPayload } from '../../analysis/types.js';
-import { generateSessionMetadata } from '../../modules/sessions/title-generator.js';
-import { extractConversationNotes } from '../../modules/sessions/context-extractor.js';
-import { db } from '../../db/index.js';
-import { sessions, users } from '../../db/schema.js';
+import { runAnalysis, runAnalysisPhased } from '../../../analysis/index.js';
+import type { PhasedInsightsPayload } from '../../../analysis/types.js';
+import { generateSessionMetadata } from '../../sessions/title-generator.js';
+import { extractConversationNotes } from '../../sessions/context-extractor.js';
+import { db } from '../../../db/index.js';
+import { sessions, users } from '../../../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { generateSessionBriefInsights } from '../../modules/sessions/insights-generator.js';
-import { computeLanguageScore } from '../../modules/sessions/scoring.js';
+import { generateSessionBriefInsights } from '../../sessions/insights-generator.js';
+import { computeLanguageScore } from '../../sessions/scoring.js';
 import {
   handleEmptyTranscript,
   computeCorrectionClarityScore,

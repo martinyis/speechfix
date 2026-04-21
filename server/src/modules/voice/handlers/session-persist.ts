@@ -1,10 +1,10 @@
 import type { AgentConfig } from './types.js';
-import type { Correction, FillerWordCount } from '../../analysis/types.js';
-import { db } from '../../db/index.js';
-import { corrections as correctionsTable, fillerWords as fillerWordsTable } from '../../db/schema.js';
-import { regenerateAllGreetings } from '../../modules/agents/greeting-generator.js';
-import { runPatternAnalysisForUser } from '../../modules/patterns/job.js';
-import { absorbCorrections } from '../../modules/weak-spots/manager.js';
+import type { Correction, FillerWordCount } from '../../../analysis/types.js';
+import { db } from '../../../db/index.js';
+import { corrections as correctionsTable, fillerWords as fillerWordsTable } from '../../../db/schema.js';
+import { regenerateAllGreetings } from '../../agents/greeting-generator.js';
+import { runPatternAnalysisForUser } from '../../patterns/job.js';
+import { absorbCorrections } from '../../weak-spots/manager.js';
 import { appendContextNotes } from './conversation-handler.js';
 
 export function handleEmptyTranscript(userId: number): void {

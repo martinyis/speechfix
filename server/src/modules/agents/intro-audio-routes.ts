@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { pcmToWav } from '../../shared/audio/wav.js';
-import { DEFAULT_VOICE_ID, TTS_MODEL, TTS_SPEED, TTS_EMOTION } from '../../voice/voice-config.js';
+import { DEFAULT_VOICE_ID, TTS_MODEL, TTS_SPEED, TTS_EMOTION } from '../voice/voice-config.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = join(__dirname, '..', '..', '..', '.cache');

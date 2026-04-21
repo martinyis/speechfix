@@ -1,6 +1,6 @@
 import Groq from 'groq-sdk';
 import type { Correction, FillerWordCount, FillerWordPosition, SessionInsight, PhasedInsightsPayload } from '../../analysis/types.js';
-import type { SpeechTimeline } from '../../voice/speech-types.js';
+import type { SpeechTimeline } from '../voice/speech-types.js';
 import { computeDeliveryScore } from './scoring.js';
 
 const groq = new Groq();

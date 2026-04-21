@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
-import { VoiceSession } from '../voice/session-manager.js';
-import { resolveHandler, type SystemAgentMode } from '../voice/handlers/index.js';
-import type { AgentConfig } from '../voice/handlers/types.js';
+import { VoiceSession } from '../modules/voice/session-manager.js';
+import { resolveHandler, type SystemAgentMode } from '../modules/voice/handlers/index.js';
+import type { AgentConfig } from '../modules/voice/handlers/types.js';
 import { db } from '../db/index.js';
 import { agents } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';

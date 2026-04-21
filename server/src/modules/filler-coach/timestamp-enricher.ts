@@ -8,7 +8,7 @@
  */
 
 import type { FillerWordPosition } from '../../analysis/types.js';
-import type { UtteranceMetadata } from '../../voice/speech-types.js';
+import type { UtteranceMetadata } from '../voice/speech-types.js';
 
 /**
  * Given filler positions + utterance metadata with word timings, return the

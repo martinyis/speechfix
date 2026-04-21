@@ -1,9 +1,9 @@
-import type { ConversationMessage } from '../../voice/response-generator.js';
-import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from '../../voice/handlers/types.js';
-import type { ChatTool } from '../../voice/tools.js';
-import { END_SESSION_TOOL } from '../../voice/tools.js';
+import type { ConversationMessage } from '../voice/response-generator.js';
+import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from '../voice/handlers/types.js';
+import type { ChatTool } from '../voice/tools.js';
+import { END_SESSION_TOOL } from '../voice/tools.js';
 import { FILLER_COACH_IDENTITY_PROMPT, FILLER_COACH_SESSION_PROMPT } from './prompts.js';
-import { FILLER_COACH_BEHAVIOR_PROMPT } from '../../voice/prompts/behavior.js';
+import { FILLER_COACH_BEHAVIOR_PROMPT } from '../voice/prompts/behavior.js';
 import { FillerAnalyzer } from '../../analysis/analyzers/fillers.js';
 import { regenerateAllGreetings } from '../agents/greeting-generator.js';
 import { runPatternAnalysisForUser } from '../patterns/job.js';

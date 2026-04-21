@@ -56,7 +56,7 @@ export interface PhasedInsightsPayload {
     fillersPerMinute: number;
     totalFillers: number;
   };
-  speechTimeline?: import('../voice/speech-types.js').SpeechTimeline;
+  speechTimeline?: import('../modules/voice/speech-types.js').SpeechTimeline;
 }
 
 export interface AnalysisResult {
@@ -102,7 +102,7 @@ export interface AnalyzerInput {
   sentences: string[];
   mode: 'recording' | 'conversation';
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
-  speechTimeline?: import('../voice/speech-types.js').SpeechTimeline;
+  speechTimeline?: import('../modules/voice/speech-types.js').SpeechTimeline;
 }
 
 export interface Analyzer {

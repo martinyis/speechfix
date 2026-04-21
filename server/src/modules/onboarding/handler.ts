@@ -1,10 +1,10 @@
-import type { ConversationMessage } from '../../voice/response-generator.js';
-import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from '../../voice/handlers/types.js';
-import type { ChatTool } from '../../voice/tools.js';
-import { IDENTITY_PROMPT } from '../../voice/prompts/identity.js';
-import { BEHAVIOR_PROMPT } from '../../voice/prompts/behavior.js';
+import type { ConversationMessage } from '../voice/response-generator.js';
+import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from '../voice/handlers/types.js';
+import type { ChatTool } from '../voice/tools.js';
+import { IDENTITY_PROMPT } from '../voice/prompts/identity.js';
+import { BEHAVIOR_PROMPT } from '../voice/prompts/behavior.js';
 import { ONBOARDING_SESSION_PROMPT } from './prompt.js';
-import { END_ONBOARDING_TOOL } from '../../voice/tools.js';
+import { END_ONBOARDING_TOOL } from '../voice/tools.js';
 import { extractUserProfile } from './profile-extractor.js';
 import { analyzeOnboardingProfile } from './profile-analyzer.js';
 import { decideInitialFlags } from '../practice/modes/decide-flags.js';
