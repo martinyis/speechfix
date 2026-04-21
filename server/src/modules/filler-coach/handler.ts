@@ -1,12 +1,12 @@
-import type { ConversationMessage } from '../response-generator.js';
-import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from './types.js';
-import type { ChatTool } from '../tools.js';
-import { END_SESSION_TOOL } from '../tools.js';
-import { FILLER_COACH_IDENTITY_PROMPT, FILLER_COACH_SESSION_PROMPT } from '../../modules/filler-coach/prompts.js';
-import { FILLER_COACH_BEHAVIOR_PROMPT } from '../prompts/behavior.js';
+import type { ConversationMessage } from '../../voice/response-generator.js';
+import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from '../../voice/handlers/types.js';
+import type { ChatTool } from '../../voice/tools.js';
+import { END_SESSION_TOOL } from '../../voice/tools.js';
+import { FILLER_COACH_IDENTITY_PROMPT, FILLER_COACH_SESSION_PROMPT } from './prompts.js';
+import { FILLER_COACH_BEHAVIOR_PROMPT } from '../../voice/prompts/behavior.js';
 import { FillerAnalyzer } from '../../analysis/analyzers/fillers.js';
 import { regenerateAllGreetings } from '../../services/greeting-generator.js';
-import { runPatternAnalysisForUser } from '../../modules/patterns/job.js';
+import { runPatternAnalysisForUser } from '../patterns/job.js';
 import { db } from '../../db/index.js';
 import { fillerCoachSessions } from '../../db/schema.js';
 
