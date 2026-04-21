@@ -25,8 +25,8 @@ After all 6 phases ship cleanly, proceed to the **session-manager.ts SRP split**
 | B | Legacy `score` alias removal | `phase-b.md` | **SHIPPED 2026-04-20** — 13 LOC deleted across 7 files, merged to main |
 | C | Rename + move (SessionRow, FrequencyStrip) | `phase-c.md` | **SHIPPED 2026-04-20** — 3 atomic commits, 7 files touched, ~0 net LOC, merged to main |
 | D | Hook consolidation (voice + recording) | `phase-d.md` | **SHIPPED 2026-04-20** — 8 atomic commits, 9 files, ~747 LOC net removed, merged to main |
-| E | Server handler dedup (onSessionEnd paths) | `phase-e.md` (TBD) | next |
-| F | Cosmetic component reorganization | `phase-f.md` (TBD) | pending |
+| E | Server handler dedup (onSessionEnd paths) | `phase-e.md` | **SHIPPED 2026-04-20** — 3 atomic commits, 2 files, ~110 LOC net removed, merged to main |
+| F | Cosmetic component reorganization | `phase-f.md` (TBD) | next |
 | — | **Follow-up**: session-manager.ts SRP split | separate initiative | later |
 
 ### Phase A — shipped summary
@@ -56,6 +56,16 @@ After all 6 phases ship cleanly, proceed to the **session-manager.ts SRP split**
 - Net 747 LOC removed (1,836 wrappers → 508 wrappers + 581 shared core/util = 1,089 total). Typecheck parity: mobile 1 (down from 7) / server 1 (baseline, untouched).
 - Full 8-flow smoke matrix passed on device (onboarding voice, Home voice, Filler Coach, session detail, correction/pattern/weak-spot practice, agent creation).
 - `app/lab/` route tree still intact. Wrappers still at `mobile/hooks/<name>.ts` (moving them under `hooks/voice/` + `hooks/recording/` is Phase F cosmetic).
+
+### Phase E — shipped summary
+- 3 atomic commits on `cleanup/phase-e-handler-dedup`, fast-forwarded to `main`: E2, E3, E4.
+- Added `server/src/voice/handlers/session-persist.ts` (87 LOC) exposing 5 focused helpers used by both `onSessionEnd` paths: `handleEmptyTranscript`, `computeCorrectionClarityScore`, `insertCorrectionsBatch`, `insertFillerWordsBatch`, `runPostAnalysisSideEffects`. Helpers import `appendContextNotes` from `conversation-handler.ts` (circular-import is safe — `appendContextNotes` is a hoisted async function declaration).
+- Plan deviation (minor): initial E2 draft typed the correction/filler helper inputs as ad-hoc loose shapes; tsc rejected (`severity` is a `text` column, not `number`). Fixed during E2 by importing `Correction` / `FillerWordCount` from `analysis/types.ts` — stricter than the original inline types, no runtime effect.
+- E3 migrated `onSessionEnd` → helpers (−49 LOC net). E4 migrated `onSessionEndStreaming` → helpers and pruned now-unused imports (`regenerateAllGreetings`, `absorbCorrections`, `runPatternAnalysisForUser`, `corrections`, `fillerWords` schema tables) (−61 LOC net).
+- Net: `conversation-handler.ts` 438 → 328 LOC (−110). `RoleplayHandler` picks up the refactor automatically via inheritance — confirmed via roleplay smoke.
+- Scope-preserving choices: both session-end entry points kept (audit's option (b), not option (a)); `FillerCoachHandler` / `OnboardingHandler` / `AgentCreatorHandler` untouched; streaming path's DB-session-created-inside-phased-callback order preserved so `insights_ready` client UX still fires before corrections stream in; 4-path log line ordering preserved.
+- Typecheck parity: mobile 1 / server 1 (both baseline, untouched).
+- Smoke matrix passed on device: Reflexa voice, custom agent (conversation), custom agent (roleplay — inheritance guard), filler coach (regression guard), past-session open.
 
 ### Phase C — shipped summary
 - 3 atomic commits on `cleanup/phase-c-rename-move`, fast-forwarded to `main`: C1, C2, C3.
