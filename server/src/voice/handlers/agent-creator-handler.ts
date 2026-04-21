@@ -3,7 +3,7 @@ import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult }
 import type { ChatTool } from '../tools.js';
 import { END_SESSION_TOOL } from '../tools.js';
 import { AGENT_CREATOR_SESSION_PROMPT } from '../prompts/session-types/agent-creator.js';
-import { extractAgentConfig } from '../../services/agent-config-extractor.js';
+import { extractAgentConfig } from '../../modules/agents/config-extractor.js';
 import { db } from '../../db/index.js';
 import { agents } from '../../db/schema.js';
 import { generateGreetingForAgent } from '../../modules/agents/greeting-generator.js';
