@@ -6,7 +6,7 @@ import { db } from '../db/index.js';
 import { agents } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { buildFillerHistoryPrompt } from '../voice/prompts/filler-context.js';
-import { selectTopic } from '../services/topic-selector.js';
+import { selectTopic } from '../modules/filler-coach/topic-selector.js';
 
 export async function voiceSessionRoute(fastify: FastifyInstance) {
   fastify.get('/voice-session', { websocket: true }, async (socket, req) => {
