@@ -13,11 +13,8 @@ import type { PhasedInsightsPayload } from '../../analysis/types.js';
 import { generateSessionMetadata } from '../../services/title-generator.js';
 import { extractConversationNotes } from '../../services/context-extractor.js';
 import { db } from '../../db/index.js';
-import { sessions, corrections, fillerWords, users } from '../../db/schema.js';
+import { sessions, users } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { regenerateAllGreetings } from '../../services/greeting-generator.js';
-import { absorbCorrections } from '../../services/weak-spot-manager.js';
-import { runPatternAnalysisForUser } from '../../jobs/patterns.js';
 import { generateSessionBriefInsights } from '../../services/session-insights-generator.js';
 import { computeLanguageScore } from '../../services/scoring.js';
 import {
@@ -185,19 +182,15 @@ export class ConversationHandler implements AgentTypeHandler {
     const fullTranscription = transcriptBuffer.join(' ');
 
     if (!fullTranscription.trim()) {
-      regenerateAllGreetings(userId).catch(err =>
-        console.error('[greeting] Regeneration failed (empty transcript):', err)
-      );
+      handleEmptyTranscript(userId);
       return { type: 'analysis' };
     }
 
     const userUtterances = transcriptBuffer;
 
-    // Start title generation and context extraction in parallel with phased analysis
     const metadataPromise = generateSessionMetadata(fullTranscription, conversationHistory);
     const contextNotesPromise = extractConversationNotes(conversationHistory);
 
-    // State shared between phased callbacks
     let dbSessionId = 0;
     let deliveryScore: number | null = null;
     let languageScore: number | null = null;
@@ -205,22 +198,18 @@ export class ConversationHandler implements AgentTypeHandler {
     let fillersPerMinute = 0;
     let totalWords = 0;
 
-    // Run phased analysis: fillers → insights → grammar streaming
     const analysisResult = await runAnalysisPhased(
       userId,
       { sentences: userUtterances, mode: 'conversation', conversationHistory, speechTimeline },
       durationSeconds,
-      // onPhasedInsights: fires after fillers + insights are ready, before grammar
       async (phasedPayload: PhasedInsightsPayload) => {
         deliveryScore = phasedPayload.deliveryScore;
         allInsights = phasedPayload.insights;
         fillersPerMinute = phasedPayload.metrics.fillersPerMinute;
         totalWords = userUtterances.join(' ').split(/\s+/).filter(Boolean).length;
 
-        // Wait for metadata so we can create the DB session
         const metadata = await metadataPromise;
 
-        // Create session in DB
         const [session] = await db
           .insert(sessions)
           .values({
@@ -237,22 +226,10 @@ export class ConversationHandler implements AgentTypeHandler {
             clarityScore: deliveryScore ?? 100,
           })
           .returning();
-
         dbSessionId = session.id;
-        console.log(`[conversation-handler] Phased: session stored in DB: ${dbSessionId}`);
 
-        // Store filler words
-        if (phasedPayload.fillerWords.length > 0) {
-          await db.insert(fillerWords).values(
-            phasedPayload.fillerWords.map(f => ({
-              sessionId: dbSessionId,
-              word: f.word,
-              count: f.count,
-            }))
-          );
-        }
+        await insertFillerWordsBatch(dbSessionId, phasedPayload.fillerWords);
 
-        // Store initial analysis JSON (insights + fillers, no corrections yet)
         await db.update(sessions).set({
           analysis: {
             sentences: userUtterances,
@@ -263,51 +240,23 @@ export class ConversationHandler implements AgentTypeHandler {
           },
         }).where(eq(sessions.id, dbSessionId));
 
-        // Notify client: insights are ready, navigate to session-detail
         onInsightsReady?.(phasedPayload, dbSessionId);
       },
-      // onCorrection: streams individual corrections to client
       onCorrection,
     );
 
-    // Compute clarity score from corrections
-    const sentencesWithCorrections = new Set(
+    const clarityScore = computeCorrectionClarityScore(
       analysisResult.corrections.map(c => c.sentenceIndex),
-    ).size;
-    const totalSentences = userUtterances.length;
-    const clarityScore = totalSentences > 0
-      ? Math.round((Math.max(0, totalSentences - sentencesWithCorrections) / totalSentences) * 100)
-      : 100;
+      userUtterances.length,
+    );
 
-    // Store corrections and get back their IDs
     let correctionIds: number[] = [];
-    if (analysisResult.corrections.length > 0 && dbSessionId > 0) {
-      const inserted = await db.insert(corrections).values(
-        analysisResult.corrections.map(c => ({
-          sessionId: dbSessionId,
-          originalText: c.originalText,
-          correctedText: c.correctedText,
-          explanation: c.explanation || null,
-          shortReason: c.shortReason || null,
-          correctionType: c.correctionType || 'other',
-          sentenceIndex: c.sentenceIndex,
-          severity: c.severity,
-          contextSnippet: c.contextSnippet || null,
-        }))
-      ).returning();
-      correctionIds = inserted.map(r => r.id);
-
-      absorbCorrections(userId, correctionIds, userUtterances).catch(err =>
-        console.error('[conversation-handler] Failed to absorb corrections:', err)
-      );
+    if (dbSessionId > 0) {
+      correctionIds = await insertCorrectionsBatch(dbSessionId, analysisResult.corrections);
     }
 
-    // Add "Issues found" metric now that we know correction count
     allInsights.push({ type: 'metric', description: 'Issues found', value: analysisResult.corrections.length });
 
-    // Compute deterministic Language score now that corrections are in hand.
-    // Pattern analysis runs in the background (fire-and-forget below), so pass
-    // undefined — pattern-flag deductions are skipped in this phase.
     languageScore = computeLanguageScore(
       analysisResult.corrections,
       fillersPerMinute,
@@ -319,7 +268,6 @@ export class ConversationHandler implements AgentTypeHandler {
       allInsights.push({ type: 'language_score', description: 'Language score', value: languageScore });
     }
 
-    // Update analysis JSON with final insights (now includes corrections count + language score)
     if (dbSessionId > 0) {
       await db.update(sessions).set({
         analysis: {
@@ -333,21 +281,12 @@ export class ConversationHandler implements AgentTypeHandler {
       }).where(eq(sessions.id, dbSessionId));
     }
 
-    console.log(`[conversation-handler] Phased analysis complete: ${analysisResult.corrections.length} corrections, ${analysisResult.fillerWords.length} filler types`);
+    console.log(`[conversation-handler] Phased: ${analysisResult.corrections.length} corrections, ${analysisResult.fillerWords.length} filler types`);
 
-    // Write context notes
     const contextNotes = await contextNotesPromise;
-    if (contextNotes.length > 0) {
-      await appendContextNotes(userId, contextNotes, agentConfig?.id ?? null);
-    }
-
-    // Fire-and-forget background tasks
-    regenerateAllGreetings(userId).catch(err =>
-      console.error('[greeting] Regeneration failed:', err)
-    );
-    runPatternAnalysisForUser(userId).catch(err =>
-      console.error('[conversation-handler] Auto pattern analysis failed:', err)
-    );
+    await runPostAnalysisSideEffects({
+      userId, agentConfig, correctionIds, userUtterances, contextNotes,
+    });
 
     return {
       type: 'analysis',
