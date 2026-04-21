@@ -1,12 +1,12 @@
 import { FastifyInstance } from 'fastify';
-import { VoiceSession } from '../modules/voice/session-manager.js';
-import { resolveHandler, type SystemAgentMode } from '../modules/voice/handlers/index.js';
-import type { AgentConfig } from '../modules/voice/handlers/types.js';
-import { db } from '../db/index.js';
-import { agents } from '../db/schema.js';
+import { VoiceSession } from './session-manager.js';
+import { resolveHandler, type SystemAgentMode } from './handlers/index.js';
+import type { AgentConfig } from './handlers/types.js';
+import { db } from '../../db/index.js';
+import { agents } from '../../db/schema.js';
 import { eq, and } from 'drizzle-orm';
-import { buildFillerHistoryPrompt } from '../modules/filler-coach/filler-history.js';
-import { selectTopic } from '../modules/filler-coach/topic-selector.js';
+import { buildFillerHistoryPrompt } from '../filler-coach/filler-history.js';
+import { selectTopic } from '../filler-coach/topic-selector.js';
 
 export async function voiceSessionRoute(fastify: FastifyInstance) {
   fastify.get('/voice-session', { websocket: true }, async (socket, req) => {

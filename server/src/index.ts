@@ -8,7 +8,7 @@ import { sql, and, isNotNull, ne, or, isNull } from 'drizzle-orm';
 import { sessions as sessionsTable } from './db/schema.js';
 import { sessionRoutes } from './modules/sessions/routes.js';
 import { sessionAudioRoutes, encodeAndPersistHifi } from './modules/sessions/audio-routes.js';
-import { voiceSessionRoute } from './routes/voice-session-ws.js';
+import { voiceSessionRoute } from './modules/voice/ws-route.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { onboardingRoutes } from './modules/onboarding/routes.js';
 import { agentRoutes } from './modules/agents/routes.js';
