@@ -20,6 +20,13 @@ import { absorbCorrections } from '../../services/weak-spot-manager.js';
 import { runPatternAnalysisForUser } from '../../jobs/patterns.js';
 import { generateSessionBriefInsights } from '../../services/session-insights-generator.js';
 import { computeLanguageScore } from '../../services/scoring.js';
+import {
+  handleEmptyTranscript,
+  computeCorrectionClarityScore,
+  insertCorrectionsBatch,
+  insertFillerWordsBatch,
+  runPostAnalysisSideEffects,
+} from './session-persist.js';
 
 export class ConversationHandler implements AgentTypeHandler {
   readonly needsUserContext = true;
@@ -82,34 +89,24 @@ export class ConversationHandler implements AgentTypeHandler {
   ): Promise<SessionEndResult> {
     const fullTranscription = transcriptBuffer.join(' ');
 
-    // Skip analysis if no speech was captured
     if (!fullTranscription.trim()) {
-      // Still regenerate greetings even if no speech
-      regenerateAllGreetings(userId).catch(err =>
-        console.error('[greeting] Regeneration failed (empty transcript):', err)
-      );
+      handleEmptyTranscript(userId);
       return { type: 'analysis' };
     }
 
     const userUtterances = transcriptBuffer;
 
-    // Run speech analysis, title generation, and context extraction in parallel
     const [analysisResult, metadata, contextNotes] = await Promise.all([
       runAnalysis(userId, { sentences: userUtterances, mode: 'conversation', conversationHistory, speechTimeline }),
       generateSessionMetadata(fullTranscription, conversationHistory),
       extractConversationNotes(conversationHistory),
     ]);
 
-    // Compute clarity score
-    const sentencesWithCorrections = new Set(
-      analysisResult.corrections.map((c) => c.sentenceIndex),
-    ).size;
-    const totalSentences = userUtterances.length;
-    const clarityScore = totalSentences > 0
-      ? Math.round((Math.max(0, totalSentences - sentencesWithCorrections) / totalSentences) * 100)
-      : 100;
+    const clarityScore = computeCorrectionClarityScore(
+      analysisResult.corrections.map(c => c.sentenceIndex),
+      userUtterances.length,
+    );
 
-    // Start brief insights generation in parallel with DB writes
     const briefInsightsPromise = generateSessionBriefInsights({
       sentences: userUtterances,
       corrections: analysisResult.corrections,
@@ -121,7 +118,6 @@ export class ConversationHandler implements AgentTypeHandler {
       return [];
     });
 
-    // Create session in DB
     const [session] = await db
       .insert(sessions)
       .values({
@@ -139,13 +135,9 @@ export class ConversationHandler implements AgentTypeHandler {
       })
       .returning();
 
-    console.log(`[conversation-handler] Session stored in DB: ${session.id}`);
-
-    // Await brief insights before storing analysis JSON
     const briefInsights = await briefInsightsPromise;
     const allInsights = [...analysisResult.sessionInsights, ...briefInsights];
 
-    // Store analysis JSON
     await db.update(sessions).set({
       analysis: {
         sentences: userUtterances,
@@ -156,55 +148,14 @@ export class ConversationHandler implements AgentTypeHandler {
       },
     }).where(eq(sessions.id, session.id));
 
-    // Store corrections
-    if (analysisResult.corrections.length > 0) {
-      const inserted = await db.insert(corrections).values(
-        analysisResult.corrections.map(c => ({
-          sessionId: session.id,
-          originalText: c.originalText,
-          correctedText: c.correctedText,
-          explanation: c.explanation || null,
-          shortReason: c.shortReason || null,
-          correctionType: c.correctionType || 'other',
-          sentenceIndex: c.sentenceIndex,
-          severity: c.severity,
-          contextSnippet: c.contextSnippet || null,
-        }))
-      ).returning();
+    const correctionIds = await insertCorrectionsBatch(session.id, analysisResult.corrections);
+    await insertFillerWordsBatch(session.id, analysisResult.fillerWords);
 
-      // Fire-and-forget: absorb corrections into weak spots system
-      absorbCorrections(userId, inserted.map(r => r.id), userUtterances).catch(err =>
-        console.error('[conversation-handler] Failed to absorb corrections:', err)
-      );
-    }
+    console.log(`[conversation-handler] Session stored: ${session.id} — ${analysisResult.corrections.length} corrections, ${analysisResult.fillerWords.length} filler types`);
 
-    // Store filler words
-    if (analysisResult.fillerWords.length > 0) {
-      await db.insert(fillerWords).values(
-        analysisResult.fillerWords.map(f => ({
-          sessionId: session.id,
-          word: f.word,
-          count: f.count,
-        }))
-      );
-    }
-
-    console.log(`[conversation-handler] Analysis complete: ${analysisResult.corrections.length} corrections, ${analysisResult.fillerWords.length} filler types`);
-
-    // Write context notes back to user
-    if (contextNotes.length > 0) {
-      await appendContextNotes(userId, contextNotes, agentConfig?.id ?? null);
-    }
-
-    // Fire-and-forget: regenerate greetings for next session
-    regenerateAllGreetings(userId).catch(err =>
-      console.error('[greeting] Regeneration failed:', err)
-    );
-
-    // Fire-and-forget: auto pattern analysis
-    runPatternAnalysisForUser(userId).catch(err =>
-      console.error('[conversation-handler] Auto pattern analysis failed:', err)
-    );
+    await runPostAnalysisSideEffects({
+      userId, agentConfig, correctionIds, userUtterances, contextNotes,
+    });
 
     return {
       type: 'analysis',
