@@ -17,11 +17,11 @@ import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
-import { db } from '../db/index.js';
-import { sessions } from '../db/schema.js';
+import { db } from '../../db/index.js';
+import { sessions } from '../../db/schema.js';
 import { and, eq } from 'drizzle-orm';
-import { audioStorage, buildSessionAudioPath } from '../shared/audio/storage.js';
-import { encodeM4aToOpusWithTrim } from '../shared/audio/encoder.js';
+import { audioStorage, buildSessionAudioPath } from '../../shared/audio/storage.js';
+import { encodeM4aToOpusWithTrim } from '../../shared/audio/encoder.js';
 
 /**
  * Kick off the M4A→Ogg-Opus encode, trimming to utterance segments if the
