@@ -16,8 +16,8 @@ import {
 } from '../../components/practice';
 import { FrequencyStrip } from '../../components/practice/FrequencyStrip';
 import type { StripMode } from '../../components/practice/FrequencyStrip';
-import { useWeakSpots } from '../../hooks/useWeakSpots';
-import { usePatternTasks } from '../../hooks/usePatternTasks';
+import { useWeakSpots } from '../../hooks/data/useWeakSpots';
+import { usePatternTasks } from '../../hooks/data/usePatternTasks';
 import { usePracticeModes, type PracticeModeName } from '../../hooks/usePracticeModes';
 import { colors, spacing } from '../../theme';
 

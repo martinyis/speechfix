@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { authFetch } from '../lib/api';
-import type { Voice } from '../types/session';
+import { authFetch } from '../../lib/api';
+import type { Voice } from '../../types/session';
 
 export function useVoices() {
   return useQuery({

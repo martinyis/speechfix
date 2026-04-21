@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { authFetch } from '../lib/api';
-import type { WeakSpotsResponse } from '../types/practice';
+import { authFetch } from '../../lib/api';
+import type { WeakSpotsResponse } from '../../types/practice';
 
 export function useWeakSpots() {
   return useQuery({

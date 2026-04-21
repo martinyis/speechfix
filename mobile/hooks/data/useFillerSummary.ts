@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { authFetch } from '../lib/api';
-import type { FillerSummary } from '../types/session';
+import { authFetch } from '../../lib/api';
+import type { FillerSummary } from '../../types/session';
 
 export function useFillerSummary() {
   return useQuery({

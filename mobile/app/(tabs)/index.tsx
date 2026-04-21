@@ -26,8 +26,8 @@ import { SessionRow } from '../../components/session/SessionRow';
 import { SectionHeader } from '../../components/ui';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useAgentStore, getSelectedAgentDisplay } from '../../stores/agentStore';
-import { useAgents } from '../../hooks/useAgents';
-import { useSessions } from '../../hooks/useSessions';
+import { useAgents } from '../../hooks/data/useAgents';
+import { useSessions } from '../../hooks/data/useSessions';
 import { useVoiceSession } from '../../hooks/voice/useVoiceSession';
 import { colors, alpha, fonts } from '../../theme';
 

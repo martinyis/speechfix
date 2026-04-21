@@ -28,12 +28,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import { colors, alpha, glass, spacing, layout, typography, fonts } from '../theme';
 import { authFetch } from '../lib/api';
-import { useVoices } from '../hooks/useVoices';
+import { useVoices } from '../hooks/data/useVoices';
 import { useAgentStore } from '../stores/agentStore';
 import { useSessionStore } from '../stores/sessionStore';
 import { useAgentCreatorVoiceSession } from '../hooks/voice/useAgentCreatorVoiceSession';
 import { VoicePicker } from '../components/agent/VoicePicker';
-import { useVoicePreview } from '../hooks/useVoicePreview';
+import { useVoicePreview } from '../hooks/data/useVoicePreview';
 import { VoiceSessionOverlay } from '../components/voice/VoiceSessionOverlay';
 import { StyleChips } from '../components/StyleChips';
 import { AgentAvatar } from '../components/agent/AgentAvatar';

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { createAudioPlayer } from 'expo-audio';
 import type { AudioPlayer } from 'expo-audio/build/AudioModule.types';
-import { API_BASE_URL } from '../lib/api';
+import { API_BASE_URL } from '../../lib/api';
 
 export function useVoicePreview() {
   const [activeVoiceId, setActiveVoiceId] = useState<string | null>(null);

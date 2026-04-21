@@ -22,7 +22,7 @@ import PracticeFeedbackPanel from '../components/PracticeFeedbackPanel';
 import SuccessCelebration from '../components/SuccessCelebration';
 import ErrorReasonHeader from '../components/practice/ErrorReasonHeader';
 import { wordDiff } from '../lib/wordDiff';
-import { useWeakSpots } from '../hooks/useWeakSpots';
+import { useWeakSpots } from '../hooks/data/useWeakSpots';
 import { useDrillRecording } from '../hooks/recording/useDrillRecording';
 import { authFetch } from '../lib/api';
 import { usePreloadSuccessSound, playSuccessSound } from '../lib/sounds';

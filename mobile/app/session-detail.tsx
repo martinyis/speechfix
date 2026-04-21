@@ -13,7 +13,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSessionStore } from '../stores/sessionStore';
-import { useSession } from '../hooks/useSession';
+import { useSession } from '../hooks/data/useSession';
 import { SessionVerdict } from '../components/session/SessionVerdict';
 import { CorrectionsPreview } from '../components/correction/CorrectionsPreview';
 import { ConversationRhythmStrip } from '../components/session/ConversationRhythmStrip';

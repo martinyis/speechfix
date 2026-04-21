@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { authFetch } from '../lib/api';
-import type { PatternTasksResponse } from '../types/practice';
+import { authFetch } from '../../lib/api';
+import type { PatternTasksResponse } from '../../types/practice';
 
 export function usePatternTasks() {
   return useQuery({

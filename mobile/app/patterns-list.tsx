@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenHeader } from '../components/ui';
 import { PatternTaskCard } from '../components/pattern/PatternTaskCard';
 import { QueuedPatternCard } from '../components/pattern/QueuedPatternCard';
-import { usePatternTasks } from '../hooks/usePatternTasks';
+import { usePatternTasks } from '../hooks/data/usePatternTasks';
 import { colors, alpha, fonts, layout, spacing } from '../theme';
 
 export default function PatternsListScreen() {

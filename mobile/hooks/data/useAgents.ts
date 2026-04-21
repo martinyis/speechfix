@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { authFetch } from '../lib/api';
-import type { Agent } from '../types/session';
+import { authFetch } from '../../lib/api';
+import type { Agent } from '../../types/session';
 
 export function useAgents() {
   return useQuery({

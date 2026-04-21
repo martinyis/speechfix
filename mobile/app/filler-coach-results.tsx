@@ -3,7 +3,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSessionStore } from '../stores/sessionStore';
-import { useFillerCoachSessions } from '../hooks/useFillerCoachSessions';
+import { useFillerCoachSessions } from '../hooks/data/useFillerCoachSessions';
 import { ScreenHeader } from '../components/ui';
 import { GlassIconPillButton } from '../components/ui';
 import { colors, alpha, fonts, spacing, layout, typography, borderRadius } from '../theme';

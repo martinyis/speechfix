@@ -20,7 +20,7 @@ import { ScreenHeader, GlassIconPillButton } from '../components/ui';
 import PracticeRecordOrb from '../components/orbs/PracticeRecordOrb';
 import PracticeFeedbackPanel from '../components/PracticeFeedbackPanel';
 import SuccessCelebration from '../components/SuccessCelebration';
-import { usePatternTasks } from '../hooks/usePatternTasks';
+import { usePatternTasks } from '../hooks/data/usePatternTasks';
 import { usePatternPracticeRecording } from '../hooks/recording/usePatternPracticeRecording';
 import { authFetch } from '../lib/api';
 import { usePreloadSuccessSound, playSuccessSound } from '../lib/sounds';

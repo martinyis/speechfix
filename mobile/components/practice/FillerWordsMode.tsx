@@ -7,9 +7,9 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { EmptyState, GlassIconPillButton } from '../ui';
-import { useFillerSummary } from '../../hooks/useFillerSummary';
-import { useFillerCoachSessions } from '../../hooks/useFillerCoachSessions';
-import { useSessions } from '../../hooks/useSessions';
+import { useFillerSummary } from '../../hooks/data/useFillerSummary';
+import { useFillerCoachSessions } from '../../hooks/data/useFillerCoachSessions';
+import { useSessions } from '../../hooks/data/useSessions';
 import { colors, alpha, fonts, spacing, layout, typography, borderRadius } from '../../theme';
 import type { FillerCoachSession, SessionListItem } from '../../types/session';
 

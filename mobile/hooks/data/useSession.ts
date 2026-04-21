@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { authFetch } from '../lib/api';
-import { SessionDetail } from '../types/session';
+import { authFetch } from '../../lib/api';
+import { SessionDetail } from '../../types/session';
 
 export function useSession(sessionId: number | null) {
   return useQuery({

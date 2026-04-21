@@ -21,7 +21,7 @@ import PracticeFeedbackPanel from '../components/PracticeFeedbackPanel';
 import SuccessCelebration from '../components/SuccessCelebration';
 import ErrorReasonHeader from '../components/practice/ErrorReasonHeader';
 import { wordDiff } from '../lib/wordDiff';
-import { usePracticeTasks } from '../hooks/usePracticeTasks';
+import { usePracticeTasks } from '../hooks/data/usePracticeTasks';
 import { usePracticeRecording } from '../hooks/recording/usePracticeRecording';
 import { colors, alpha, spacing, layout, fonts } from '../theme';
 import { usePreloadSuccessSound, playSuccessSound } from '../lib/sounds';

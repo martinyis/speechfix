@@ -11,7 +11,7 @@ import { useFocusEffect } from 'expo-router';
 
 import { SessionRow } from '../components/session/SessionRow';
 import { ScreenHeader, EmptyState } from '../components/ui';
-import { useSessions } from '../hooks/useSessions';
+import { useSessions } from '../hooks/data/useSessions';
 import { colors, alpha, fonts } from '../theme';
 import type { SessionListItem } from '../types/session';
 

@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFillerCoachSessions } from '../hooks/useFillerCoachSessions';
+import { useFillerCoachSessions } from '../hooks/data/useFillerCoachSessions';
 import { EmptyState } from '../components/ui';
 import { colors, alpha, fonts, spacing, layout, typography, borderRadius } from '../theme';
 import type { FillerCoachSession } from '../types/session';

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenHeader, GlassIconPillButton } from '../components/ui';
 import { CorrectionFilterChips } from '../components/correction/CorrectionFilterChips';
 import { PracticeTaskCard } from '../components/correction/PracticeTaskCard';
-import { usePracticeTasks } from '../hooks/usePracticeTasks';
+import { usePracticeTasks } from '../hooks/data/usePracticeTasks';
 import { colors, alpha, fonts, spacing, layout } from '../theme';
 import type { CorrectionFilter } from '../types/session';
 
