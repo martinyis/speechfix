@@ -3,7 +3,7 @@ import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult }
 import type { ChatTool } from '../tools.js';
 import { IDENTITY_PROMPT } from '../prompts/identity.js';
 import { BEHAVIOR_PROMPT } from '../prompts/behavior.js';
-import { ONBOARDING_SESSION_PROMPT } from '../prompts/session-types/onboarding.js';
+import { ONBOARDING_SESSION_PROMPT } from '../../modules/onboarding/prompt.js';
 import { END_ONBOARDING_TOOL } from '../tools.js';
 import { extractUserProfile } from '../../modules/onboarding/profile-extractor.js';
 import { analyzeOnboardingProfile } from '../../modules/onboarding/profile-analyzer.js';
