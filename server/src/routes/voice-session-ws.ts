@@ -5,7 +5,7 @@ import type { AgentConfig } from '../voice/handlers/types.js';
 import { db } from '../db/index.js';
 import { agents } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
-import { buildFillerHistoryPrompt } from '../voice/prompts/filler-context.js';
+import { buildFillerHistoryPrompt } from '../modules/filler-coach/filler-history.js';
 import { selectTopic } from '../modules/filler-coach/topic-selector.js';
 
 export async function voiceSessionRoute(fastify: FastifyInstance) {
