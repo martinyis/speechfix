@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { ensureGreetingsExist } from '../modules/agents/greeting-generator.js';
+import { ensureGreetingsExist } from './greeting-generator.js';
 
 export async function greetingRoutes(fastify: FastifyInstance) {
   // POST /greetings/warmup — ensures all greetings exist for authenticated user

@@ -15,7 +15,7 @@ import { agentRoutes } from './modules/agents/routes.js';
 import { introAudioRoute } from './modules/agents/intro-audio-routes.js';
 import { practiceRoutes } from './modules/practice/routes.js';
 import { jobRoutes } from './modules/patterns/job-routes.js';
-import { greetingRoutes } from './routes/greetings.js';
+import { greetingRoutes } from './modules/agents/greetings-routes.js';
 import { fillerCoachRoutes } from './modules/filler-coach/routes.js';
 import { weakSpotRoutes } from './modules/weak-spots/routes.js';
 import authPlugin from './plugins/auth.js';
