@@ -4,7 +4,7 @@ import { db } from '../../db/index.js';
 import { corrections as correctionsTable, fillerWords as fillerWordsTable } from '../../db/schema.js';
 import { regenerateAllGreetings } from '../../services/greeting-generator.js';
 import { runPatternAnalysisForUser } from '../../modules/patterns/job.js';
-import { absorbCorrections } from '../../services/weak-spot-manager.js';
+import { absorbCorrections } from '../../modules/weak-spots/manager.js';
 import { appendContextNotes } from './conversation-handler.js';
 
 export function handleEmptyTranscript(userId: number): void {

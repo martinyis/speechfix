@@ -1,5 +1,5 @@
 import Groq from 'groq-sdk';
-import { db } from '../db/index.js';
+import { db } from '../../db/index.js';
 import {
   corrections,
   weakSpots,
@@ -7,7 +7,7 @@ import {
   weakSpotExercises,
   weakSpotDrillAttempts,
   sessions,
-} from '../db/schema.js';
+} from '../../db/schema.js';
 import { eq, and, inArray, ne, isNull, sql, asc, desc } from 'drizzle-orm';
 
 const groq = new Groq();

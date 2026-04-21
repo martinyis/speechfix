@@ -22,7 +22,7 @@ import {
   dismissWeakSpot,
   dismissQuickFix,
   backfillWeakSpots,
-} from '../services/weak-spot-manager.js';
+} from '../modules/weak-spots/manager.js';
 import { writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import path from 'path';
