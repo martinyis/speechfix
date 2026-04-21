@@ -1,10 +1,10 @@
 import { FastifyInstance } from 'fastify';
-import { db } from '../db/index.js';
-import { corrections, sessions, practiceAttempts, patternExercises, patternPracticeAttempts, speechPatterns } from '../db/schema.js';
+import { db } from '../../db/index.js';
+import { corrections, sessions, practiceAttempts, patternExercises, patternPracticeAttempts, speechPatterns } from '../../db/schema.js';
 import { eq, sql, and } from 'drizzle-orm';
-import { runPatternAnalysisForUser, checkReanalysisNeeded } from '../modules/patterns/job.js';
-import { generateAndStorePatternExercises } from '../modules/patterns/exercise-generator.js';
-import { transcribeRawPCM } from '../shared/transcription/index.js';
+import { runPatternAnalysisForUser, checkReanalysisNeeded } from '../patterns/job.js';
+import { generateAndStorePatternExercises } from '../patterns/exercise-generator.js';
+import { transcribeRawPCM } from '../../shared/transcription/index.js';
 import {
   evaluateSayItRight,
   evaluatePatternExercise,
@@ -12,7 +12,7 @@ import {
   type CorrectionContext,
   type PatternExerciseContext,
   type ReframeExerciseContext,
-} from '../modules/practice/evaluator.js';
+} from './evaluator.js';
 import { writeFile, unlink } from 'fs/promises';
 import { randomUUID } from 'crypto';
 import path from 'path';

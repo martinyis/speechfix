@@ -13,7 +13,7 @@ import { authRoutes } from './modules/auth/routes.js';
 import { onboardingRoutes } from './modules/onboarding/routes.js';
 import { agentRoutes } from './routes/agents.js';
 import { introAudioRoute } from './routes/intro-audio.js';
-import { practiceRoutes } from './routes/practice.js';
+import { practiceRoutes } from './modules/practice/routes.js';
 import { jobRoutes } from './modules/patterns/job-routes.js';
 import { greetingRoutes } from './routes/greetings.js';
 import { fillerCoachRoutes } from './routes/filler-coach.js';
