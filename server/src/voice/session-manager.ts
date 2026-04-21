@@ -19,7 +19,7 @@ import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { encodePcmToOpus } from '../shared/audio/encoder.js';
-import { audioStorage, buildSessionAudioPath } from '../services/audio-storage.js';
+import { audioStorage, buildSessionAudioPath } from '../shared/audio/storage.js';
 import { sessions as sessionsTable } from '../db/schema.js';
 
 const SPEECH_FINAL_DEBOUNCE_MS = 150;
