@@ -1,9 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { db } from '../db/index.js';
-import { users } from '../db/schema.js';
+import { db } from '../../db/index.js';
+import { users } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { hashPassword, verifyPassword, signToken } from '../services/auth.js';
+import { hashPassword, verifyPassword, signToken } from './service.js';
 
 const registerSchema = z.object({
   email: z.string().email().transform(e => e.toLowerCase().trim()),

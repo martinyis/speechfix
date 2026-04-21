@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
-import { verifyToken, type JwtPayload } from '../services/auth.js';
+import { verifyToken, type JwtPayload } from '../modules/auth/service.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
