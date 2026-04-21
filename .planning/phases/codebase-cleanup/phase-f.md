@@ -5,7 +5,7 @@
 **Branch to create**: `cleanup/phase-f-component-reshuffle`
 **Expected impact**: ~27 file moves (no content changes), 6 new folders, all 58 external importers + ~25 intra-component importers updated to new paths. **Zero behavior change — pure renaming/moving**.
 **Expected effort**: 1.5–2.5 hours of focused moving + import-path fixing.
-**Review gate**: **F1 MUST be approved by user before F2 begins.** This phase has the largest git-diff of any cleanup phase. User sign-off is mandatory because every UI screen reviewer will see moved files (audit §9 Risk #3: "big git-diff, no behavior change — should only run with user sign-off because it's pure churn for reviewers"). F1 also contains the exact file→folder mapping, including one file the audit didn't classify (`PracticeTaskCard.tsx`) — that decision must be confirmed.
+**Review gate**: **F1 MUST be approved by user before F2 begins.** This phase has the largest git-diff of any cleanup phase. User sign-off is mandatory because every UI screen reviewer will see moved files (audit §9 Risk #3: "big git-diff, no behavior change — should only run with user sign-off because it's pure churn for reviewers"). F1 also contains the exact file→folder mapping, including one file the audit didn't classify (`PracticeTaskCard.tsx`, confirmed during F1 review as a **correction**-practice card and routed to `correction/`).
 
 ---
 
@@ -75,14 +75,14 @@ mobile/components/
 ├── correction/                         ← NEW
 │   ├── CorrectionCard.tsx              ← from mobile/components/CorrectionCard.tsx
 │   ├── CorrectionFilterChips.tsx       ← from mobile/components/CorrectionFilterChips.tsx
-│   └── CorrectionsPreview.tsx          ← from mobile/components/CorrectionsPreview.tsx
+│   ├── CorrectionsPreview.tsx          ← from mobile/components/CorrectionsPreview.tsx
+│   └── PracticeTaskCard.tsx            ← from mobile/components/PracticeTaskCard.tsx   (NOTE A)
 ├── orbs/                               ← NEW
 │   ├── AISpeakingOrb.tsx               ← from mobile/components/AISpeakingOrb.tsx
 │   ├── MicBloomOrb.tsx                 ← from mobile/components/MicBloomOrb.tsx
 │   └── PracticeRecordOrb.tsx           ← from mobile/components/PracticeRecordOrb.tsx
 ├── pattern/                            ← NEW
 │   ├── PatternTaskCard.tsx             ← from mobile/components/PatternTaskCard.tsx
-│   ├── PracticeTaskCard.tsx            ← from mobile/components/PracticeTaskCard.tsx   (NOTE A)
 │   └── QueuedPatternCard.tsx           ← from mobile/components/QueuedPatternCard.tsx
 ├── practice/                           ← UNCHANGED (pre-existing, feature-grouped)
 ├── session/                            ← NEW
@@ -107,7 +107,7 @@ mobile/components/
 └── SuccessCelebration.tsx              ← STAYS (generic celebration overlay)
 ```
 
-**NOTE A — `PracticeTaskCard.tsx`:** The audit's §5 target tree doesn't explicitly map this file (the audit was written before `PracticeTaskCard` + `PatternTaskCard` cleanly co-existed). Both are "task cards" rendered in the same "pick up where you left off" list, and both import `PracticeTask` / `PatternTask` types from `types/practice`. This plan proposes grouping them together under `pattern/` alongside `PatternTaskCard.tsx` + `QueuedPatternCard.tsx`. **Alternative options for review**: (i) `practice/` — but `components/practice/` is reserved for **practice-tab mode screens** (WeakSpotsMode, etc.), not home-tab cards — mixing would muddy that folder's identity; (ii) keep `PracticeTaskCard.tsx` at the top level alongside the 4 generic stays — defensible, but we'd want consistency with `PatternTaskCard.tsx`, which the audit moves to `pattern/`. **Recommended**: `pattern/` (option in tree above). **If user prefers a different bucket, say so in F1 review — it's trivial to remap before F2 starts.**
+**NOTE A — `PracticeTaskCard.tsx`:** The audit's §5 target tree doesn't explicitly map this file. Despite its `Practice*` name, it is a **correction**-practice card — it renders a single correction row (props: `correctionId`, `correctedText`, `severity`, `practiceCount`) and on tap routes to `/practice-session?mode=say_it_right`. Its only callers are `app/corrections-list.tsx` and `components/practice/CorrectionsMode.tsx` — both correction-facing. It therefore belongs in `correction/` alongside `CorrectionCard` / `CorrectionFilterChips` / `CorrectionsPreview`. It does **not** belong in `pattern/` (no pattern involvement) or `practice/` (reserved for practice-tab mode screens, not cards). Confirmed by user during F1 review on 2026-04-20.
 
 ### F1.2 — Import codemod pattern
 
@@ -165,9 +165,9 @@ After each commit: `cd mobile && npx tsc --noEmit 2>&1 | grep -c "error TS"` →
 
 **After each folder-level commit**, a quick device tap of the screens touched:
 - **F2 (agent)**: Profile → Create agent → voice picker → confirm agent list renders.
-- **F3 (correction)**: Home tab → any session → session detail → corrections preview + filter chips render; tap a correction.
+- **F3 (correction)**: Home tab → any session → session detail → corrections preview + filter chips render; tap a correction. Practice tab → Corrections mode → PracticeTaskCard list renders. Corrections list screen renders.
 - **F4 (orbs)**: Any voice session start → AISpeakingOrb + MicBloomOrb render; PracticeRecordOrb appears on practice screens.
-- **F5 (pattern)**: Practice tab → Patterns mode → PatternTaskCard list; Home tab → PracticeTaskCard + QueuedPatternCard render.
+- **F5 (pattern)**: Practice tab → Patterns mode → PatternTaskCard list + QueuedPatternCard render.
 - **F6 (session)**: Home tab → any session row → session detail renders with **every** session-* primitive visible (Verdict + FullReport + PitchRibbon + ScoreRing + ConversationRhythmStrip + DeliverySignalStrip + SessionPatterns + SessionStrengthsFocus + SessionTranscript + AnalyzingBanner on a fresh session).
 - **F7 (voice)**: Any voice session → VoiceSessionOverlay renders full-screen during the call.
 - **Final**: Full audit §8 smoke matrix (11 flows).
@@ -193,7 +193,7 @@ Lightweight smoke after each commit is cheap compared to the cost of finding a b
 - Whether Expo Router's static analysis follows moved imports correctly for `app/*` screens. It should (Expo Router only statically watches `app/`, not `components/`), but flag if anything surprises.
 - `PracticeFeedbackPanel` classification — if the user views it as a practice-screen component, we could move it into `components/practice/`. Current plan: stay at root (generic). Reconfirm in F1 review.
 
-**→ REVIEW GATE: user reads this section, confirms (a) the PracticeTaskCard placement in `pattern/`, (b) the 4 top-level stays, (c) the per-folder commit granularity. Only then proceed to F2.**
+**→ REVIEW GATE: user reads this section, confirms (a) the PracticeTaskCard placement in `correction/` (pre-confirmed 2026-04-20), (b) the 4 top-level stays, (c) the per-folder commit granularity. Only then proceed to F2.**
 
 ---
 
@@ -213,12 +213,12 @@ All sub-steps commit to `cleanup/phase-f-component-reshuffle`. After each folder
 6. **Device smoke** (F1.4 F2 row).
 7. **Commit**: `chore(cleanup): F2 — move agent/* components into components/agent/`
 
-### F3 — Move `correction/` (3 files)
+### F3 — Move `correction/` (4 files)
 
 1. `mkdir -p mobile/components/correction`
-2. `git mv` for `CorrectionCard.tsx`, `CorrectionFilterChips.tsx`, `CorrectionsPreview.tsx`; edit internal imports.
-3. Importer grep: `rg -n "from ['\"][\./]*components/(CorrectionCard|CorrectionFilterChips|CorrectionsPreview)['\"]" mobile/`
-4. Edit each importer. **Note**: some live in `components/` (e.g., `SessionVerdict.tsx`) — they still live at root at this point, so their path becomes `./correction/CorrectionCard`. After F6 when `SessionVerdict` moves, it becomes `../correction/CorrectionCard` — that's a second edit in F6.
+2. `git mv` for `CorrectionCard.tsx`, `CorrectionFilterChips.tsx`, `CorrectionsPreview.tsx`, `PracticeTaskCard.tsx`; edit internal imports.
+3. Importer grep: `rg -n "from ['\"][\./]*components/(CorrectionCard|CorrectionFilterChips|CorrectionsPreview|PracticeTaskCard)['\"]" mobile/`
+4. Edit each importer. **Note**: some live in `components/` (e.g., `SessionVerdict.tsx`, `practice/CorrectionsMode.tsx`) — `SessionVerdict` still lives at root at this point, so its path becomes `./correction/CorrectionCard`; after F6 when it moves, it becomes `../correction/CorrectionCard` (a second edit in F6). `practice/CorrectionsMode.tsx` already sits one level down and its current `../PracticeTaskCard` needs to shift to `../correction/PracticeTaskCard` in this F3 commit.
 5. **Verify**: tsc → 1.
 6. **Smoke** (F1.4 F3 row).
 7. **Commit**: `chore(cleanup): F3 — move correction/* components into components/correction/`
@@ -232,14 +232,14 @@ All sub-steps commit to `cleanup/phase-f-component-reshuffle`. After each folder
 5. **Smoke** (F1.4 F4 row).
 6. **Commit**: `chore(cleanup): F4 — move orb components into components/orbs/`
 
-### F5 — Move `pattern/` (3 files)
+### F5 — Move `pattern/` (2 files)
 
 1. `mkdir -p mobile/components/pattern`
-2. `git mv` for `PatternTaskCard.tsx`, `PracticeTaskCard.tsx`, `QueuedPatternCard.tsx`; edit internal imports.
-3. Importer grep + edits.
+2. `git mv` for `PatternTaskCard.tsx`, `QueuedPatternCard.tsx`; edit internal imports.
+3. Importer grep: `rg -n "from ['\"][\./]*components/(PatternTaskCard|QueuedPatternCard)['\"]" mobile/` + edits.
 4. **Verify**: tsc → 1.
 5. **Smoke** (F1.4 F5 row).
-6. **Commit**: `chore(cleanup): F5 — move task-card components into components/pattern/`
+6. **Commit**: `chore(cleanup): F5 — move pattern-card components into components/pattern/`
 
 ### F6 — Move `session/` (12 files) — **biggest commit**
 
@@ -286,9 +286,9 @@ Every hit's path must include the feature folder (`/agent/`, `/correction/`, etc
 - `ls mobile/components/*.tsx | wc -l` → **4** (only GradientText, PracticeFeedbackPanel, StyleChips, SuccessCelebration at root).
 - `ls mobile/components/` directories → exactly **`agent/`, `correction/`, `orbs/`, `pattern/`, `practice/`, `session/`, `ui/`, `voice/`** (8 total — 6 new + 2 unchanged).
 - `ls mobile/components/agent/ | wc -l` → 4 files.
-- `ls mobile/components/correction/ | wc -l` → 3 files.
+- `ls mobile/components/correction/ | wc -l` → 4 files.
 - `ls mobile/components/orbs/ | wc -l` → 3 files.
-- `ls mobile/components/pattern/ | wc -l` → 3 files.
+- `ls mobile/components/pattern/ | wc -l` → 2 files.
 - `ls mobile/components/session/ | wc -l` → 12 files.
 - `ls mobile/components/voice/ | wc -l` → 1 file.
 - `rg "from ['\"][\./]*components/<OldFile>['\"]" mobile/` for **each** moved filename → 0 root-level hits.
@@ -308,7 +308,7 @@ Audit §8 smoke matrix, all 11 flows, must pass:
 1. Sign up → onboarding voice session → land on Home tab.
 2. Home tab → open a session row → session detail renders verdict + pitch ribbon + corrections preview + full report. **(Session folder — F6.)**
 3. Home tab → voice session → speak → end → analysis screen renders.
-4. Home tab → PracticeTaskCard + QueuedPatternCard + PatternTaskCard visible in "Pick up where you left off". **(Pattern folder — F5.)**
+4. Home tab → QueuedPatternCard + PatternTaskCard visible. Corrections list → PracticeTaskCard list renders; tapping one routes into a correction practice session. **(Correction folder — F3; Pattern folder — F5.)**
 5. Practice tab → switch Corrections / Weak Spots / Fillers / Patterns modes.
 6. Practice tab → start a weak-spot drill → pass/fail returns to list.
 7. Practice tab → start a correction practice → record → result screen.
