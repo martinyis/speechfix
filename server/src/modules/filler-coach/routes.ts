@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
-import { db } from '../db/index.js';
-import { fillerCoachSessions } from '../db/schema.js';
+import { db } from '../../db/index.js';
+import { fillerCoachSessions } from '../../db/schema.js';
 import { eq, desc, sql, and, gte } from 'drizzle-orm';
 
 const MIN_SESSION_DURATION = 30; // ignore sessions shorter than 30s
