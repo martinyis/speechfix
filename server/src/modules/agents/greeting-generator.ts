@@ -18,7 +18,6 @@ interface GreetingContext {
   contextNotes: Array<{ date: string; notes: string[]; agentId?: number | null }> | null;
   lastSession: {
     date: string;
-    clarityScore: number | null;
     topicCategory: string | null;
   } | null;
   agentId?: number | null;
@@ -52,7 +51,6 @@ async function fetchGreetingContext(userId: number, agentId: number | null, mode
 
   const [lastSession] = await db.select({
     createdAt: sessions.createdAt,
-    clarityScore: sessions.clarityScore,
     topicCategory: sessions.topicCategory,
   }).from(sessions)
     .where(sessionQuery)
@@ -82,7 +80,6 @@ async function fetchGreetingContext(userId: number, agentId: number | null, mode
     contextNotes: (user?.contextNotes as GreetingContext['contextNotes']) ?? null,
     lastSession: lastSession ? {
       date: lastSession.createdAt.toISOString().slice(0, 10),
-      clarityScore: lastSession.clarityScore,
       topicCategory: lastSession.topicCategory,
     } : null,
     agentId: agentId ?? null,
@@ -137,13 +134,13 @@ function buildGreetingPrompt(ctx: GreetingContext, mode: string): string {
     lines.push(`User's name: ${ctx.displayName}`);
   }
 
-  // Only Reflexa sees goals and clarity score
+  // Only Reflexa sees goals and recent topic
   if (!isCustomAgent) {
     if (ctx.goals && ctx.goals.length > 0) {
       lines.push(`User's goals: ${ctx.goals.join(', ')}`);
     }
     if (ctx.lastSession) {
-      lines.push(`Last session: ${ctx.lastSession.date}, topic: ${ctx.lastSession.topicCategory ?? 'general'}, clarity: ${ctx.lastSession.clarityScore ?? 'unknown'}%`);
+      lines.push(`Last session: ${ctx.lastSession.date}, topic: ${ctx.lastSession.topicCategory ?? 'general'}`);
     } else {
       lines.push('This is the user\'s first session.');
     }

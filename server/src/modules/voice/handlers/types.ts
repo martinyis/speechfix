@@ -20,9 +20,6 @@ export interface FullUserContext extends UserContext {
 export interface SessionEndResult {
   type: 'analysis' | 'onboarding' | 'agent-created' | 'filler-practice';
   dbSessionId?: number;
-  clarityScore?: number;
-  deliveryScore?: number | null;
-  languageScore?: number | null;
   correctionIds?: number[];
   analysisResults?: {
     sentences: string[];
@@ -70,5 +67,6 @@ export interface AgentTypeHandler {
     formContext?: Record<string, unknown> | null,
     onInsightsReady?: (payload: any, dbSessionId: number) => void,
     speechTimeline?: SpeechTimeline,
+    onDeepInsightsReady?: (insights: any[], dbSessionId: number) => void,
   ): Promise<SessionEndResult>;
 }

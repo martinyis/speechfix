@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Correction, SessionDetail, SpeechTimeline } from '../types/session';
+import type { Correction, DeepInsight, SessionDetail, SpeechTimeline } from '../types/session';
 
 export type VoiceSessionState =
   | 'connecting'
@@ -20,6 +20,9 @@ interface SessionStore {
   isInsightsReady: boolean;
   streamingCorrections: Correction[];
 
+  // Deep insights (arrives post-analysis via WS)
+  deepInsights: DeepInsight[] | null;
+
   // Voice session state (controls Home screen mode)
   isVoiceSessionActive: boolean;
   voiceSessionState: VoiceSessionState;
@@ -39,8 +42,6 @@ interface SessionStore {
   // Streaming actions
   startStreamingAnalysis: () => void;
   setInsightsReady: (dbSessionId: number, data: {
-    deliveryScore?: number | null;
-    languageScore?: number | null;
     insights?: any[];
     fillerWords?: any[];
     fillerPositions?: any[];
@@ -53,12 +54,10 @@ interface SessionStore {
     fillerWords?: any[];
     fillerPositions?: any[];
     sessionInsights?: any[];
-    clarityScore?: number;
-    deliveryScore?: number | null;
-    languageScore?: number | null;
     speechTimeline?: SpeechTimeline | null;
     audioPath?: string | null;
   }, correctionIds?: number[]) => void;
+  setDeepInsights: (sessionId: number, insights: DeepInsight[]) => void;
 }
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
@@ -67,6 +66,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   isStreamingAnalysis: false,
   isInsightsReady: false,
   streamingCorrections: [],
+  deepInsights: null,
   isVoiceSessionActive: false,
   voiceSessionState: 'connecting',
   elapsedTime: 0,
@@ -87,6 +87,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       isStreamingAnalysis: false,
       isInsightsReady: false,
       streamingCorrections: [],
+      deepInsights: null,
     }),
 
   endVoiceSession: () =>
@@ -200,5 +201,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       currentSessionId: dbSessionId,
       currentSessionData: finalized,
     });
+  },
+
+  setDeepInsights: (sessionId, insights) => {
+    const state = get();
+    if (state.currentSessionId !== null && state.currentSessionId !== sessionId) {
+      return;
+    }
+    set({ deepInsights: insights });
   },
 }));

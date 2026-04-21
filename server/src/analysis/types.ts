@@ -37,16 +37,12 @@ export interface SessionInsight {
     | 'strength'
     | 'focus_area'
     | 'metric'
-    | 'score'
-    | 'delivery_score'
-    | 'language_score';
+    | 'score';
   description: string;
   value?: string | number;
 }
 
 export interface PhasedInsightsPayload {
-  deliveryScore: number | null;
-  languageScore: number | null;
   insights: SessionInsight[];
   fillerWords: FillerWordCount[];
   fillerPositions: FillerWordPosition[];

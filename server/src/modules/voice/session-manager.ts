@@ -928,14 +928,21 @@ export class VoiceSession {
             type: 'insights_ready',
             dbSessionId,
             data: {
-              deliveryScore: payload.deliveryScore ?? null,
-              languageScore: payload.languageScore ?? null,
               insights: payload.insights,
               fillerWords: payload.fillerWords,
               fillerPositions: payload.fillerPositions,
               metrics: payload.metrics,
               speechTimeline,
             },
+          });
+        };
+
+        const onDeepInsightsReady = (insights: any[], dbSessionId: number) => {
+          this.sendToClient({
+            type: 'deep_insights_complete',
+            sessionId: this.sessionId,
+            dbSessionId,
+            insights,
           });
         };
 
@@ -950,6 +957,7 @@ export class VoiceSession {
             this.formContext,
             onInsightsReady,
             speechTimeline,
+            onDeepInsightsReady,
           );
 
           // Send analysis_complete with remaining data (corrections, final insights)
@@ -964,9 +972,6 @@ export class VoiceSession {
               fillerWords: result.analysisResults?.fillerWords ?? [],
               fillerPositions: result.analysisResults?.fillerPositions ?? [],
               sessionInsights: result.analysisResults?.sessionInsights ?? [],
-              clarityScore: result.clarityScore,
-              deliveryScore: result.deliveryScore ?? null,
-              languageScore: result.languageScore ?? null,
               correctionIds: result.correctionIds ?? [],
             },
           });

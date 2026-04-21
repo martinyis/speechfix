@@ -43,8 +43,9 @@ import {
 } from '@shopify/react-native-skia';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { colors, alpha, fonts, spacing } from '../../theme';
-import type { ProsodySample, FillerWordPosition, UtteranceMetadata } from '../../types/session';
+import type { DeepInsight, ProsodySample, FillerWordPosition, UtteranceMetadata } from '../../types/session';
 import { useAudioPlayback } from '../../hooks/useAudioPlayback';
+import { InsightMarkers } from './InsightMarkers';
 
 const PX_PER_SECOND = 60;
 const RIBBON_HEIGHT = 140;
@@ -86,6 +87,12 @@ interface PitchRibbonProps {
   audioPath?: string | null;
   /** Fired with trim-time seconds when the user taps a spot. */
   onScrub?: (tSeconds: number, meta: { sentence: string; confidence: number }) => void;
+  /** Specific deep insights to overlay as markers on top of the ribbon. */
+  deepInsights?: DeepInsight[];
+  /** Insight currently shown in the peek overlay (for visual highlight). */
+  activeInsight?: DeepInsight | null;
+  /** Tap a marker → client opens peek + seeks audio without auto-playing. */
+  onMarkerPress?: (insight: DeepInsight) => void;
 }
 
 export function PitchRibbon({
@@ -97,6 +104,9 @@ export function PitchRibbon({
   sentences,
   audioPath,
   onScrub,
+  deepInsights,
+  activeInsight,
+  onMarkerPress,
 }: PitchRibbonProps) {
   const playback = useAudioPlayback({
     sessionId,
@@ -211,6 +221,18 @@ export function PitchRibbon({
     onScrub?.(tSeconds, { sentence, confidence });
   };
 
+  const handleMarkerPress = (insight: DeepInsight) => {
+    const a = insight.anchor;
+    if (!a) return;
+    const t = Math.max(0, Math.min(visualDuration, a.start_seconds));
+    if (audioPath) {
+      playback.seekTo(t);
+    } else {
+      playback.positionSeconds.value = t;
+    }
+    onMarkerPress?.(insight);
+  };
+
   if (samples.length === 0 || durationSeconds < 1 || visualDuration < 0.5) {
     return null;
   }
@@ -283,6 +305,19 @@ export function PitchRibbon({
             pointerEvents="none"
             style={[styles.playhead, { height: TICK_ZONE_HEIGHT + RIBBON_HEIGHT }, playheadStyle]}
           />
+
+          {deepInsights && deepInsights.length > 0 && (
+            <InsightMarkers
+              insights={deepInsights}
+              durationSeconds={visualDuration}
+              pxPerSecond={PX_PER_SECOND}
+              overlayHeight={TOTAL_HEIGHT}
+              pointY={TICK_ZONE_HEIGHT - 4}
+              bracketY={TICK_ZONE_HEIGHT + RIBBON_HEIGHT + 4}
+              onMarkerPress={handleMarkerPress}
+              activeInsight={activeInsight ?? null}
+            />
+          )}
         </View>
       </ScrollView>
     </View>

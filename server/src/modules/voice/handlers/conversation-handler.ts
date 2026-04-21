@@ -16,10 +16,9 @@ import { db } from '../../../db/index.js';
 import { sessions, users } from '../../../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { generateSessionBriefInsights } from '../../sessions/insights-generator.js';
-import { computeLanguageScore } from '../../sessions/scoring.js';
+import { generateAndPersistDeepInsights, type DeepInsight } from '../../sessions/deep-insights.js';
 import {
   handleEmptyTranscript,
-  computeCorrectionClarityScore,
   insertCorrectionsBatch,
   insertFillerWordsBatch,
   runPostAnalysisSideEffects,
@@ -99,11 +98,6 @@ export class ConversationHandler implements AgentTypeHandler {
       extractConversationNotes(conversationHistory),
     ]);
 
-    const clarityScore = computeCorrectionClarityScore(
-      analysisResult.corrections.map(c => c.sentenceIndex),
-      userUtterances.length,
-    );
-
     const briefInsightsPromise = generateSessionBriefInsights({
       sentences: userUtterances,
       corrections: analysisResult.corrections,
@@ -128,7 +122,6 @@ export class ConversationHandler implements AgentTypeHandler {
         title: metadata.title,
         description: metadata.description,
         topicCategory: metadata.topicCategory,
-        clarityScore,
       })
       .returning();
 
@@ -157,7 +150,6 @@ export class ConversationHandler implements AgentTypeHandler {
     return {
       type: 'analysis',
       dbSessionId: session.id,
-      clarityScore,
       analysisResults: {
         sentences: userUtterances,
         corrections: analysisResult.corrections,
@@ -178,6 +170,7 @@ export class ConversationHandler implements AgentTypeHandler {
     _formContext?: Record<string, unknown> | null,
     onInsightsReady?: (payload: any, dbSessionId: number) => void,
     speechTimeline?: SpeechTimeline,
+    onDeepInsightsReady?: (insights: DeepInsight[], dbSessionId: number) => void,
   ): Promise<SessionEndResult> {
     const fullTranscription = transcriptBuffer.join(' ');
 
@@ -192,21 +185,14 @@ export class ConversationHandler implements AgentTypeHandler {
     const contextNotesPromise = extractConversationNotes(conversationHistory);
 
     let dbSessionId = 0;
-    let deliveryScore: number | null = null;
-    let languageScore: number | null = null;
     let allInsights: any[] = [];
-    let fillersPerMinute = 0;
-    let totalWords = 0;
 
     const analysisResult = await runAnalysisPhased(
       userId,
       { sentences: userUtterances, mode: 'conversation', conversationHistory, speechTimeline },
       durationSeconds,
       async (phasedPayload: PhasedInsightsPayload) => {
-        deliveryScore = phasedPayload.deliveryScore;
         allInsights = phasedPayload.insights;
-        fillersPerMinute = phasedPayload.metrics.fillersPerMinute;
-        totalWords = userUtterances.join(' ').split(/\s+/).filter(Boolean).length;
 
         const metadata = await metadataPromise;
 
@@ -223,7 +209,6 @@ export class ConversationHandler implements AgentTypeHandler {
             title: metadata.title,
             description: metadata.description,
             topicCategory: metadata.topicCategory,
-            clarityScore: deliveryScore ?? 100,
           })
           .returning();
         dbSessionId = session.id;
@@ -245,28 +230,12 @@ export class ConversationHandler implements AgentTypeHandler {
       onCorrection,
     );
 
-    const clarityScore = computeCorrectionClarityScore(
-      analysisResult.corrections.map(c => c.sentenceIndex),
-      userUtterances.length,
-    );
-
     let correctionIds: number[] = [];
     if (dbSessionId > 0) {
       correctionIds = await insertCorrectionsBatch(dbSessionId, analysisResult.corrections);
     }
 
     allInsights.push({ type: 'metric', description: 'Issues found', value: analysisResult.corrections.length });
-
-    languageScore = computeLanguageScore(
-      analysisResult.corrections,
-      fillersPerMinute,
-      undefined,
-      durationSeconds,
-      totalWords,
-    );
-    if (languageScore !== null) {
-      allInsights.push({ type: 'language_score', description: 'Language score', value: languageScore });
-    }
 
     if (dbSessionId > 0) {
       await db.update(sessions).set({
@@ -277,11 +246,48 @@ export class ConversationHandler implements AgentTypeHandler {
           conversationContext: conversationHistory,
           speechTimeline: speechTimeline ?? undefined,
         },
-        clarityScore,
       }).where(eq(sessions.id, dbSessionId));
     }
 
     console.log(`[conversation-handler] Phased: ${analysisResult.corrections.length} corrections, ${analysisResult.fillerWords.length} filler types`);
+
+    // Fire-and-forget deep insights: ~10s on Opus. Must NOT block analysis_complete.
+    if (dbSessionId > 0 && speechTimeline) {
+      const capturedDbSessionId = dbSessionId;
+      const metadata = await metadataPromise;
+      const conversationTranscript = conversationHistory
+        .filter(m => m.content && m.content !== '[Session started]' && !m.content.startsWith('[User has been silent'))
+        .map(m => ({
+          role: (m.role === 'assistant' ? 'ai' : 'user') as 'ai' | 'user',
+          text: m.content,
+        }));
+
+      void generateAndPersistDeepInsights(capturedDbSessionId, {
+        speechTimeline,
+        conversationTranscript,
+        corrections: analysisResult.corrections.map(c => ({
+          originalText: c.originalText,
+          correctedText: c.correctedText,
+          correctionType: c.correctionType,
+          severity: c.severity,
+        })),
+        fillerWords: analysisResult.fillerWords,
+        fillerPositions: analysisResult.fillerPositions.map(p => ({
+          word: p.word,
+          sentenceIndex: p.sentenceIndex,
+          time: p.timeSeconds ?? null,
+        })),
+        topicCategory: metadata.topicCategory ?? null,
+        sessionTitle: metadata.title ?? null,
+        durationSeconds,
+      }).then(insights => {
+        if (insights !== null) {
+          onDeepInsightsReady?.(insights, capturedDbSessionId);
+        }
+      }).catch(err => {
+        console.error(`[conversation-handler] Deep insights job crashed for session ${capturedDbSessionId}:`, err);
+      });
+    }
 
     const contextNotes = await contextNotesPromise;
     await runPostAnalysisSideEffects({
@@ -291,9 +297,6 @@ export class ConversationHandler implements AgentTypeHandler {
     return {
       type: 'analysis',
       dbSessionId,
-      clarityScore,
-      deliveryScore,
-      languageScore,
       correctionIds,
       analysisResults: {
         sentences: userUtterances,

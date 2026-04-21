@@ -1,7 +1,6 @@
 import Groq from 'groq-sdk';
 import type { Correction, FillerWordCount, FillerWordPosition, SessionInsight, PhasedInsightsPayload } from '../../analysis/types.js';
 import type { SpeechTimeline } from '../voice/speech-types.js';
-import { computeDeliveryScore } from './scoring.js';
 
 const groq = new Groq();
 const MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
@@ -208,15 +207,7 @@ Keep text descriptions concise (under 15 words each). Be encouraging but honest.
     // Graceful fallback — computed metrics still returned
   }
 
-  // Deterministic delivery score (no LLM)
-  const deliveryScore = computeDeliveryScore(speechTimeline, durationSeconds, totalWords);
-  if (deliveryScore !== null) {
-    insights.push({ type: 'delivery_score', description: 'Delivery score', value: deliveryScore });
-  }
-
   return {
-    deliveryScore,
-    languageScore: null,
     insights,
     fillerWords,
     fillerPositions,

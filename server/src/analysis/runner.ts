@@ -68,10 +68,8 @@ export async function runAnalysisPhased(
   onCorrection: (correction: Correction) => void,
 ): Promise<AnalysisResult> {
   if (input.sentences.length === 0) {
-    // Empty sessions: no scores, no insights.
+    // Empty sessions: no insights.
     const emptyPayload: PhasedInsightsPayload = {
-      deliveryScore: null,
-      languageScore: null,
       insights: [],
       fillerWords: [],
       fillerPositions: [],

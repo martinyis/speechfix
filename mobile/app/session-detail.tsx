@@ -14,7 +14,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSessionStore } from '../stores/sessionStore';
 import { useSession } from '../hooks/data/useSession';
+import { useDeepInsights } from '../hooks/data/useDeepInsights';
 import { SessionVerdict } from '../components/session/SessionVerdict';
+import { InsightsOverall } from '../components/session/InsightsOverall';
+import { InsightPeek } from '../components/session/InsightPeek';
+import type { DeepInsight } from '../types/session';
 import { CorrectionsPreview } from '../components/correction/CorrectionsPreview';
 import { ConversationRhythmStrip } from '../components/session/ConversationRhythmStrip';
 import { PitchRibbon } from '../components/session/PitchRibbon';
@@ -40,6 +44,7 @@ export default function SessionDetailScreen() {
   const isStreaming = useSessionStore((s) => s.isStreamingAnalysis);
   const isInsightsReady = useSessionStore((s) => s.isInsightsReady);
   const storeSessionId = useSessionStore((s) => s.currentSessionId);
+  const storeDeepInsights = useSessionStore((s) => s.deepInsights);
   const {
     data: fetchedData,
     isLoading,
@@ -47,6 +52,8 @@ export default function SessionDetailScreen() {
   } = useSession(isFresh ? null : Number(sessionId));
 
   const resolvedSessionId = isFresh && storeSessionId ? storeSessionId : Number(sessionId);
+  const { data: historicalDeepInsights } = useDeepInsights(isFresh ? null : resolvedSessionId);
+  const deepInsights = isFresh ? (storeDeepInsights ?? []) : (historicalDeepInsights ?? []);
 
   const session: SessionDetail | null | undefined = isFresh
     ? storeData
@@ -72,6 +79,9 @@ export default function SessionDetailScreen() {
     sentence: string;
     confidence: number;
   }>({ visible: false, timeSeconds: 0, sentence: '', confidence: 0 });
+
+  // Active deep insight in the peek overlay (one at a time)
+  const [activeInsight, setActiveInsight] = useState<DeepInsight | null>(null);
 
   // -- Loading / error states --
   if (!isFresh && isLoading) {
@@ -152,6 +162,11 @@ export default function SessionDetailScreen() {
           </Animated.View>
         )}
 
+        {/* Overall deep insights — editorial text stack */}
+        {insightsAvailable && deepInsights.length > 0 && (
+          <InsightsOverall insights={deepInsights} animate={isFresh} />
+        )}
+
         {/* Pitch Ribbon — prosody timeline with tap-to-play (Phase 2) */}
         {insightsAvailable && showPitchRibbon && session.speechTimeline && (
           <>
@@ -164,6 +179,9 @@ export default function SessionDetailScreen() {
               sentences={session.sentences}
               audioPath={session.audioPath ?? null}
               onScrub={(t, meta) => setCaption({ visible: true, timeSeconds: t, sentence: meta.sentence, confidence: meta.confidence })}
+              deepInsights={deepInsights}
+              activeInsight={activeInsight}
+              onMarkerPress={setActiveInsight}
             />
             <PitchRibbonCaption
               visible={caption.visible}
@@ -242,6 +260,11 @@ export default function SessionDetailScreen() {
         {/* Bottom padding */}
         <View style={{ height: insets.bottom + 60 }} />
       </Animated.ScrollView>
+
+      <InsightPeek
+        insight={activeInsight}
+        onDismiss={() => setActiveInsight(null)}
+      />
     </View>
   );
 }

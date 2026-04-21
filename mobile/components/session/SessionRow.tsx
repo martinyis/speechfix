@@ -1,7 +1,6 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { colors, alpha, spacing, typography, borderRadius, fonts } from '../../theme';
+import { colors, alpha, spacing, typography, fonts } from '../../theme';
 import { formatTimeOfDay, formatDurationLong } from '../../lib/formatters';
 import { AgentAvatar } from '../agent/AgentAvatar';
 import type { SessionListItem, TopicCategory } from '../../types/session';
@@ -9,13 +8,6 @@ import type { SessionListItem, TopicCategory } from '../../types/session';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function getScoreColor(score: number): string {
-  if (score >= 90) return colors.severityPolish;
-  if (score >= 70) return colors.primary;
-  if (score >= 50) return colors.secondary;
-  return colors.error;
-}
 
 const TOPIC_LABELS: Record<TopicCategory, string> = {
   work: 'Work',
@@ -67,7 +59,6 @@ function CorrectionDots({
 // ---------------------------------------------------------------------------
 
 export function SessionRow({ item }: { item: SessionListItem }) {
-  const score = item.clarityScore ?? null;
   const agentName = item.agentName ?? 'Reflexa';
   const avatarSeed = item.agentAvatarSeed ?? null;
   const fillerCount = item.totalFillerCount ?? 0;
@@ -123,34 +114,14 @@ export function SessionRow({ item }: { item: SessionListItem }) {
             {metaParts.join('  \u00B7  ')}
           </Text>
 
-          {/* Footer: correction dots + score */}
-          {(totalCorrections > 0 || score !== null) && (
+          {/* Footer: correction dots */}
+          {totalCorrections > 0 && (
             <View style={styles.bubbleFooter}>
               <CorrectionDots
                 errors={item.errorCount}
                 improvements={item.improvementCount}
                 polish={item.polishCount}
               />
-
-              {score !== null && (
-                <View
-                  style={[
-                    styles.scoreTag,
-                    { backgroundColor: alpha(getScoreColor(score), 0.12) },
-                  ]}
-                >
-                  <Ionicons
-                    name="analytics-outline"
-                    size={11}
-                    color={alpha(getScoreColor(score), 0.8)}
-                  />
-                  <Text
-                    style={[styles.scoreText, { color: getScoreColor(score) }]}
-                  >
-                    {score}%
-                  </Text>
-                </View>
-              )}
             </View>
           )}
         </View>
@@ -262,20 +233,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: fonts.semibold,
     letterSpacing: -0.2,
-  },
-
-  // -- Score tag --
-  scoreTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: borderRadius.sm,
-  },
-  scoreText: {
-    fontSize: 12,
-    fontFamily: fonts.bold,
-    letterSpacing: -0.3,
   },
 });

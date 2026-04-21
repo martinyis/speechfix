@@ -58,9 +58,7 @@ export interface SessionInsight {
     | 'strength'
     | 'focus_area'
     | 'metric'
-    | 'score'
-    | 'delivery_score'
-    | 'language_score';
+    | 'score';
   description: string;
   value?: string | number;
 }
@@ -147,7 +145,6 @@ export interface SessionListItem {
   title?: string | null;
   description?: string | null;
   topicCategory?: TopicCategory | null;
-  clarityScore?: number | null;
   totalFillerCount?: number;
   agentId?: number | null;
   agentName?: string | null;
@@ -209,3 +206,19 @@ export interface FillerSummary {
 }
 
 export type CorrectionFilter = 'all' | 'error' | 'improvement' | 'polish';
+
+export interface DeepInsightAnchor {
+  kind: 'point' | 'range';
+  start_seconds: number;
+  end_seconds: number;
+  utterance_index?: number;
+  quoted_text?: string;
+}
+
+export interface DeepInsight {
+  type: 'overall' | 'specific';
+  headline: string;
+  unpack: string;
+  signals_used: string[];
+  anchor?: DeepInsightAnchor;
+}

@@ -6,7 +6,7 @@ import { useVoiceSessionCore, type CoreMessage } from './useVoiceSessionCore';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useAgentStore } from '../../stores/agentStore';
 import { wsUrl, API_BASE_URL } from '../../lib/api';
-import type { Agent, SessionDetail } from '../../types/session';
+import type { Agent, DeepInsight, SessionDetail } from '../../types/session';
 
 const T0 = { v: 0 };
 const t = () => (T0.v ? Date.now() - T0.v : 0);
@@ -119,6 +119,16 @@ export function useVoiceSession({
             s.endVoiceSession();
             core?.cleanup();
             onSessionEnd(finalized, dbId);
+          }
+          break;
+        }
+
+        case 'deep_insights_complete': {
+          tlog('📩 deep_insights_complete — dbSessionId:', msg.dbSessionId);
+          const dbId = (msg.dbSessionId as number | undefined) ?? 0;
+          const insights = Array.isArray(msg.insights) ? (msg.insights as DeepInsight[]) : [];
+          if (dbId > 0) {
+            s.setDeepInsights(dbId, insights);
           }
           break;
         }

@@ -12,6 +12,7 @@ export const users = pgTable('users', {
   contextNotes: jsonb('context_notes').default([]),
   onboardingComplete: boolean('onboarding_complete').default(false).notNull(),
   analysisFlags: jsonb('analysis_flags').default({ grammar: true, fillers: true, patterns: true }).notNull(),
+  onboardingAnalysis: jsonb('onboarding_analysis'),
   lastPatternAnalysisAt: timestamp('last_pattern_analysis_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
@@ -38,11 +39,11 @@ export const sessions = pgTable('sessions', {
   transcription: text('transcription').notNull(),
   durationSeconds: integer('duration_seconds').notNull(),
   analysis: jsonb('analysis'),
+  deepInsights: jsonb('deep_insights'),
   conversationTranscript: jsonb('conversation_transcript'),
   title: varchar('title', { length: 255 }),
   description: text('description'),
   topicCategory: varchar('topic_category', { length: 50 }),
-  clarityScore: integer('clarity_score'),
   /**
    * Relative path to the persisted user audio for this session (e.g., "42/1234.ogg").
    * Resolved by AudioStorage. Null while encoding, or for legacy sessions.

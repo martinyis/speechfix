@@ -13,17 +13,6 @@ export function handleEmptyTranscript(userId: number): void {
   );
 }
 
-export function computeCorrectionClarityScore(
-  correctionSentenceIndexes: number[],
-  totalSentences: number,
-): number {
-  if (totalSentences === 0) return 100;
-  const sentencesWithCorrections = new Set(correctionSentenceIndexes).size;
-  return Math.round(
-    (Math.max(0, totalSentences - sentencesWithCorrections) / totalSentences) * 100,
-  );
-}
-
 export async function insertCorrectionsBatch(
   sessionId: number,
   correctionsList: Correction[],

@@ -29,6 +29,8 @@ export interface AudioPlaybackAPI {
   durationSeconds: number;
   isPlaying: boolean;
   play: (fromSeconds?: number) => void;
+  /** Move the playhead without starting playback. Used by insight-marker taps. */
+  seekTo: (toSeconds: number) => void;
   pause: () => void;
   stop: () => void;
 }
@@ -88,6 +90,11 @@ export function useAudioPlayback({ sessionId, enabled }: UseAudioPlaybackOptions
       } else {
         player.play();
       }
+    },
+    seekTo: (toSeconds: number) => {
+      positionSeconds.value = toSeconds;
+      seekLockoutUntilRef.current = Date.now() + SEEK_LOCKOUT_MS;
+      player.seekTo(toSeconds).catch(() => {});
     },
     pause: () => player.pause(),
     stop: () => {
