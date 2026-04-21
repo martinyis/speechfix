@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { corrections, sessions, practiceAttempts, patternExercises, patternPracticeAttempts, speechPatterns } from '../db/schema.js';
 import { eq, sql, and } from 'drizzle-orm';
-import { runPatternAnalysisForUser, checkReanalysisNeeded } from '../jobs/patterns.js';
+import { runPatternAnalysisForUser, checkReanalysisNeeded } from '../modules/patterns/job.js';
 import { generateAndStorePatternExercises } from '../modules/patterns/exercise-generator.js';
 import { transcribeRawPCM } from '../shared/transcription/index.js';
 import {

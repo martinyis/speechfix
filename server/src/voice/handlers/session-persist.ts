@@ -3,7 +3,7 @@ import type { Correction, FillerWordCount } from '../../analysis/types.js';
 import { db } from '../../db/index.js';
 import { corrections as correctionsTable, fillerWords as fillerWordsTable } from '../../db/schema.js';
 import { regenerateAllGreetings } from '../../services/greeting-generator.js';
-import { runPatternAnalysisForUser } from '../../jobs/patterns.js';
+import { runPatternAnalysisForUser } from '../../modules/patterns/job.js';
 import { absorbCorrections } from '../../services/weak-spot-manager.js';
 import { appendContextNotes } from './conversation-handler.js';
 

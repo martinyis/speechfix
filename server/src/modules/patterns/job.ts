@@ -1,9 +1,9 @@
-import { db } from '../db/index.js';
-import { users, sessions, speechPatterns } from '../db/schema.js';
+import { db } from '../../db/index.js';
+import { users, sessions, speechPatterns } from '../../db/schema.js';
 import { eq, sql, and, notInArray } from 'drizzle-orm';
-import { analyzePatterns } from '../analysis/analyzers/patterns.js';
-import { generateAndStorePatternExercises } from '../modules/patterns/exercise-generator.js';
-import type { AnalysisFlags, SpeechPattern } from '../analysis/types.js';
+import { analyzePatterns } from '../../analysis/analyzers/patterns.js';
+import { generateAndStorePatternExercises } from './exercise-generator.js';
+import type { AnalysisFlags, SpeechPattern } from '../../analysis/types.js';
 
 const MAX_SESSIONS = 20;
 const MAX_CHARS = 50_000;
