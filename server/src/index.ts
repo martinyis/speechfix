@@ -10,7 +10,7 @@ import { sessionRoutes } from './routes/sessions.js';
 import { sessionAudioRoutes, encodeAndPersistHifi } from './routes/session-audio.js';
 import { voiceSessionRoute } from './routes/voice-session-ws.js';
 import { authRoutes } from './modules/auth/routes.js';
-import { onboardingRoutes } from './routes/onboarding.js';
+import { onboardingRoutes } from './modules/onboarding/routes.js';
 import { agentRoutes } from './routes/agents.js';
 import { introAudioRoute } from './routes/intro-audio.js';
 import { practiceRoutes } from './routes/practice.js';
