@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import Svg, { Rect, Path } from 'react-native-svg';
-import { colors, alpha, fonts, typography } from '../theme';
-import type { SpeechTimeline } from '../types/session';
+import { colors, alpha, fonts, typography } from '../../theme';
+import type { SpeechTimeline } from '../../types/session';
 
 interface Props {
   timeline: SpeechTimeline;

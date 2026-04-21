@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { colors, alpha, fonts, spacing, layout } from '../theme';
+import { colors, alpha, fonts, spacing, layout } from '../../theme';
 import { ScoreRing } from './ScoreRing';
-import type { SessionInsight, FillerWord } from '../types/session';
+import type { SessionInsight, FillerWord } from '../../types/session';
 
 interface SessionVerdictProps {
   insights: SessionInsight[];

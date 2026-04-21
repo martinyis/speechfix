@@ -22,7 +22,7 @@ import MicBloomOrb from '../../components/orbs/MicBloomOrb';
 import { AgentSelector } from '../../components/agent/AgentSelector';
 import { AgentCreationSheet } from '../../components/agent/AgentCreationSheet';
 import { VoiceSessionOverlay } from '../../components/VoiceSessionOverlay';
-import { SessionRow } from '../../components/SessionRow';
+import { SessionRow } from '../../components/session/SessionRow';
 import { SectionHeader } from '../../components/ui';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useAgentStore, getSelectedAgentDisplay } from '../../stores/agentStore';

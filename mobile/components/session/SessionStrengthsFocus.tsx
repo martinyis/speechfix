@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, alpha, fonts, spacing, layout } from '../theme';
-import type { SessionInsight } from '../types/session';
+import { colors, alpha, fonts, spacing, layout } from '../../theme';
+import type { SessionInsight } from '../../types/session';
 
 interface Props {
   insights: SessionInsight[];

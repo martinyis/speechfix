@@ -6,7 +6,7 @@
 import { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import { colors, alpha, fonts, spacing } from '../theme';
+import { colors, alpha, fonts, spacing } from '../../theme';
 
 interface PitchRibbonCaptionProps {
   visible: boolean;

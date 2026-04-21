@@ -42,9 +42,9 @@ import {
   vec,
 } from '@shopify/react-native-skia';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import { colors, alpha, fonts, spacing } from '../theme';
-import type { ProsodySample, FillerWordPosition, UtteranceMetadata } from '../types/session';
-import { useAudioPlayback } from '../hooks/useAudioPlayback';
+import { colors, alpha, fonts, spacing } from '../../theme';
+import type { ProsodySample, FillerWordPosition, UtteranceMetadata } from '../../types/session';
+import { useAudioPlayback } from '../../hooks/useAudioPlayback';
 
 const PX_PER_SECOND = 60;
 const RIBBON_HEIGHT = 140;

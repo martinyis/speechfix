@@ -2,8 +2,8 @@ import { Fragment, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { colors, alpha, fonts, spacing } from '../theme';
-import type { Correction, FillerWordPosition } from '../types/session';
+import { colors, alpha, fonts, spacing } from '../../theme';
+import type { Correction, FillerWordPosition } from '../../types/session';
 
 interface Props {
   sentences: string[];

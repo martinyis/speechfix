@@ -12,7 +12,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { Canvas, Circle, BlurMask } from '@shopify/react-native-skia';
-import { colors, alpha, fonts } from '../theme';
+import { colors, alpha, fonts } from '../../theme';
 
 interface Props {
   visible: boolean;

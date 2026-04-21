@@ -11,8 +11,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, alpha, fonts, spacing, layout } from '../theme';
-import type { SessionDetail } from '../types/session';
+import { colors, alpha, fonts, spacing, layout } from '../../theme';
+import type { SessionDetail } from '../../types/session';
 import { DeliverySignalStrip } from './DeliverySignalStrip';
 import { SessionTranscript } from './SessionTranscript';
 import { SessionPatterns } from './SessionPatterns';

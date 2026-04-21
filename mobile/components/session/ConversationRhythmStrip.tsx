@@ -2,8 +2,8 @@ import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions } from 'react-native';
 import Animated, { FadeIn, FadeOut, FadeInDown } from 'react-native-reanimated';
 import Svg, { Rect } from 'react-native-svg';
-import { colors, alpha, fonts, typography } from '../theme';
-import type { SpeechTimeline, UtteranceMetadata } from '../types/session';
+import { colors, alpha, fonts, typography } from '../../theme';
+import type { SpeechTimeline, UtteranceMetadata } from '../../types/session';
 
 interface ConversationTurn {
   role: 'user' | 'assistant';

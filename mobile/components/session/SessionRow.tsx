@@ -1,10 +1,10 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { colors, alpha, spacing, typography, borderRadius, fonts } from '../theme';
-import { formatTimeOfDay, formatDurationLong } from '../lib/formatters';
-import { AgentAvatar } from './agent/AgentAvatar';
-import type { SessionListItem, TopicCategory } from '../types/session';
+import { colors, alpha, spacing, typography, borderRadius, fonts } from '../../theme';
+import { formatTimeOfDay, formatDurationLong } from '../../lib/formatters';
+import { AgentAvatar } from '../agent/AgentAvatar';
+import type { SessionListItem, TopicCategory } from '../../types/session';
 
 // ---------------------------------------------------------------------------
 // Helpers
