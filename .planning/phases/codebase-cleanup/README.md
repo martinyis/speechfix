@@ -26,8 +26,8 @@ After all 6 phases ship cleanly, proceed to the **session-manager.ts SRP split**
 | C | Rename + move (SessionRow, FrequencyStrip) | `phase-c.md` | **SHIPPED 2026-04-20** — 3 atomic commits, 7 files touched, ~0 net LOC, merged to main |
 | D | Hook consolidation (voice + recording) | `phase-d.md` | **SHIPPED 2026-04-20** — 8 atomic commits, 9 files, ~747 LOC net removed, merged to main |
 | E | Server handler dedup (onSessionEnd paths) | `phase-e.md` | **SHIPPED 2026-04-20** — 3 atomic commits, 2 files, ~110 LOC net removed, merged to main |
-| F | Cosmetic component reorganization | `phase-f.md` (TBD) | next |
-| — | **Follow-up**: session-manager.ts SRP split | separate initiative | later |
+| F | Cosmetic component reorganization | `phase-f.md` | **SHIPPED 2026-04-20** — 6 atomic commits, 27 files moved into 6 new feature folders (+2 intra-component re-pathings), 13 app screens re-imported, ~0 net LOC, merged to main |
+| — | **Follow-up**: session-manager.ts SRP split | separate initiative | **next flagged initiative** |
 
 ### Phase A — shipped summary
 - 9 atomic commits on `cleanup/phase-a-dead-code`, fast-forwarded to `main`.
@@ -66,6 +66,16 @@ After all 6 phases ship cleanly, proceed to the **session-manager.ts SRP split**
 - Scope-preserving choices: both session-end entry points kept (audit's option (b), not option (a)); `FillerCoachHandler` / `OnboardingHandler` / `AgentCreatorHandler` untouched; streaming path's DB-session-created-inside-phased-callback order preserved so `insights_ready` client UX still fires before corrections stream in; 4-path log line ordering preserved.
 - Typecheck parity: mobile 1 / server 1 (both baseline, untouched).
 - Smoke matrix passed on device: Reflexa voice, custom agent (conversation), custom agent (roleplay — inheritance guard), filler coach (regression guard), past-session open.
+
+### Phase F — shipped summary
+- 6 atomic commits on `cleanup/phase-f-component-reshuffle`, fast-forwarded to `main`: F2, F3, F4, F5, F6, F7 (F8 sweep unnecessary — zero leftover root-level imports).
+- Created 6 new feature folders under `mobile/components/`: `agent/` (4 files), `correction/` (4), `orbs/` (3), `pattern/` (2), `session/` (12), `voice/` (1). `components/practice/` and `components/ui/` untouched. 4 generic primitives kept at root per audit §5: `GradientText`, `PracticeFeedbackPanel`, `StyleChips`, `SuccessCelebration`.
+- 27 files moved via `git mv` (every rename detected by git at ≥93% similarity); 13 app screens + 2 intra-component files (`SessionRow`, `VoiceSessionOverlay`) re-imported to the new feature paths, and the `practice/CorrectionsMode` importer of `PracticeTaskCard` re-anchored from `../PracticeTaskCard` to `../correction/PracticeTaskCard`.
+- `PracticeTaskCard.tsx` routed to `correction/` (not `pattern/`): confirmed by user during F1 review — file renders correction-practice cards (props: `correctionId`, `correctedText`, `severity`, `practiceCount`) and only ever routes to `/practice-session?mode=say_it_right`.
+- Net LOC: ~0 (pure moves + import-path edits; each moved file's only change is relative-path re-anchoring one level deeper).
+- Typecheck parity: mobile 1 / server 1 (both baseline, unchanged).
+- Smoke matrix passed on device by Martin.
+- **Cleanup A–F complete.** Next flagged initiative: `server/src/voice/session-manager.ts` SRP split (audit N4), deferred.
 
 ### Phase C — shipped summary
 - 3 atomic commits on `cleanup/phase-c-rename-move`, fast-forwarded to `main`: C1, C2, C3.
