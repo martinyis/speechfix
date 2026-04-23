@@ -13,20 +13,9 @@ const CACHE_WAV_PATH = join(CACHE_DIR, 'intro-audio.wav');
 const CACHE_META_PATH = join(CACHE_DIR, 'intro-audio-meta.json');
 
 const INTRO_SEGMENTS = [
-  'Hey. Welcome to Reflexa.',
-  "I'm your AI speaking coach,",
-  'built to help you speak English with more clarity and confidence.',
-  "Here's how it works.",
-  'You talk to me, like a real conversation.',
-  'I listen, I respond, and behind the scenes,',
-  "I'm analyzing your speech patterns,",
-  'grammar, filler words, clarity, all of it.',
-  'After each session, you get a detailed breakdown',
-  'of exactly what to work on.',
-  'No generic tips. Just precise, personalized feedback',
-  'based on how you actually speak.',
-  'Before we begin,',
-  "I'll need access to your microphone so I can listen to you speak. Tap the button below to get started.",
+  'What if your biggest speech habits are the ones no one\'s ever mentioned?',
+  'I find them, and turn them into practice.',
+  'Welcome to Reflexa — tap below.',
 ];
 
 const FULL_SCRIPT = INTRO_SEGMENTS.join(' ');

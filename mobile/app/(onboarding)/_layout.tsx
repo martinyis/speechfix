@@ -12,6 +12,8 @@ export default function OnboardingLayout() {
       }}
     >
       <Stack.Screen name="index" />
+      <Stack.Screen name="intro" />
+      <Stack.Screen name="manual" />
       <Stack.Screen name="voice-session" />
     </Stack>
   );

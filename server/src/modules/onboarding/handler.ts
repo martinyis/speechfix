@@ -18,7 +18,6 @@ export class OnboardingHandler implements AgentTypeHandler {
   readonly needsUserContext = false;
   readonly greetingStrategy = 'none' as const;
   readonly silenceTimeoutMs = 30_000;
-  readonly maxSessionDurationMs = 3 * 60 * 1000;
   readonly maxCompletionTokens = { withTools: 180, withoutTools: 150 };
 
   buildSystemPrompt(_agentConfig: AgentConfig | null, _userContext?: FullUserContext, _formContext?: Record<string, unknown> | null): string {
@@ -79,7 +78,7 @@ export class OnboardingHandler implements AgentTypeHandler {
         (analysisFlags ? ` | flags=${JSON.stringify(analysisFlags)}` : ''),
       );
 
-      // Generate greetings for Reflexa + filler-coach (await so they're ready)
+      // Generate greetings for Reflexa (await so it's ready)
       await ensureGreetingsExist(userId);
 
       // The AI already spoke its farewell (including speech observation) via TTS

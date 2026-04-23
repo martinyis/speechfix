@@ -1,447 +1,177 @@
-import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, LayoutChangeEvent, Dimensions } from 'react-native';
+// Onboarding chooser — editorial split.
+// Two large tappable halves separated by a gradient hairline. Each half is
+// pure typography (kicker label + huge headline + supporting copy + Begin
+// chevron). The top half carries a soft purple bloom to signal that voice
+// is the recommended path.
+
+import React from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  FadeIn,
-  FadeOut,
-  useSharedValue,
-  useAnimatedStyle,
-  useAnimatedRef,
-  withTiming,
-  scrollTo,
-  Easing,
-} from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { scheduleOnUI } from 'react-native-worklets';
-import { ExpoPlayAudioStream } from '@mykin-ai/expo-audio-stream';
-import { AISpeakingOrb } from '../../components/orbs/AISpeakingOrb';
-import { useIntroAudio } from '../../hooks/useIntroAudio';
-import { INTRO_SEGMENTS, type SegmentTimings } from '../../lib/introTimestamps';
-import { colors, alpha, fonts } from '../../theme';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { colors, alpha, spacing, typography, fonts } from '../../theme';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const TEXT_AREA_HEIGHT = SCREEN_HEIGHT * 0.30;
-const GRADIENT_HEIGHT = TEXT_AREA_HEIGHT * 0.40;
-
-const SEGMENT_DIM_MAP = [1.0, 0.45, 0.25, 0.12];
-const BASE_DIM = 0.06;
-
-function WordToken({ word, isActive, isRevealed }: { word: string; isActive: boolean; isRevealed: boolean }) {
-  const opacity = useSharedValue(0.18);
-  const wasRevealed = useRef(false);
-
-  useEffect(() => {
-    if (isRevealed && !wasRevealed.current) {
-      wasRevealed.current = true;
-      opacity.value = withTiming(1.0, {
-        duration: 2000,
-        easing: Easing.out(Easing.cubic),
-      });
-    }
-  }, [isRevealed]);
-
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
-
-  return (
-    <Animated.Text style={[styles.word, isActive && styles.wordActive, animStyle]}>
-      {word + ' '}
-    </Animated.Text>
-  );
-}
-
-function SegmentBlock({
-  segment,
-  segmentIndex,
-  revealedWordCount,
-  currentWordIndex,
-  currentSegmentIndex,
-  globalWordOffset,
-  onLayout,
-}: {
-  segment: SegmentTimings;
-  segmentIndex: number;
-  revealedWordCount: number;
-  currentWordIndex: number;
-  currentSegmentIndex: number;
-  globalWordOffset: number;
-  onLayout: (index: number, e: LayoutChangeEvent) => void;
-}) {
-  const segmentOpacity = useMemo(() => {
-    if (currentSegmentIndex < 0) return 0.12;
-    const distance = Math.abs(currentSegmentIndex - segmentIndex);
-    return SEGMENT_DIM_MAP[distance] ?? BASE_DIM;
-  }, [segmentIndex, currentSegmentIndex]);
-
-  const dimOpacity = useSharedValue(segmentOpacity);
-
-  useEffect(() => {
-    dimOpacity.value = withTiming(segmentOpacity, { duration: 600 });
-  }, [segmentOpacity]);
-
-  const containerStyle = useAnimatedStyle(() => ({
-    opacity: dimOpacity.value,
-  }));
-
-  return (
-    <Animated.View
-      style={[styles.segmentBlock, containerStyle]}
-      onLayout={(e) => onLayout(segmentIndex, e)}
-    >
-      {segment.words.map((wordTiming, i) => {
-        const globalIdx = globalWordOffset + i;
-        const isRevealed = globalIdx < revealedWordCount;
-        const isActive = globalIdx === currentWordIndex;
-        return (
-          <WordToken
-            key={i}
-            word={wordTiming.word}
-            isActive={isActive}
-            isRevealed={isRevealed}
-          />
-        );
-      })}
-    </Animated.View>
-  );
-}
-
-export default function IntroAgentScreen() {
+export default function ChooseMethodScreen() {
   const insets = useSafeAreaInsets();
-  const {
-    isLoading,
-    isPlaying,
-    isComplete,
-    error,
-    revealedWordCount,
-    currentWordIndex,
-    currentSegmentIndex,
-    play,
-    skip,
-  } = useIntroAudio();
-  const hasStartedRef = useRef(false);
-  const scrollRef = useAnimatedRef<Animated.ScrollView>();
-  const segmentYPositions = useRef<Record<number, number>>({});
-  const segmentHeights = useRef<Record<number, number>>({});
-  const scrollAreaHeight = useRef(0);
 
-  const [showMicPrompt, setShowMicPrompt] = useState(false);
+  const goVoice = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push('/(onboarding)/intro');
+  };
 
-  // Precompute global word offsets per segment
-  const globalWordOffsets = useMemo(() => {
-    const offsets: number[] = [];
-    let cumulative = 0;
-    for (const seg of INTRO_SEGMENTS) {
-      offsets.push(cumulative);
-      cumulative += seg.words.length;
-    }
-    return offsets;
-  }, []);
-
-  // Auto-play when audio is loaded
-  useEffect(() => {
-    if (!isLoading && !error && !hasStartedRef.current) {
-      hasStartedRef.current = true;
-      play();
-    }
-  }, [isLoading, error, play]);
-
-  // Show mic prompt when audio completes
-  useEffect(() => {
-    if (isComplete) setShowMicPrompt(true);
-  }, [isComplete]);
-
-  // Auto-scroll: center active segment vertically
-  // scrollTo is a UI-thread API — must dispatch via scheduleOnUI
-  useEffect(() => {
-    if (currentSegmentIndex < 0) return;
-
-    const y = segmentYPositions.current[currentSegmentIndex];
-    const h = segmentHeights.current[currentSegmentIndex];
-    if (y == null || h == null) return;
-
-    const areaH = scrollAreaHeight.current;
-    const targetY = Math.max(0, y - (areaH / 2) + (h / 2));
-
-    scheduleOnUI(() => {
-      'worklet';
-      scrollTo(scrollRef, 0, targetY, true);
-    });
-  }, [currentSegmentIndex, scrollRef]);
-
-  const handleScrollAreaLayout = useCallback((e: LayoutChangeEvent) => {
-    scrollAreaHeight.current = e.nativeEvent.layout.height;
-  }, []);
-
-  const handleSegmentLayout = useCallback((index: number, e: LayoutChangeEvent) => {
-    segmentYPositions.current[index] = e.nativeEvent.layout.y;
-    segmentHeights.current[index] = e.nativeEvent.layout.height;
-  }, []);
-
-  const handleSkip = useCallback(() => {
-    console.log('[onboarding] Intro skipped');
-    skip();
-    setShowMicPrompt(true);
-  }, [skip]);
-
-  const handleRetry = useCallback(() => {
-    hasStartedRef.current = false;
-  }, []);
-
-  const handleEnableMic = useCallback(async () => {
-    skip();
-    const { granted } = await ExpoPlayAudioStream.requestPermissionsAsync();
-    console.log('[onboarding] Enable mic tapped, permission:', granted ? 'granted' : 'denied');
-    if (granted) {
-      router.push('/(onboarding)/voice-session');
-    }
-  }, [skip]);
-
-  const contentPaddingVertical = scrollAreaHeight.current
-    ? scrollAreaHeight.current * 0.5
-    : TEXT_AREA_HEIGHT * 0.5;
-
-  if (error) {
-    return (
-      <View style={[styles.container, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 20 }]}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Couldn't load intro</Text>
-          <Text style={styles.errorSubtext}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={handleRetry}>
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </Pressable>
-          <Pressable style={styles.skipLink} onPress={handleSkip}>
-            <Text style={styles.skipLinkText}>Skip intro</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
+  const goManual = () => {
+    Haptics.selectionAsync();
+    router.push('/(onboarding)/manual');
+  };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* Skip button */}
-      {(isPlaying || isLoading) && !showMicPrompt && (
-        <Animated.View entering={FadeIn.delay(2000).duration(400)} style={styles.skipButtonWrap}>
-          <Pressable onPress={handleSkip} hitSlop={12}>
-            <Text style={styles.skipButtonText}>Skip</Text>
-          </Pressable>
+    <View style={styles.root}>
+      <Pressable
+        style={[
+          styles.half,
+          { paddingTop: insets.top + spacing.xxxl + spacing.xl },
+        ]}
+        onPress={goVoice}
+        android_ripple={{ color: alpha(colors.white, 0.04) }}
+      >
+        <LinearGradient
+          colors={[
+            alpha(colors.primary, 0.22),
+            alpha(colors.primary, 0.05),
+            'transparent',
+          ]}
+          locations={[0, 0.55, 1]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0.85, y: 1 }}
+        />
+        <Animated.View entering={FadeIn.duration(450)} style={styles.halfBody}>
+          <Text style={styles.kickerActive}>Recommended</Text>
+          <Text style={styles.bigTitle}>Voice</Text>
+          <Text style={styles.bigSubtitle}>
+            Have a quick chat with your AI coach. About 90 seconds.
+          </Text>
+          <View style={styles.beginRow}>
+            <Text style={styles.beginText}>Begin</Text>
+            <Ionicons
+              name="arrow-forward"
+              size={18}
+              color={colors.primary}
+              style={{ marginLeft: 8 }}
+            />
+          </View>
         </Animated.View>
-      )}
+      </Pressable>
 
-      {/* AI Speaking Orb — flex:1 fills available space, pushes text to bottom */}
-      <View style={styles.orbSection}>
-        <AISpeakingOrb state={isPlaying ? 'speaking' : 'idle'} />
+      <View style={styles.divider}>
+        <LinearGradient
+          colors={['transparent', alpha(colors.white, 0.18), 'transparent']}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={StyleSheet.absoluteFill}
+        />
       </View>
 
-      {/* Bottom: text reveal area */}
-      {!showMicPrompt && (
+      <Pressable
+        style={[
+          styles.half,
+          styles.bottomHalf,
+          { paddingBottom: insets.bottom + spacing.xxxl },
+        ]}
+        onPress={goManual}
+        android_ripple={{ color: alpha(colors.white, 0.04) }}
+      >
         <Animated.View
-          exiting={FadeOut.duration(300)}
-          style={styles.textArea}
-          onLayout={handleScrollAreaLayout}
+          entering={FadeIn.delay(120).duration(450)}
+          style={styles.halfBody}
         >
-          <Animated.ScrollView
-            ref={scrollRef}
-            style={styles.textScroll}
-            contentContainerStyle={[
-              styles.textScrollContent,
-              { paddingTop: contentPaddingVertical, paddingBottom: contentPaddingVertical },
-            ]}
-            showsVerticalScrollIndicator={false}
-            scrollEventThrottle={16}
-          >
-            {INTRO_SEGMENTS.map((segment, idx) => (
-              <SegmentBlock
-                key={idx}
-                segment={segment}
-                segmentIndex={idx}
-                revealedWordCount={revealedWordCount}
-                currentWordIndex={currentWordIndex}
-                currentSegmentIndex={currentSegmentIndex}
-                globalWordOffset={globalWordOffsets[idx]}
-                onLayout={handleSegmentLayout}
-              />
-            ))}
-          </Animated.ScrollView>
-
-          {/* Top fade — iOS picker style vignette */}
-          <LinearGradient
-            colors={[alpha(colors.background, 0.7), alpha(colors.background, 0.5), alpha(colors.background, 0.15), alpha(colors.background, 0)]}
-            locations={[0, 0.3, 0.7, 1]}
-            style={styles.gradientTop}
-            pointerEvents="none"
-          />
-
-          {/* Bottom fade */}
-          <LinearGradient
-            colors={[alpha(colors.background, 0), alpha(colors.background, 0.3), alpha(colors.background, 0.85), colors.background]}
-            locations={[0, 0.3, 0.7, 1]}
-            style={styles.gradientBottom}
-            pointerEvents="none"
-          />
-
-          {isLoading && (
-            <Animated.Text entering={FadeIn.duration(400)} style={styles.loadingText}>
-              Preparing your introduction...
-            </Animated.Text>
-          )}
+          <Text style={styles.kicker}>No mic needed</Text>
+          <Text style={styles.bigTitleMuted}>Manual</Text>
+          <Text style={styles.bigSubtitle}>
+            Fill out a short form. Less than a minute.
+          </Text>
+          <View style={styles.beginRow}>
+            <Text style={[styles.beginText, styles.beginTextMuted]}>Begin</Text>
+            <Ionicons
+              name="arrow-forward"
+              size={18}
+              color={alpha(colors.white, 0.6)}
+              style={{ marginLeft: 8 }}
+            />
+          </View>
         </Animated.View>
-      )}
-
-      {/* Inline mic permission prompt */}
-      {showMicPrompt && (
-        <Animated.View
-          entering={FadeIn.delay(200).duration(300)}
-          style={styles.micPromptArea}
-        >
-          <Pressable style={styles.micButton} onPress={handleEnableMic}>
-            <Text style={styles.micButtonText}>Enable Microphone</Text>
-          </Pressable>
-          <Text style={styles.micFootnote}>Audio is never stored</Text>
-        </Animated.View>
-      )}
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  skipButtonWrap: {
-    position: 'absolute',
-    top: 60,
-    right: 20,
-    zIndex: 10,
-  },
-  skipButtonText: {
-    fontSize: 15,
-    fontFamily: fonts.semibold,
-    color: alpha(colors.white, 0.5),
-  },
-  orbSection: {
+  half: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'visible',
+    paddingHorizontal: spacing.xl,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
   },
-  textArea: {
-    height: TEXT_AREA_HEIGHT,
-    paddingHorizontal: 28,
-    marginTop: -40,
+  bottomHalf: {
+    backgroundColor: colors.background,
   },
-  textScroll: {
-    flex: 1,
-  },
-  textScrollContent: {
-    // paddingTop/paddingBottom set dynamically via contentPaddingVertical
-  },
-  segmentBlock: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    marginBottom: 6,
-  },
-  word: {
-    fontSize: 20,
-    fontFamily: fonts.semibold,
-    lineHeight: 30,
-    color: '#c9a0f0',
-  },
-  wordActive: {
-    color: '#e0c4ff',
-  },
-  gradientTop: {
-    position: 'absolute',
-    top: 0,
-    left: -28,
-    right: -28,
-    height: GRADIENT_HEIGHT,
-    zIndex: 2,
-  },
-  gradientBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: -28,
-    right: -28,
-    height: GRADIENT_HEIGHT,
-    zIndex: 2,
-  },
-  loadingText: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: alpha(colors.white, 0.4),
-    textAlign: 'center',
-    position: 'absolute',
-    alignSelf: 'center',
-    top: '40%',
-  },
-  micPromptArea: {
-    marginTop: 'auto',
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    paddingBottom: 20,
-  },
-  micButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: 16,
-    paddingHorizontal: 48,
-    borderRadius: 16,
-    alignItems: 'center',
+  divider: {
+    height: 1,
     width: '100%',
+    overflow: 'hidden',
   },
-  micButtonText: {
-    fontSize: 17,
-    fontFamily: fonts.bold,
-    color: colors.background,
+  halfBody: {
+    paddingBottom: spacing.xxl,
   },
-  micFootnote: {
-    fontFamily: fonts.regular,
-    color: alpha(colors.white, 0.25),
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 16,
+
+  kicker: {
+    ...typography.labelSm,
+    color: alpha(colors.white, 0.45),
+    marginBottom: spacing.sm,
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
+  kickerActive: {
+    ...typography.labelSm,
+    color: colors.primary,
+    marginBottom: spacing.sm,
   },
-  errorTitle: {
-    fontSize: 20,
-    fontFamily: fonts.bold,
+  bigTitle: {
+    fontSize: 56,
+    lineHeight: 60,
+    fontFamily: fonts.extrabold,
     color: colors.onSurface,
-    marginBottom: 8,
+    letterSpacing: -2,
   },
-  errorSubtext: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: alpha(colors.white, 0.5),
-    textAlign: 'center',
-    marginBottom: 24,
+  bigTitleMuted: {
+    fontSize: 56,
+    lineHeight: 60,
+    fontFamily: fonts.extrabold,
+    color: alpha(colors.white, 0.92),
+    letterSpacing: -2,
   },
-  retryButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 16,
-    marginBottom: 16,
+  bigSubtitle: {
+    ...typography.bodyMd,
+    color: alpha(colors.white, 0.55),
+    marginTop: spacing.md,
+    maxWidth: 320,
+    lineHeight: 22,
   },
-  retryButtonText: {
-    fontSize: 16,
-    fontFamily: fonts.bold,
-    color: colors.background,
+  beginRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.xl,
   },
-  skipLink: {
-    padding: 8,
+  beginText: {
+    ...typography.labelMd,
+    color: colors.primary,
   },
-  skipLinkText: {
-    fontSize: 14,
-    fontFamily: fonts.medium,
-    color: alpha(colors.white, 0.4),
+  beginTextMuted: {
+    color: alpha(colors.white, 0.7),
   },
 });
