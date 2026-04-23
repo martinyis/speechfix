@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFillerCoachSessions } from '../hooks/data/useFillerCoachSessions';
+import { usePressureDrillSessions } from '../hooks/data/usePressureDrillSessions';
 import { EmptyState } from '../components/ui';
 import { colors, alpha, fonts, spacing, layout, typography, borderRadius } from '../theme';
-import type { FillerCoachSession } from '../types/session';
+import type { PressureDrillSession, DurationPreset } from '../types/pressureDrill';
+import { DURATION_PRESETS } from '../types/pressureDrill';
+import { SCENARIOS, DURATION_LABELS } from '../lib/pressureDrillScenarios';
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -39,10 +42,10 @@ function relativeDate(dateStr: string): string {
 
 // ── Session Row ───────────────────────────────────────────────────────
 
-function SessionRow({ session }: { session: FillerCoachSession }) {
+function SessionRow({ session }: { session: PressureDrillSession }) {
   const rate = fillersPerMin(session.totalFillerCount, session.durationSeconds);
   const fillerWords = session.fillerData?.fillerWords ?? [];
-  const topWords = fillerWords
+  const topWords = [...fillerWords]
     .sort((a, b) => b.count - a.count)
     .slice(0, 3);
 
@@ -51,8 +54,8 @@ function SessionRow({ session }: { session: FillerCoachSession }) {
       style={styles.sessionRow}
       onPress={() =>
         router.push({
-          pathname: '/filler-coach-results',
-          params: { fillerCoachSessionId: String(session.id) },
+          pathname: '/pressure-drill-results',
+          params: { sessionId: String(session.id) },
         })
       }
     >
@@ -61,6 +64,9 @@ function SessionRow({ session }: { session: FillerCoachSession }) {
           <Text style={styles.sessionDate}>{relativeDate(session.createdAt)}</Text>
           <Text style={styles.sessionDuration}>{formatDuration(session.durationSeconds)}</Text>
         </View>
+        <Text style={styles.sessionScenario} numberOfLines={1}>
+          {SCENARIOS.find((s) => s.slug === session.scenarioSlug)?.label ?? 'Session'} · {DURATION_LABELS[session.durationSelectedSeconds]}
+        </Text>
         {topWords.length > 0 && (
           <Text style={styles.sessionFillers} numberOfLines={1}>
             {topWords.map((fw) => `${fw.word} x${fw.count}`).join(', ')}
@@ -84,9 +90,18 @@ function SessionRow({ session }: { session: FillerCoachSession }) {
 
 // ── Main Screen ───────────────────────────────────────────────────────
 
-export default function FillerCoachSessionsScreen() {
+export default function PressureDrillSessionsScreen() {
   const insets = useSafeAreaInsets();
-  const { data: sessions } = useFillerCoachSessions();
+  const { data: sessions } = usePressureDrillSessions();
+  const [filter, setFilter] = useState<DurationPreset | 'all'>('all');
+
+  const visible =
+    filter === 'all'
+      ? sessions
+      : sessions?.filter((s) => s.durationSelectedSeconds === filter);
+
+  const hasAnySessions = !!sessions && sessions.length > 0;
+  const filteredIsEmpty = hasAnySessions && (!visible || visible.length === 0);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -95,22 +110,51 @@ export default function FillerCoachSessionsScreen() {
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={colors.onSurface} />
         </Pressable>
-        <Text style={styles.title}>Practice Sessions</Text>
+        <Text style={styles.title}>Drill History</Text>
         <View style={styles.backBtn} />
       </View>
 
+      {/* Filter pills */}
+      {hasAnySessions && (
+        <View style={styles.filterRow}>
+          <Pressable
+            onPress={() => setFilter('all')}
+            style={[styles.filterPill, filter === 'all' && styles.filterPillActive]}
+          >
+            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
+              All
+            </Text>
+          </Pressable>
+          {DURATION_PRESETS.map((d) => (
+            <Pressable
+              key={d}
+              onPress={() => setFilter(d)}
+              style={[styles.filterPill, filter === d && styles.filterPillActive]}
+            >
+              <Text style={[styles.filterText, filter === d && styles.filterTextActive]}>
+                {DURATION_LABELS[d]}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
       {/* Content */}
-      {!sessions || sessions.length === 0 ? (
+      {!hasAnySessions ? (
         <View style={styles.emptyContainer}>
           <EmptyState
-            icon="mic-outline"
-            title="No Practice Sessions"
-            subtitle="Start a filler word coaching session to practice speaking with fewer fillers"
+            icon="flash-outline"
+            title="No Drills Yet"
+            subtitle="Run a Pressure Drill to see your history here."
             action={{
-              label: 'Start Practice',
-              onPress: () => router.push('/filler-coach'),
+              label: 'Start Drill',
+              onPress: () => router.push('/pressure-drill'),
             }}
           />
+        </View>
+      ) : filteredIsEmpty ? (
+        <View style={styles.subEmptyContainer}>
+          <Text style={styles.subEmptyText}>No drills at this duration yet</Text>
         </View>
       ) : (
         <ScrollView
@@ -120,7 +164,7 @@ export default function FillerCoachSessionsScreen() {
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {sessions.map((session) => (
+          {visible!.map((session) => (
             <SessionRow key={session.id} session={session} />
           ))}
         </ScrollView>
@@ -158,9 +202,45 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
+  subEmptyContainer: {
+    paddingTop: spacing.xxl,
+    alignItems: 'center',
+  },
+  subEmptyText: {
+    ...typography.bodyMd,
+    color: alpha(colors.white, 0.35),
+  },
 
   list: {
     paddingHorizontal: layout.screenPadding,
+  },
+
+  // Filter pills
+  filterRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: layout.screenPadding,
+    marginBottom: spacing.md,
+    flexWrap: 'wrap',
+  },
+  filterPill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: alpha(colors.white, 0.08),
+  },
+  filterPillActive: {
+    borderColor: colors.primary,
+    backgroundColor: alpha(colors.primary, 0.12),
+  },
+  filterText: {
+    ...typography.bodySm,
+    color: alpha(colors.white, 0.5),
+  },
+  filterTextActive: {
+    color: colors.primary,
+    fontFamily: fonts.semibold,
   },
 
   // Session rows
@@ -186,6 +266,11 @@ const styles = StyleSheet.create({
   sessionDuration: {
     ...typography.bodySm,
     color: alpha(colors.white, 0.3),
+  },
+  sessionScenario: {
+    ...typography.bodySm,
+    color: alpha(colors.white, 0.45),
+    marginTop: 2,
   },
   sessionFillers: {
     ...typography.bodySm,

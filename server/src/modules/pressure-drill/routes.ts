@@ -1,33 +1,33 @@
 import { FastifyInstance } from 'fastify';
 import { db } from '../../db/index.js';
-import { fillerCoachSessions } from '../../db/schema.js';
-import { eq, desc, sql, and, gte } from 'drizzle-orm';
+import { pressureDrillSessions } from '../../db/schema.js';
+import { eq, desc, and, gte } from 'drizzle-orm';
 
 const MIN_SESSION_DURATION = 30; // ignore sessions shorter than 30s
 
-export async function fillerCoachRoutes(fastify: FastifyInstance) {
-  // GET /filler-coach/sessions — list coach sessions (newest first, ≥30s only)
-  fastify.get('/filler-coach/sessions', async (request) => {
+export async function pressureDrillRoutes(fastify: FastifyInstance) {
+  // GET /pressure-drill/sessions — list drill sessions (newest first, ≥30s only)
+  fastify.get('/pressure-drill/sessions', async (request) => {
     const rows = await db
       .select()
-      .from(fillerCoachSessions)
+      .from(pressureDrillSessions)
       .where(and(
-        eq(fillerCoachSessions.userId, request.user.userId),
-        gte(fillerCoachSessions.durationSeconds, MIN_SESSION_DURATION),
+        eq(pressureDrillSessions.userId, request.user.userId),
+        gte(pressureDrillSessions.durationSeconds, MIN_SESSION_DURATION),
       ))
-      .orderBy(desc(fillerCoachSessions.createdAt))
+      .orderBy(desc(pressureDrillSessions.createdAt))
       .limit(50);
 
     return { sessions: rows };
   });
 
-  // GET /filler-coach/sessions/:id — single session by id
-  fastify.get<{ Params: { id: string } }>('/filler-coach/sessions/:id', async (request, reply) => {
+  // GET /pressure-drill/sessions/:id — single session by id
+  fastify.get<{ Params: { id: string } }>('/pressure-drill/sessions/:id', async (request, reply) => {
     const id = Number(request.params.id);
     const [row] = await db
       .select()
-      .from(fillerCoachSessions)
-      .where(eq(fillerCoachSessions.id, id))
+      .from(pressureDrillSessions)
+      .where(eq(pressureDrillSessions.id, id))
       .limit(1);
 
     if (!row || row.userId !== request.user.userId) {
@@ -37,18 +37,18 @@ export async function fillerCoachRoutes(fastify: FastifyInstance) {
     return row;
   });
 
-  // GET /filler-coach/stats — aggregate stats
-  fastify.get('/filler-coach/stats', async (request) => {
+  // GET /pressure-drill/stats — aggregate stats
+  fastify.get('/pressure-drill/stats', async (request) => {
     const userId = request.user.userId;
 
     const rows = await db
       .select()
-      .from(fillerCoachSessions)
+      .from(pressureDrillSessions)
       .where(and(
-        eq(fillerCoachSessions.userId, userId),
-        gte(fillerCoachSessions.durationSeconds, MIN_SESSION_DURATION),
+        eq(pressureDrillSessions.userId, userId),
+        gte(pressureDrillSessions.durationSeconds, MIN_SESSION_DURATION),
       ))
-      .orderBy(desc(fillerCoachSessions.createdAt));
+      .orderBy(desc(pressureDrillSessions.createdAt));
 
     if (rows.length === 0) {
       return { totalSessions: 0, avgFillersPerMin: 0, bestFillersPerMin: 0, topFillers: [] };
@@ -63,7 +63,7 @@ export async function fillerCoachRoutes(fastify: FastifyInstance) {
     const avgFillersPerMin = Number((rates.reduce((a, b) => a + b, 0) / rates.length).toFixed(1));
     const bestFillersPerMin = Number(Math.min(...rates).toFixed(1));
 
-    // Top fillers across all coach sessions
+    // Top fillers across all drill sessions
     const fillerMap = new Map<string, number>();
     for (const row of rows) {
       const data = row.fillerData as { fillerWords?: Array<{ word: string; count: number }> } | null;

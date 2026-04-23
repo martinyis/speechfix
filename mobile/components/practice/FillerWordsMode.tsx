@@ -8,10 +8,11 @@ import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { EmptyState, GlassIconPillButton } from '../ui';
 import { useFillerSummary } from '../../hooks/data/useFillerSummary';
-import { useFillerCoachSessions } from '../../hooks/data/useFillerCoachSessions';
+import { usePressureDrillSessions } from '../../hooks/data/usePressureDrillSessions';
 import { useSessions } from '../../hooks/data/useSessions';
 import { colors, alpha, fonts, spacing, layout, typography, borderRadius } from '../../theme';
-import type { FillerCoachSession, SessionListItem } from '../../types/session';
+import type { SessionListItem } from '../../types/session';
+import type { PressureDrillSession } from '../../types/pressureDrill';
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -419,7 +420,7 @@ function RemainingWords({
 function PracticeSessionsSection({
   sessions,
 }: {
-  sessions: FillerCoachSession[];
+  sessions: PressureDrillSession[];
 }) {
   const recent = sessions.slice(0, 3);
 
@@ -430,15 +431,15 @@ function PracticeSessionsSection({
         <View style={styles.practiceHeader}>
           <View style={styles.practiceHeaderLeft}>
             <Ionicons name="mic-outline" size={14} color={colors.onSurfaceVariant} />
-            <Text style={styles.practiceHeaderLabel}>PRACTICE SESSIONS</Text>
+            <Text style={styles.practiceHeaderLabel}>DRILL SESSIONS</Text>
           </View>
         </View>
-        <Text style={styles.practiceEmpty}>No practice sessions yet</Text>
+        <Text style={styles.practiceEmpty}>No drills yet</Text>
         <Pressable
           style={styles.practiceStartBtn}
-          onPress={() => router.push('/filler-coach')}
+          onPress={() => router.push('/pressure-drill')}
         >
-          <Text style={styles.practiceStartText}>Start Practice</Text>
+          <Text style={styles.practiceStartText}>Start Pressure Drill</Text>
         </Pressable>
       </View>
     );
@@ -450,7 +451,7 @@ function PracticeSessionsSection({
       <View style={styles.practiceHeader}>
         <View style={styles.practiceHeaderLeft}>
           <Ionicons name="mic-outline" size={14} color={colors.onSurfaceVariant} />
-          <Text style={styles.practiceHeaderLabel}>PRACTICE SESSIONS</Text>
+          <Text style={styles.practiceHeaderLabel}>DRILL SESSIONS</Text>
         </View>
         <Text style={styles.practiceCount}>{sessions.length} total</Text>
       </View>
@@ -463,8 +464,8 @@ function PracticeSessionsSection({
             style={[styles.practiceRow, i === 0 && styles.practiceRowFirst]}
             onPress={() =>
               router.push({
-                pathname: '/filler-coach-results',
-                params: { fillerCoachSessionId: String(session.id) },
+                pathname: '/pressure-drill-results',
+                params: { sessionId: String(session.id) },
               })
             }
           >
@@ -482,7 +483,7 @@ function PracticeSessionsSection({
 
       <Pressable
         style={styles.viewAll}
-        onPress={() => router.push('/filler-coach-sessions')}
+        onPress={() => router.push('/pressure-drill-sessions')}
       >
         <Text style={styles.viewAllText}>View All Sessions</Text>
         <Ionicons name="chevron-forward" size={14} color={colors.primary} />
@@ -496,7 +497,7 @@ function PracticeSessionsSection({
 export function FillerWordsMode() {
   const { data: summary } = useFillerSummary();
   const { data: allSessions } = useSessions();
-  const { data: coachSessions } = useFillerCoachSessions();
+  const { data: coachSessions } = usePressureDrillSessions();
 
   const hasOrganicData = summary && summary.words.length > 0;
   const hasCoachSessions = coachSessions && coachSessions.length > 0;
@@ -532,8 +533,8 @@ export function FillerWordsMode() {
             title="Filler Word Tracker"
             subtitle="Start having conversations to track your filler words and practice reducing them"
             action={{
-              label: 'Start Practice',
-              onPress: () => router.push('/filler-coach'),
+              label: 'Start Pressure Drill',
+              onPress: () => router.push('/pressure-drill'),
             }}
           />
         </View>
@@ -549,10 +550,10 @@ export function FillerWordsMode() {
           <View style={styles.ctaWrap}>
             <GlassIconPillButton
               icon="play"
-              label={hasCoachSessions ? 'Continue Coaching' : 'Start Coaching'}
+              label={hasCoachSessions ? 'Run Another Drill' : 'Start Pressure Drill'}
               variant="primary"
               fullWidth
-              onPress={() => router.push('/filler-coach')}
+              onPress={() => router.push('/pressure-drill')}
             />
           </View>
         </View>

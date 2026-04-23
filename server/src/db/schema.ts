@@ -178,14 +178,17 @@ export const patternExercises = pgTable('pattern_exercises', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
-export const fillerCoachSessions = pgTable('filler_coach_sessions', {
+export const pressureDrillSessions = pgTable('pressure_drill_sessions', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   durationSeconds: integer('duration_seconds').notNull(),
   totalFillerCount: integer('total_filler_count').notNull().default(0),
   fillerData: jsonb('filler_data'),
-  cognitiveLevel: integer('cognitive_level'),
-  topicSlug: varchar('topic_slug', { length: 50 }),
+  scenarioSlug: varchar('scenario_slug', { length: 50 }).notNull(),
+  durationSelectedSeconds: integer('duration_selected_seconds').notNull(),
+  promptsShown: jsonb('prompts_shown').notNull().default([]),
+  longestCleanStreakSeconds: integer('longest_clean_streak_seconds').notNull().default(0),
+  withinSessionTrend: jsonb('within_session_trend').notNull().default({ firstThirdRate: 0, middleThirdRate: 0, lastThirdRate: 0 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

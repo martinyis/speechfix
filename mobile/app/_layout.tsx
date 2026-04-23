@@ -148,21 +148,29 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
-              name="filler-coach"
+              name="pressure-drill"
               options={{
                 headerShown: false,
                 presentation: 'card',
               }}
             />
             <Stack.Screen
-              name="filler-coach-results"
+              name="pressure-drill-sessions"
               options={{
                 headerShown: false,
                 presentation: 'card',
               }}
             />
             <Stack.Screen
-              name="filler-coach-sessions"
+              name="pressure-drill-session"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="pressure-drill-results"
               options={{
                 headerShown: false,
                 presentation: 'card',
@@ -170,6 +178,13 @@ export default function RootLayout() {
             />
             <Stack.Screen
               name="patterns-list"
+              options={{
+                headerShown: false,
+                presentation: 'card',
+              }}
+            />
+            <Stack.Screen
+              name="mastered-patterns"
               options={{
                 headerShown: false,
                 presentation: 'card',

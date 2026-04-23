@@ -26,23 +26,12 @@ interface GreetingContext {
   agentMode?: string;
 }
 
-async function fetchGreetingContext(userId: number, agentId: number | null, mode: string): Promise<GreetingContext> {
+async function fetchGreetingContext(userId: number, agentId: number | null, _mode: string): Promise<GreetingContext> {
   const [user] = await db.select({
     displayName: users.displayName,
     goals: users.goals,
     contextNotes: users.contextNotes,
   }).from(users).where(eq(users.id, userId));
-
-  // Filler coach doesn't need session history or agent details
-  if (mode === 'filler-coach') {
-    return {
-      displayName: user?.displayName ?? null,
-      goals: null,
-      contextNotes: null,
-      lastSession: null,
-      agentId: null,
-    };
-  }
 
   // Fetch most recent session (optionally scoped to agent)
   const sessionQuery = agentId
@@ -89,11 +78,7 @@ async function fetchGreetingContext(userId: number, agentId: number | null, mode
   };
 }
 
-function buildGreetingPrompt(ctx: GreetingContext, mode: string): string {
-  if (mode === 'filler-coach') {
-    return buildFillerCoachGreetingPrompt(ctx);
-  }
-
+function buildGreetingPrompt(ctx: GreetingContext, _mode: string): string {
   const lines: string[] = [];
   const isCustomAgent = ctx.agentId !== undefined && ctx.agentId !== null;
 
@@ -167,25 +152,27 @@ function buildGreetingPrompt(ctx: GreetingContext, mode: string): string {
   return lines.join('\n');
 }
 
-function buildFillerCoachGreetingPrompt(ctx: GreetingContext): string {
-  const lines: string[] = [];
-  lines.push('You are a speech coach in the Reflexa app. You help users cut filler words and overused phrases so their speech is clearer and more confident.');
-  lines.push('You are direct, encouraging, and never judgmental.');
-  lines.push('');
-  lines.push('Generate a 1-2 sentence greeting for a filler word coaching session.');
-  lines.push('Rules:');
-  lines.push('- Frame the session around filler words and words they overuse — making their speech clearer.');
-  lines.push('- Be warm but direct. No bubbly language.');
-  lines.push('- Invite them to start talking naturally.');
-  lines.push('- Do NOT mention specific target words (those are session-specific and you don\'t know them yet).');
-  lines.push('- Output ONLY the greeting text. No quotes, no labels, no explanation.');
+/**
+ * Trim generated greeting text to at most `maxWords` words, preferring a cut
+ * at the last sentence boundary within the allowed slice. If no sentence
+ * boundary exists in the allowed slice, hard-cut at the word boundary (no
+ * appended punctuation). Matches the brevity budget in
+ * `.planning/features/reflexa-response-brevity.md`.
+ */
+function trimGreetingToWordCap(text: string, maxWords = 18): string {
+  const trimmed = text.trim();
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return trimmed;
 
-  if (ctx.displayName) {
-    lines.push('');
-    lines.push(`User's name: ${ctx.displayName}`);
-  }
-
-  return lines.join('\n');
+  const sliced = words.slice(0, maxWords).join(' ');
+  const lastEnd = Math.max(
+    sliced.lastIndexOf('.'),
+    sliced.lastIndexOf('!'),
+    sliced.lastIndexOf('?'),
+  );
+  if (lastEnd > 0) return sliced.slice(0, lastEnd + 1);
+  console.warn(`[greeting] Hard-cut, no sentence boundary in first ${maxWords} words`);
+  return sliced;
 }
 
 async function generateGreeting(userId: number, agentId: number | null, mode: string): Promise<string> {
@@ -194,7 +181,8 @@ async function generateGreeting(userId: number, agentId: number | null, mode: st
 
   const response = await groq.chat.completions.create({
     model: 'meta-llama/llama-4-scout-17b-16e-instruct',
-    max_completion_tokens: 80,
+    // Greeting cap: 40 tokens (≤ 18 words after post-trim). Previously 80.
+    max_completion_tokens: 40,
     temperature: 0.8,
     messages: [
       { role: 'system', content: prompt },
@@ -207,7 +195,7 @@ async function generateGreeting(userId: number, agentId: number | null, mode: st
     throw new Error('No text in greeting response');
   }
 
-  return text.trim();
+  return trimGreetingToWordCap(text.trim(), 18);
 }
 
 async function upsertGreeting(userId: number, agentId: number | null, mode: string, text: string): Promise<void> {
@@ -255,7 +243,6 @@ export async function ensureGreetingsExist(userId: number): Promise<void> {
   // 3. Build set of what SHOULD exist
   const needed: { agentId: number | null; mode: string }[] = [
     { agentId: null, mode: 'conversation' },      // Reflexa
-    { agentId: null, mode: 'filler-coach' },       // Filler coach
     ...userAgents.map(a => ({ agentId: a.id, mode: 'conversation' as string })),
   ];
 
@@ -287,7 +274,6 @@ export async function regenerateAllGreetings(userId: number): Promise<void> {
 
   const jobs: { agentId: number | null; mode: string }[] = [
     { agentId: null, mode: 'conversation' },
-    { agentId: null, mode: 'filler-coach' },
     ...userAgents.map(a => ({ agentId: a.id, mode: 'conversation' as string })),
   ];
 

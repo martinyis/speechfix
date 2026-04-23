@@ -71,7 +71,6 @@ export function getAvatarGradient(id: AvatarId): AvatarGradient {
 export const SYSTEM_MODE_AVATARS: Record<string, AvatarId> = {
   conversation: 'reflexa',
   onboarding: 'reflexa',
-  'filler-coach': 'm1',
   'agent-creator': 'f6',
 };
 

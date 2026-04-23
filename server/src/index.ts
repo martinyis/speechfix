@@ -9,6 +9,7 @@ import { sessions as sessionsTable } from './db/schema.js';
 import { sessionRoutes } from './modules/sessions/routes.js';
 import { sessionAudioRoutes, encodeAndPersistHifi } from './modules/sessions/audio-routes.js';
 import { voiceSessionRoute } from './modules/voice/ws-route.js';
+import { pressureDrillWsRoute } from './modules/pressure-drill/ws-route.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { onboardingRoutes } from './modules/onboarding/routes.js';
 import { agentRoutes } from './modules/agents/routes.js';
@@ -16,7 +17,8 @@ import { introAudioRoute } from './modules/agents/intro-audio-routes.js';
 import { practiceRoutes } from './modules/practice/routes.js';
 import { jobRoutes } from './modules/patterns/job-routes.js';
 import { greetingRoutes } from './modules/agents/greetings-routes.js';
-import { fillerCoachRoutes } from './modules/filler-coach/routes.js';
+import { pressureDrillRoutes } from './modules/pressure-drill/routes.js';
+import { promptEngineRoutes } from './modules/pressure-drill/prompt-engine-routes.js';
 import { weakSpotRoutes } from './modules/weak-spots/routes.js';
 import authPlugin from './plugins/auth.js';
 
@@ -36,12 +38,14 @@ await app.register(onboardingRoutes);
 await app.register(sessionRoutes);
 await app.register(sessionAudioRoutes);
 await app.register(voiceSessionRoute);
+await app.register(pressureDrillWsRoute);
 await app.register(agentRoutes);
 await app.register(introAudioRoute);
 await app.register(practiceRoutes, { prefix: '/practice' });
 await app.register(jobRoutes);
 await app.register(greetingRoutes);
-await app.register(fillerCoachRoutes);
+await app.register(pressureDrillRoutes);
+await app.register(promptEngineRoutes);
 await app.register(weakSpotRoutes, { prefix: '/practice' });
 
 async function recoverPendingHifiEncodes() {
