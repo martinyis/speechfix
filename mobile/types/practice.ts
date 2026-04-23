@@ -27,6 +27,7 @@ export type PracticeMode = 'say_it_right';
 export interface PatternExercise {
   id: number;
   originalSentence: string;
+  fullContext: string | null;
   targetWord: string | null;
   patternType: string;
   alternatives: string[];
@@ -60,11 +61,39 @@ export interface QueuedPattern {
   exampleSentences: string[];
   queuePosition: number;
   isReturning: boolean;
+  lastRegressedAt: string | null;
+  levelProgress: { completed: number; total: number };
+}
+
+export interface WatchingSessionHistoryEntry {
+  sessionId: number;
+  sessionDate: string;
+  appearedCount: number;
+  wasClean: boolean;
+}
+
+export interface WatchingPattern {
+  patternId: number;
+  type: string;
+  identifier: string | null;
+  severity: string;
+  description: string;
+  isReturning: boolean;
+  cleanSessionCount: number;
+  cleanSessionTarget: number;
+  baselineFrequency: number;
+  enteredWatchingAt: string | null;
+  sessionsHistory: WatchingSessionHistoryEntry[];
 }
 
 export interface PatternTasksResponse {
   active: ActivePattern | null;
+  watching: WatchingPattern[];
   queued: QueuedPattern[];
+  returning: boolean;
+  masteredCount: number;
+  queuedCount: number;
+  watchingCount: number;
 }
 
 // ---------------------------------------------------------------------------

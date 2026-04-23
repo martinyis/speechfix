@@ -139,7 +139,13 @@ export default function PracticeScreen() {
           )}
           {activeMode === 'filler_words' && <FillerWordsMode />}
           {activeMode === 'patterns' && patternData && (
-            <PatternsMode active={patternData.active} queued={patternData.queued} />
+            <PatternsMode
+              active={patternData.active}
+              queued={patternData.queued}
+              watching={patternData.watching}
+              returning={patternData.returning}
+              masteredCount={patternData.masteredCount}
+            />
           )}
         </ScrollView>
       </Animated.View>

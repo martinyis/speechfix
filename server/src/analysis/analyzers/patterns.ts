@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { PatternAnalysisInput, PatternAnalysisResult, SpeechPattern, PatternType } from '../types.js';
+import { buildUserProfileBlock } from '../../modules/shared/user-profile-prompt.js';
 
 const anthropic = new Anthropic();
 
@@ -85,11 +86,16 @@ export async function analyzePatterns(input: PatternAnalysisInput): Promise<Patt
       `${input.transcripts.reduce((sum, t) => sum + t.sentences.length, 0)} total sentences`,
   );
 
+  const profileBlock = buildUserProfileBlock(input.userProfile);
+  const systemPrompt = profileBlock
+    ? `${profileBlock}\n\n${PATTERNS_SYSTEM_PROMPT}`
+    : PATTERNS_SYSTEM_PROMPT;
+
   try {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
-      system: PATTERNS_SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: [
         {
           role: 'user',

@@ -1,5 +1,6 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { ScreenHeader } from '../../components/ui';
 import { colors, alpha, spacing, fonts, layout, borderRadius } from '../../theme';
 
@@ -13,7 +14,15 @@ interface LabEntry {
 
 // Register dev prototypes here. Kept empty after each prototype ships to
 // production so the lab stays quiet by default.
-const ENTRIES: LabEntry[] = [];
+const ENTRIES: LabEntry[] = [
+  {
+    key: 'pressure-drill',
+    title: 'Pressure Drill setup',
+    subtitle: 'Scenario + duration picker (Phase 5 smoke-test)',
+    route: '/pressure-drill',
+    icon: 'stopwatch-outline',
+  },
+];
 
 export default function LabIndexScreen() {
   return (
@@ -34,7 +43,33 @@ export default function LabIndexScreen() {
               {' '}when spinning up the next experiment.
             </Text>
           </View>
-        ) : null}
+        ) : (
+          <View style={styles.list}>
+            {ENTRIES.map((entry) => (
+              <Pressable
+                key={entry.key}
+                style={({ pressed }) => [
+                  styles.row,
+                  pressed && styles.rowPressed,
+                ]}
+                onPress={() => router.push(entry.route as never)}
+              >
+                <View style={styles.rowIcon}>
+                  <Ionicons name={entry.icon} size={22} color={colors.primary} />
+                </View>
+                <View style={styles.rowText}>
+                  <Text style={styles.rowTitle}>{entry.title}</Text>
+                  <Text style={styles.rowSubtitle}>{entry.subtitle}</Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={alpha(colors.white, 0.3)}
+                />
+              </Pressable>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -54,6 +89,46 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     color: alpha(colors.white, 0.4),
     lineHeight: 18,
+  },
+  list: {
+    gap: spacing.sm,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    backgroundColor: alpha(colors.white, 0.04),
+    borderRadius: borderRadius.default,
+    borderWidth: 1,
+    borderColor: alpha(colors.white, 0.08),
+  },
+  rowPressed: {
+    backgroundColor: alpha(colors.white, 0.08),
+  },
+  rowIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: alpha(colors.primary, 0.12),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowText: {
+    flex: 1,
+    gap: 2,
+  },
+  rowTitle: {
+    fontSize: 15,
+    fontFamily: fonts.semibold,
+    color: alpha(colors.white, 0.9),
+  },
+  rowSubtitle: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: alpha(colors.white, 0.45),
+    lineHeight: 16,
   },
   emptyWrap: {
     alignItems: 'center',

@@ -1,8 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { eq } from 'drizzle-orm';
 import { db } from '../../db/index.js';
-import { sessions } from '../../db/schema.js';
+import { sessions, users } from '../../db/schema.js';
 import type { SpeechTimeline } from '../voice/speech-types.js';
+import { buildUserProfileBlock, type UserProfileInput } from '../shared/user-profile-prompt.js';
 
 export interface DeepInsightAnchor {
   /** "point" → single moment (a word, a short phrase). "range" → utterance or topic span. */
@@ -39,6 +40,7 @@ export interface DeepInsightsInput {
   topicCategory?: string | null;
   sessionTitle?: string | null;
   durationSeconds: number;
+  userProfile?: UserProfileInput | null;
 }
 
 export interface DeepInsightsResult {
@@ -379,13 +381,15 @@ export async function generateDeepInsights(
 ): Promise<DeepInsightsResult> {
   const model = options.model ?? resolveModel();
   const userPrompt = buildUserPrompt(input);
+  const profileBlock = buildUserProfileBlock(input.userProfile);
+  const systemPrompt = profileBlock ? `${profileBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT;
   const started = Date.now();
 
   const client = new Anthropic();
   const response = await client.messages.create({
     model,
     max_tokens: 2048,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });
 
@@ -445,7 +449,7 @@ export async function generateDeepInsights(
     promptTokens: response.usage?.input_tokens,
     completionTokens: response.usage?.output_tokens,
     durationMs,
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt,
     userPrompt,
   };
 }
@@ -464,7 +468,18 @@ export async function generateAndPersistDeepInsights(
   input: DeepInsightsInput,
 ): Promise<DeepInsight[] | null> {
   try {
-    const result = await generateDeepInsights(input);
+    let userProfile = input.userProfile;
+    if (userProfile === undefined) {
+      const [row] = await db
+        .select({ context: users.context, goals: users.goals, userId: sessions.userId })
+        .from(sessions)
+        .innerJoin(users, eq(users.id, sessions.userId))
+        .where(eq(sessions.id, dbSessionId));
+      userProfile = row
+        ? { context: row.context ?? null, goals: (row.goals as string[] | null) ?? null }
+        : null;
+    }
+    const result = await generateDeepInsights({ ...input, userProfile });
     await db.update(sessions)
       .set({ deepInsights: result.insights })
       .where(eq(sessions.id, dbSessionId));

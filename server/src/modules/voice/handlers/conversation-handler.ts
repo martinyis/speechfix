@@ -1,5 +1,5 @@
-import type { ConversationMessage } from '../response-generator.js';
-import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult } from './types.js';
+import type { ConversationMessage, BrevityOptions } from '../response-generator.js';
+import type { AgentTypeHandler, AgentConfig, FullUserContext, SessionEndResult, AirtimeCounts } from './types.js';
 import type { SpeechTimeline } from '../speech-types.js';
 import type { ChatTool } from '../tools.js';
 import { END_SESSION_TOOL } from '../tools.js';
@@ -8,6 +8,11 @@ import { BEHAVIOR_PROMPT, CUSTOM_AGENT_BEHAVIOR_PROMPT } from '../prompts/behavi
 import { REFLEXA_SESSION_PROMPT, CUSTOM_AGENT_SESSION_PROMPT } from '../prompts/session-types/conversation.js';
 import { buildUserContextPrompt } from '../prompts/context.js';
 import { resolveElicitationStyle, ELICITATION_PROMPTS } from '../prompts/elicitation.js';
+import {
+  BREVITY_PROMPT_DEFAULT,
+  DEFAULT_TRUNCATE_WORDS,
+  QUESTION_TRUNCATE_WORDS,
+} from '../prompts/brevity.js';
 import { runAnalysis, runAnalysisPhased } from '../../../analysis/index.js';
 import type { PhasedInsightsPayload } from '../../../analysis/types.js';
 import { generateSessionMetadata } from '../../sessions/title-generator.js';
@@ -24,10 +29,49 @@ import {
   runPostAnalysisSideEffects,
 } from './session-persist.js';
 
+/**
+ * Build the `airtime_ratio` jsonb payload for persistence. Null when we have
+ * no counts at all (legacy/empty session). `ratio` is null when both sides
+ * spoke zero words, since the denominator is 0.
+ */
+export function buildAirtimeRatio(
+  airtimeCounts: AirtimeCounts | undefined,
+): { aiWords: number; userWords: number; ratio: number | null } | null {
+  if (!airtimeCounts) return null;
+  const ai = airtimeCounts.aiWordCount;
+  const user = airtimeCounts.userWordCount;
+  const total = ai + user;
+  return {
+    aiWords: ai,
+    userWords: user,
+    ratio: total > 0 ? ai / total : null,
+  };
+}
+
+/**
+ * Structured log line for airtime. Persistent — this is the long-term
+ * feedback signal for whether brevity is working. Target for draw-out
+ * sessions: ratio ≤ 0.25 (per the elicitation prompt's explicit goal).
+ */
+export function logAirtime(
+  dbSessionId: number | null,
+  airtimeCounts: AirtimeCounts | undefined,
+  agentConfig: AgentConfig | null,
+): void {
+  if (!airtimeCounts) return;
+  const total = airtimeCounts.aiWordCount + airtimeCounts.userWordCount;
+  const ratio = total > 0
+    ? (airtimeCounts.aiWordCount / total).toFixed(3)
+    : 'n/a';
+  console.log(
+    `[airtime] session=${dbSessionId ?? 'none'} ai=${airtimeCounts.aiWordCount}w user=${airtimeCounts.userWordCount}w ratio=${ratio} agent=${agentConfig?.name ?? 'Reflexa'}`
+  );
+}
+
 export class ConversationHandler implements AgentTypeHandler {
   readonly needsUserContext = true;
   readonly greetingStrategy = 'pregenerated' as const;
-  readonly maxCompletionTokens = { withTools: 200, withoutTools: 100 };
+  readonly maxCompletionTokens = { withTools: 200, withoutTools: 25 };
 
   buildSystemPrompt(agentConfig: AgentConfig | null, userContext?: FullUserContext, _formContext?: Record<string, unknown> | null): string {
     const layers: string[] = [];
@@ -63,6 +107,9 @@ export class ConversationHandler implements AgentTypeHandler {
       }
     }
 
+    // Brevity fragment must be LAST so LLMs weight it most heavily.
+    layers.push(BREVITY_PROMPT_DEFAULT);
+
     return layers.join('\n\n');
   }
 
@@ -74,6 +121,17 @@ export class ConversationHandler implements AgentTypeHandler {
     return false;
   }
 
+  getBrevityBudget(isDirectQuestion: boolean, hasTools: boolean): BrevityOptions {
+    // Tool-call turns keep slack for the `end_session` tool payload and are
+    // never truncated — truncating tool-call JSON corrupts the protocol.
+    if (hasTools) {
+      return { maxCompletionTokens: this.maxCompletionTokens.withTools };
+    }
+    return isDirectQuestion
+      ? { maxCompletionTokens: 60, truncateToWords: QUESTION_TRUNCATE_WORDS }
+      : { maxCompletionTokens: 25, truncateToWords: DEFAULT_TRUNCATE_WORDS };
+  }
+
   async onSessionEnd(
     userId: number,
     agentConfig: AgentConfig | null,
@@ -82,6 +140,7 @@ export class ConversationHandler implements AgentTypeHandler {
     durationSeconds: number,
     _formContext?: Record<string, unknown> | null,
     speechTimeline?: SpeechTimeline,
+    airtimeCounts?: AirtimeCounts,
   ): Promise<SessionEndResult> {
     const fullTranscription = transcriptBuffer.join(' ');
 
@@ -92,11 +151,16 @@ export class ConversationHandler implements AgentTypeHandler {
 
     const userUtterances = transcriptBuffer;
 
-    const [analysisResult, metadata, contextNotes] = await Promise.all([
+    const [analysisResult, metadata, contextNotes, userRow] = await Promise.all([
       runAnalysis(userId, { sentences: userUtterances, mode: 'conversation', conversationHistory, speechTimeline }),
       generateSessionMetadata(fullTranscription, conversationHistory),
       extractConversationNotes(conversationHistory),
+      db.select({ context: users.context, goals: users.goals }).from(users).where(eq(users.id, userId)).then(r => r[0]),
     ]);
+    const userProfile = {
+      context: userRow?.context ?? null,
+      goals: (userRow?.goals as string[] | null) ?? null,
+    };
 
     const briefInsightsPromise = generateSessionBriefInsights({
       sentences: userUtterances,
@@ -104,6 +168,7 @@ export class ConversationHandler implements AgentTypeHandler {
       fillerWords: analysisResult.fillerWords,
       durationSeconds,
       existingInsights: analysisResult.sessionInsights,
+      userProfile,
     }).catch(err => {
       console.error('[conversation-handler] Brief insights failed:', err);
       return [];
@@ -136,15 +201,53 @@ export class ConversationHandler implements AgentTypeHandler {
         conversationContext: conversationHistory,
         speechTimeline: speechTimeline ?? undefined,
       },
+      airtimeRatio: buildAirtimeRatio(airtimeCounts),
     }).where(eq(sessions.id, session.id));
 
     const correctionIds = await insertCorrectionsBatch(session.id, analysisResult.corrections);
     await insertFillerWordsBatch(session.id, analysisResult.fillerWords);
 
     console.log(`[conversation-handler] Session stored: ${session.id} — ${analysisResult.corrections.length} corrections, ${analysisResult.fillerWords.length} filler types`);
+    logAirtime(session.id, airtimeCounts, agentConfig);
+
+    // Fire-and-forget deep insights on the non-streaming fallback path too
+    // so sessions that end through here still get insights persisted.
+    // Client picks them up via GET /sessions/:id/deep-insights.
+    if (speechTimeline) {
+      const capturedSessionId = session.id;
+      const conversationTranscript = conversationHistory
+        .filter(m => m.content && m.content !== '[Session started]' && !m.content.startsWith('[User has been silent'))
+        .map(m => ({
+          role: (m.role === 'assistant' ? 'ai' : 'user') as 'ai' | 'user',
+          text: m.content,
+        }));
+
+      void generateAndPersistDeepInsights(capturedSessionId, {
+        speechTimeline,
+        conversationTranscript,
+        corrections: analysisResult.corrections.map(c => ({
+          originalText: c.originalText,
+          correctedText: c.correctedText,
+          correctionType: c.correctionType,
+          severity: c.severity,
+        })),
+        fillerWords: analysisResult.fillerWords,
+        fillerPositions: analysisResult.fillerPositions.map(p => ({
+          word: p.word,
+          sentenceIndex: p.sentenceIndex,
+          time: p.timeSeconds ?? null,
+        })),
+        topicCategory: metadata.topicCategory ?? null,
+        sessionTitle: metadata.title ?? null,
+        durationSeconds,
+      }).catch(err => {
+        console.error(`[conversation-handler] Deep insights job crashed for session ${capturedSessionId}:`, err);
+      });
+    }
 
     await runPostAnalysisSideEffects({
       userId, agentConfig, correctionIds, userUtterances, contextNotes,
+      sessionId: session.id,
     });
 
     return {
@@ -171,6 +274,7 @@ export class ConversationHandler implements AgentTypeHandler {
     onInsightsReady?: (payload: any, dbSessionId: number) => void,
     speechTimeline?: SpeechTimeline,
     onDeepInsightsReady?: (insights: DeepInsight[], dbSessionId: number) => void,
+    airtimeCounts?: AirtimeCounts,
   ): Promise<SessionEndResult> {
     const fullTranscription = transcriptBuffer.join(' ');
 
@@ -246,10 +350,12 @@ export class ConversationHandler implements AgentTypeHandler {
           conversationContext: conversationHistory,
           speechTimeline: speechTimeline ?? undefined,
         },
+        airtimeRatio: buildAirtimeRatio(airtimeCounts),
       }).where(eq(sessions.id, dbSessionId));
     }
 
     console.log(`[conversation-handler] Phased: ${analysisResult.corrections.length} corrections, ${analysisResult.fillerWords.length} filler types`);
+    logAirtime(dbSessionId || null, airtimeCounts, agentConfig);
 
     // Fire-and-forget deep insights: ~10s on Opus. Must NOT block analysis_complete.
     if (dbSessionId > 0 && speechTimeline) {
@@ -292,6 +398,7 @@ export class ConversationHandler implements AgentTypeHandler {
     const contextNotes = await contextNotesPromise;
     await runPostAnalysisSideEffects({
       userId, agentConfig, correctionIds, userUtterances, contextNotes,
+      sessionId: dbSessionId > 0 ? dbSessionId : undefined,
     });
 
     return {

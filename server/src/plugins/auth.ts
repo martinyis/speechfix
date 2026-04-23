@@ -19,7 +19,7 @@ async function authPlugin(fastify: FastifyInstance) {
       return;
     }
 
-    const isWs = request.url.startsWith('/voice-session');
+    const isWs = urlPath === '/voice-session' || urlPath === '/pressure-drill/session';
     let token: string | undefined;
 
     if (isWs) {

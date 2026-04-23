@@ -1,9 +1,12 @@
 import Groq from 'groq-sdk';
 import type { Correction, FillerWordCount, FillerWordPosition, SessionInsight, PhasedInsightsPayload } from '../../analysis/types.js';
 import type { SpeechTimeline } from '../voice/speech-types.js';
+import { buildUserProfileBlock, type UserProfileInput } from '../shared/user-profile-prompt.js';
 
 const groq = new Groq();
 const MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+
+const INSIGHTS_SYSTEM_BASE = 'You are a speech analysis expert. Return only valid JSON.';
 
 interface SessionBriefInput {
   sentences: string[];
@@ -11,10 +14,11 @@ interface SessionBriefInput {
   fillerWords: FillerWordCount[];
   durationSeconds: number;
   existingInsights: SessionInsight[];
+  userProfile?: UserProfileInput | null;
 }
 
 export async function generateSessionBriefInsights(input: SessionBriefInput): Promise<SessionInsight[]> {
-  const { sentences, corrections, fillerWords, durationSeconds, existingInsights } = input;
+  const { sentences, corrections, fillerWords, durationSeconds, existingInsights, userProfile } = input;
   const insights: SessionInsight[] = [];
 
   // --- Computed metrics (no LLM) ---
@@ -58,11 +62,14 @@ Format: [{"type": "quality_assessment"|"strength"|"focus_area", "description": "
 
 Keep descriptions concise (under 15 words each). Be encouraging but honest.`;
 
+  const profileBlock = buildUserProfileBlock(userProfile);
+  const systemContent = profileBlock ? `${profileBlock}\n\n${INSIGHTS_SYSTEM_BASE}` : INSIGHTS_SYSTEM_BASE;
+
   try {
     const response = await groq.chat.completions.create({
       model: MODEL,
       messages: [
-        { role: 'system', content: 'You are a speech analysis expert. Return only valid JSON.' },
+        { role: 'system', content: systemContent },
         { role: 'user', content: prompt },
       ],
       temperature: 0.3,
@@ -100,10 +107,11 @@ interface PhasedInsightsInput {
   durationSeconds: number;
   existingInsights: SessionInsight[];
   speechTimeline?: SpeechTimeline;
+  userProfile?: UserProfileInput | null;
 }
 
 export async function generatePhasedInsights(input: PhasedInsightsInput): Promise<PhasedInsightsPayload> {
-  const { sentences, fillerWords, fillerPositions, durationSeconds, existingInsights, speechTimeline } = input;
+  const { sentences, fillerWords, fillerPositions, durationSeconds, existingInsights, speechTimeline, userProfile } = input;
 
   // --- Computed metrics ---
   const totalWords = sentences.join(' ').split(/\s+/).filter(Boolean).length;
@@ -172,11 +180,14 @@ Return ONLY valid JSON with this structure:
 ${speechTimeline ? '\nInclude delivery-focused observations in strengths/focus_areas when notable (pace changes, volume patterns, expressiveness).' : ''}
 Keep text descriptions concise (under 15 words each). Be encouraging but honest.`;
 
+  const profileBlock = buildUserProfileBlock(userProfile);
+  const systemContent = profileBlock ? `${profileBlock}\n\n${INSIGHTS_SYSTEM_BASE}` : INSIGHTS_SYSTEM_BASE;
+
   try {
     const response = await groq.chat.completions.create({
       model: MODEL,
       messages: [
-        { role: 'system', content: 'You are a speech analysis expert. Return only valid JSON.' },
+        { role: 'system', content: systemContent },
         { role: 'user', content: prompt },
       ],
       temperature: 0.3,

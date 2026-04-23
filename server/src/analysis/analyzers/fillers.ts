@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { Analyzer, AnalyzerInput, AnalysisResult } from '../types.js';
 import { parseJsonResponse, normalizeFillerWords, buildUserMessage } from '../utils.js';
+import { buildUserProfileBlock } from '../../modules/shared/user-profile-prompt.js';
 
 const anthropic = new Anthropic();
 
@@ -70,13 +71,18 @@ export class FillerAnalyzer implements Analyzer {
       'Analyze these speech sentences for filler words and verbal pauses:',
     );
 
+    const profileBlock = buildUserProfileBlock(input.userProfile);
+    const systemPrompt = profileBlock
+      ? `${profileBlock}\n\n${FILLER_SYSTEM_PROMPT}`
+      : FILLER_SYSTEM_PROMPT;
+
     console.log(`[filler-analyzer] Analyzing ${input.sentences.length} sentences`);
 
     try {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2048,
-        system: FILLER_SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       });
 

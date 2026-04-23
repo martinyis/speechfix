@@ -85,8 +85,11 @@ export class AgentCreatorHandler implements AgentTypeHandler {
 
       console.log(`[agent-creator-handler] Fallback agent created: ${newAgent.id}`);
 
-      // Await greeting so it's ready when user taps "Start Practicing"
-      await generateGreetingForAgent(userId, newAgent.id);
+      // Fire-and-forget: blocking on Groq (5–15s) would stall session teardown.
+      // If greeting isn't ready when user opens the agent, session-manager falls back to live Claude generation.
+      void generateGreetingForAgent(userId, newAgent.id).catch(err =>
+        console.error('[agent-creator-handler] Greeting generation failed:', err)
+      );
 
       return {
         type: 'agent-created',
@@ -122,8 +125,11 @@ export class AgentCreatorHandler implements AgentTypeHandler {
 
     console.log(`[agent-creator-handler] Agent created: ${newAgent.id} (${newAgent.name})`);
 
-    // Await greeting so it's ready when user taps "Start Practicing"
-    await generateGreetingForAgent(userId, newAgent.id);
+    // Fire-and-forget: blocking on Groq (5–15s) would stall session teardown.
+    // If greeting isn't ready when user opens the agent, session-manager falls back to live Claude generation.
+    void generateGreetingForAgent(userId, newAgent.id).catch(err =>
+      console.error('[agent-creator-handler] Greeting generation failed:', err)
+    );
 
     return {
       type: 'agent-created',

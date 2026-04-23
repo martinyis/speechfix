@@ -1,5 +1,5 @@
 import type { ChatTool } from '../tools.js';
-import type { ConversationMessage, UserContext } from '../response-generator.js';
+import type { ConversationMessage, UserContext, BrevityOptions } from '../response-generator.js';
 import type { SpeechTimeline } from '../speech-types.js';
 
 export interface AgentConfig {
@@ -37,6 +37,11 @@ export interface SessionEndResult {
   farewellMessage?: string | null;
 }
 
+export interface AirtimeCounts {
+  aiWordCount: number;
+  userWordCount: number;
+}
+
 export interface AgentTypeHandler {
   readonly needsUserContext: boolean;
   readonly greetingStrategy: 'pregenerated' | 'none';
@@ -47,6 +52,13 @@ export interface AgentTypeHandler {
   buildSystemPrompt(agentConfig: AgentConfig | null, userContext?: FullUserContext, formContext?: Record<string, unknown> | null): string;
   getTools?(): ChatTool[];
   shouldAutoEnd(turnCount: number, conversationHistory: ConversationMessage[]): boolean;
+  /**
+   * Return per-turn brevity budget based on whether the user asked a direct
+   * question and whether tools are enabled this turn. Handlers that opt out
+   * (no budget) should omit this method — the default (`maxCompletionTokens`
+   * from the handler, no truncation) will be used.
+   */
+  getBrevityBudget?(isDirectQuestion: boolean, hasTools: boolean): BrevityOptions;
   onSessionEnd(
     userId: number,
     agentConfig: AgentConfig | null,
@@ -55,6 +67,7 @@ export interface AgentTypeHandler {
     durationSeconds: number,
     formContext?: Record<string, unknown> | null,
     speechTimeline?: SpeechTimeline,
+    airtimeCounts?: AirtimeCounts,
   ): Promise<SessionEndResult>;
 
   onSessionEndStreaming?(
@@ -68,5 +81,6 @@ export interface AgentTypeHandler {
     onInsightsReady?: (payload: any, dbSessionId: number) => void,
     speechTimeline?: SpeechTimeline,
     onDeepInsightsReady?: (insights: any[], dbSessionId: number) => void,
+    airtimeCounts?: AirtimeCounts,
   ): Promise<SessionEndResult>;
 }

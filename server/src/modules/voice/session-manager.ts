@@ -1,7 +1,8 @@
 import { WebSocket } from 'ws';
 import { DeepgramClient, TranscriptResult } from './deepgram.js';
 import { generateResponse } from './response-generator.js';
-import type { ConversationMessage, ResponseMeta } from './response-generator.js';
+import type { ConversationMessage, ResponseMeta, BrevityOptions } from './response-generator.js';
+import { isDirectQuestionTurn } from './prompts/brevity.js';
 import { CartesiaTTS } from './tts.js';
 import { detectTurnHeuristic, detectTurnLLM } from './turn-detector.js';
 import { DEFAULT_VOICE_ID, SYSTEM_MODE_VOICES } from './voice-config.js';
@@ -10,7 +11,6 @@ import { db } from '../../db/index.js';
 import { users } from '../../db/schema.js';
 import { eq, and, isNull, or } from 'drizzle-orm';
 import { fetchGreeting, regenerateAllGreetings } from '../agents/greeting-generator.js';
-import { FillerCoachHandler } from '../filler-coach/handler.js';
 import { hasLowConfidenceWords, correctTranscript, type WordWithConfidence } from './transcript-corrector.js';
 import { PitchAccumulator } from './pitch-detector.js';
 import type { WordTimingData, UtteranceMetadata, SpeechTimeline } from './speech-types.js';
@@ -107,6 +107,15 @@ function computeUtteranceTrimSegments(
 
 export type SessionState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
+/**
+ * Whitespace word counter used for the AI/user airtime metric. Empty/
+ * whitespace-only strings return 0 so tool-call-only AI turns and empty
+ * user segments naturally contribute nothing.
+ */
+export function countWordsForAirtime(s: string): number {
+  return s.trim().split(/\s+/).filter(Boolean).length;
+}
+
 export class VoiceSession {
   sessionId: string;
   ws: WebSocket;
@@ -140,6 +149,11 @@ export class VoiceSession {
   private pitchAccumulator = new PitchAccumulator(SAMPLE_RATE);
   private lastSpeechStartedAt = 0;
 
+  // AI/user airtime metric — whitespace word counts accumulated across the
+  // live session. Persisted to `sessions.airtimeRatio` at session end.
+  aiWordCount = 0;
+  userWordCount = 0;
+
   // Running count of PCM bytes persisted. At SAMPLE_RATE × 2 bytes/sample mono,
   // `pcmBytesWritten / BYTES_PER_SEC` is the current dg-time in seconds.
   private pcmBytesWritten = 0;
@@ -172,9 +186,16 @@ export class VoiceSession {
     this.formContext = formContext ?? null;
   }
 
+  private tlog(...args: unknown[]) {
+    if (this.mode !== 'onboarding') return;
+    const ms = this.startTime ? Date.now() - this.startTime : 0;
+    console.log(`[onb-timing] +${ms}ms`, ...args);
+  }
+
   async start() {
     this.startTime = Date.now();
     this.state = 'listening';
+    this.tlog('start() called, mode=', this.mode);
 
     // Open temp PCM file for audio capture (Pitch Ribbon playback).
     // Only kept while session runs; encoded + moved to final storage at session end.
@@ -197,7 +218,7 @@ export class VoiceSession {
       || DEFAULT_VOICE_ID;
 
     const strategy = this.handler.greetingStrategy;
-    const greetingMode = this.handler instanceof FillerCoachHandler ? 'filler-coach' : 'conversation';
+    const greetingMode = 'conversation';
 
     const greetingPromise = strategy === 'pregenerated'
       ? fetchGreeting(this.userId, this.agentConfig?.id ?? null, greetingMode).catch(err => {
@@ -260,6 +281,9 @@ export class VoiceSession {
       this.tts = new CartesiaTTS(cartesiaKey, voiceId, {
         onAudio: (base64Chunk) => {
           if (this.isSpeaking) {
+            if (this.turnAudioBytes === 0) {
+              this.tlog(`first TTS audio chunk out for turn ${this.currentTurnId} (${base64Chunk.length} b64 chars)`);
+            }
             this.turnAudioBytes += Math.ceil(base64Chunk.length * 3 / 4);
             this.sendToClient({ type: 'audio', data: base64Chunk, turnId: this.currentTurnId });
           }
@@ -280,6 +304,7 @@ export class VoiceSession {
       }
     })();
 
+    this.tlog('awaiting parallel setup (deepgram+cartesia+greeting+userCtx)');
     // Wait for all parallel setup to complete
     const [preGeneratedGreeting, userContext] = await Promise.all([
       greetingPromise,
@@ -287,12 +312,14 @@ export class VoiceSession {
       deepgramPromise,
       ttsPromise,
     ]);
+    this.tlog('parallel setup complete', { deepgramOk: !!this.deepgram, ttsOk: !!this.tts });
 
     // Build system prompt via handler
     this.systemPrompt = this.handler.buildSystemPrompt(this.agentConfig, userContext, this.formContext);
 
     this.sendToClient({ type: 'ready', sessionId: this.sessionId });
     console.log(`[DEBUG] Sent 'ready' to client`);
+    this.tlog('ready sent to client');
 
     // --- Greeting: use pre-generated text or fall back to Claude ---
     console.log(`[DEBUG] Starting greeting generation`);
@@ -401,6 +428,13 @@ export class VoiceSession {
       console.log(`[audio-pipe] ⚠️ Transcript received while AI speaking (ignored): "${result.text}"`);
       return;
     }
+
+    // User is actively speaking — don't let the silence-nudge timer interrupt.
+    // Without this, continuous monologues (no 1s pauses → no UtteranceEnd, no
+    // speech_final) let the timer run to 30s and fire "are you still there?"
+    // mid-sentence. onSpeechFinal clears it too, but only after the utterance
+    // ends; this keeps it alive during the utterance itself.
+    if (result.text) this.clearSilenceTimer();
 
     // Log every transcript with word-level confidence
     const wordDetails = result.words
@@ -512,7 +546,11 @@ export class VoiceSession {
     }
 
     console.log(`[voice-session] Speech final, utterance: "${utterance}"`);
+    this.tlog('speech final →', JSON.stringify(utterance));
     this.transcriptBuffer.push(utterance);
+
+    // Airtime: count final user utterances only (never interim — would inflate).
+    this.userWordCount += countWordsForAirtime(utterance);
 
     // Prepend elapsed time for handlers that need it (e.g. filler coach pacing)
     let messageContent = utterance;
@@ -619,6 +657,9 @@ export class VoiceSession {
 
     this.conversationHistory.push({ role: 'assistant', content: greetingText });
 
+    // Airtime: greeting counts as AI speech.
+    this.aiWordCount += countWordsForAirtime(greetingText);
+
     this.sendToClient({
       type: 'audio_end',
       turnId: this.currentTurnId,
@@ -637,6 +678,8 @@ export class VoiceSession {
   private async generateAndSendResponse() {
     if (this.sessionEnding) return;
     console.log(`[DEBUG] generateAndSendResponse() called, state=${this.state}, isSpeaking=${this.isSpeaking}`);
+    const turnT0 = Date.now();
+    this.tlog(`generateAndSendResponse() begin (turn ${this.currentTurnId + 1})`);
     const abortController = new AbortController();
     this.activeAbortController = abortController;
     this.currentTurnId++;
@@ -656,22 +699,44 @@ export class VoiceSession {
     const meta: ResponseMeta = { toolCalls: [] };
 
     try {
-      const maxTokens = this.handler.maxCompletionTokens
-        ? (tools.length > 0 ? this.handler.maxCompletionTokens.withTools : this.handler.maxCompletionTokens.withoutTools)
-        : undefined;
+      // Per-turn brevity budget: question detector on the last user message
+      // bumps the cap; tool-call turns keep their slack and skip truncation.
+      const lastUserMsg = [...this.conversationHistory]
+        .reverse()
+        .find(m => m.role === 'user')?.content;
+      const isQuestion = isDirectQuestionTurn(lastUserMsg);
+      const hasTools = tools.length > 0;
+
+      let brevityOptions: BrevityOptions | undefined;
+      if (this.handler.getBrevityBudget) {
+        brevityOptions = this.handler.getBrevityBudget(isQuestion, hasTools);
+      } else if (this.handler.maxCompletionTokens) {
+        // Fallback: preserve pre-brevity behavior for handlers that don't opt
+        // in (e.g. onboarding, agent-creator). Tokens only, no truncation.
+        brevityOptions = {
+          maxCompletionTokens: hasTools
+            ? this.handler.maxCompletionTokens.withTools
+            : this.handler.maxCompletionTokens.withoutTools,
+        };
+      }
 
       const responseGen = generateResponse(
         this.conversationHistory,
         abortController.signal,
         this.systemPrompt,
-        tools.length > 0 ? tools : undefined,
+        hasTools ? tools : undefined,
         meta,
-        maxTokens,
+        brevityOptions,
       );
 
+      let firstChunkLogged = false;
       for await (const chunk of responseGen) {
         if (abortController.signal.aborted) break;
 
+        if (!firstChunkLogged) {
+          firstChunkLogged = true;
+          this.tlog(`first LLM chunk (Δ from turn start = ${Date.now() - turnT0}ms): "${chunk.slice(0, 40)}..."`);
+        }
         fullResponse += (fullResponse ? ' ' : '') + chunk;
         console.log(`[voice-session] Response chunk: "${chunk}"`);
 
@@ -689,25 +754,31 @@ export class VoiceSession {
         }
       }
 
-      // If an end tool was called, skip TTS flush/wait for immediate session end
-      const hasEndTool = meta.toolCalls.includes('end_session') || meta.toolCalls.includes('end_onboarding');
-
-      if (!hasEndTool) {
-        // Normal flow: flush TTS and wait for all audio to be delivered
-        if (!abortController.signal.aborted && this.tts) {
-          console.log(`[DEBUG] Flushing TTS (EOS signal)`);
-          this.tts.flush();
-          console.log(`[DEBUG] Waiting for TTS completion...`);
-          await this.tts.waitForCompletion();
-          console.log(`[DEBUG] TTS complete, ${this.turnAudioBytes} audio bytes sent`);
-        }
-      } else {
-        console.log(`[voice-session] End tool detected in stream, skipping TTS wait for immediate session end`);
+      // Always flush TTS and wait for completion — even when an end tool is
+      // called. When the LLM emits text + end_onboarding/end_session in one
+      // response, the text IS the farewell. Without flush(), Cartesia holds
+      // the final audio buffer; handleDone() then calls tts.abort() which
+      // drops it entirely, so the user never hears the farewell.
+      if (!abortController.signal.aborted && this.tts) {
+        console.log(`[DEBUG] Flushing TTS (EOS signal)`);
+        this.tts.flush();
+        console.log(`[DEBUG] Waiting for TTS completion...`);
+        const flushT0 = Date.now();
+        await this.tts.waitForCompletion();
+        this.tlog(`TTS completion waited ${Date.now() - flushT0}ms (turn total ${Date.now() - turnT0}ms, bytes=${this.turnAudioBytes})`);
+        console.log(`[DEBUG] TTS complete, ${this.turnAudioBytes} audio bytes sent`);
       }
 
       if (!abortController.signal.aborted && fullResponse) {
         this.conversationHistory.push({ role: 'assistant', content: fullResponse });
         console.log(`[DEBUG] Full response stored: "${fullResponse}"`);
+      }
+
+      // Airtime: count whatever the AI actually yielded this turn (including
+      // partial output from truncated/interrupted turns — those words WERE
+      // spoken). Tool-call-only turns contribute 0 (empty fullResponse).
+      if (fullResponse) {
+        this.aiWordCount += countWordsForAirtime(fullResponse);
       }
     } catch (err: any) {
       if (err.name !== 'AbortError' && !abortController.signal.aborted) {
@@ -813,6 +884,7 @@ export class VoiceSession {
       const utterance = this.currentUtteranceBuffer.trim();
       this.transcriptBuffer.push(utterance);
       this.muteTranscriptBuffer.push(utterance);
+      this.userWordCount += countWordsForAirtime(utterance);
 
       const lastMsg = this.conversationHistory[this.conversationHistory.length - 1];
       if (lastMsg?.role === 'user') {
@@ -882,6 +954,7 @@ export class VoiceSession {
     if (this.currentUtteranceBuffer.trim()) {
       const remaining = this.currentUtteranceBuffer.trim();
       this.transcriptBuffer.push(remaining);
+      this.userWordCount += countWordsForAirtime(remaining);
 
       // Build metadata for the final utterance
       if (this.currentUtteranceTimedWords.length > 0) {
@@ -958,6 +1031,7 @@ export class VoiceSession {
             onInsightsReady,
             speechTimeline,
             onDeepInsightsReady,
+            { aiWordCount: this.aiWordCount, userWordCount: this.userWordCount },
           );
 
           // Send analysis_complete with remaining data (corrections, final insights)
@@ -1012,6 +1086,7 @@ export class VoiceSession {
       durationSeconds,
       this.formContext,
       speechTimeline,
+      { aiWordCount: this.aiWordCount, userWordCount: this.userWordCount },
     );
 
     switch (result.type) {

@@ -3,6 +3,8 @@ import { AppState } from 'react-native';
 import { ExpoPlayAudioStream, PlaybackModes } from '@mykin-ai/expo-audio-stream';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSessionStore } from '../../stores/sessionStore';
+import { computeRMS } from '../../lib/rms';
+import { voiceAudioLevel } from '../../lib/voiceAudioLevel';
 
 export type CoreMessage = {
   type: string;
@@ -62,6 +64,7 @@ export function useVoiceSessionCore(config: UseVoiceSessionCoreConfig): UseVoice
   const playbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speakingEndRef = useRef(0);
   const cleanedUpRef = useRef(false);
+  const smoothedLevelRef = useRef(0);
 
   const store = useSessionStore;
 
@@ -79,14 +82,20 @@ export function useVoiceSessionCore(config: UseVoiceSessionCoreConfig): UseVoice
       isRecordingRef.current = false;
     }
     try { await ExpoPlayAudioStream.stopSound(); } catch (e) { console.warn(`${logTag} stopSound error:`, e); }
+    voiceAudioLevel.value = 0;
+    smoothedLevelRef.current = 0;
 
     if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
     deactivateKeepAwake();
     isStoppingRef.current = false;
   }, [logTag]);
 
+  const isOnb = logTag === '[onboarding-ws]';
+  const firstMicChunkAfterPlaybackRef = useRef(true);
+
   const startMicAndTimer = useCallback(async () => {
     if (isRecordingRef.current) return;
+    if (isOnb) console.log('[onb-timing] mic startRecording() begin');
 
     if (!timerRef.current) {
       timerRef.current = setInterval(() => {
@@ -104,12 +113,37 @@ export function useVoiceSessionCore(config: UseVoiceSessionCoreConfig): UseVoice
           const ws = wsRef.current;
           if (!ws || ws.readyState !== WebSocket.OPEN || !event.data) return;
           const s = store.getState();
-          if (s.voiceSessionState === 'speaking') return;
-          if (speakingEndRef.current > 0 && Date.now() - speakingEndRef.current < 500) return;
+          const isSpeaking = s.voiceSessionState === 'speaking';
+          const inEchoGrace = speakingEndRef.current > 0 && Date.now() - speakingEndRef.current < 500;
+
+          // Update mic amplitude for visuals. Zero it while the AI is speaking
+          // or in echo grace so the overlay doesn't animate off playback bleed.
+          if (isSpeaking || inEchoGrace) {
+            smoothedLevelRef.current = smoothedLevelRef.current * 0.5;
+            voiceAudioLevel.value = smoothedLevelRef.current;
+          } else {
+            try {
+              const raw = computeRMS(event.data);
+              const smoothed = smoothedLevelRef.current * 0.3 + raw * 0.7;
+              smoothedLevelRef.current = smoothed;
+              voiceAudioLevel.value = smoothed;
+            } catch {}
+          }
+
+          if (isSpeaking) {
+            firstMicChunkAfterPlaybackRef.current = true;
+            return;
+          }
+          if (inEchoGrace) return;
+          if (isOnb && firstMicChunkAfterPlaybackRef.current) {
+            firstMicChunkAfterPlaybackRef.current = false;
+            console.log('[onb-timing] first mic chunk forwarded after playback/echo-grace');
+          }
           ws.send(JSON.stringify({ type: 'audio', data: event.data }));
         },
       });
       isRecordingRef.current = true;
+      if (isOnb) console.log('[onb-timing] mic startRecording() resolved (recording live)');
       if (subscription) subscriptionRef.current = subscription;
     } catch (e) {
       console.error(`${logTag} startRecording failed:`, e);
@@ -154,6 +188,14 @@ export function useVoiceSessionCore(config: UseVoiceSessionCoreConfig): UseVoice
         const totalDurationMs = (totalBytes / pcmBytesPerSec) * 1000;
         const elapsedSinceFirst = firstAudioTimeRef.current > 0 ? Date.now() - firstAudioTimeRef.current : 0;
         const remainingMs = Math.max(0, totalDurationMs - elapsedSinceFirst + playbackPaddingMs);
+
+        if (isOnb) {
+          console.log(
+            `[onb-timing] audio_end math: totalBytes=${totalBytes} pcmBytesPerSec=${pcmBytesPerSec} ` +
+            `→ estDurationMs=${totalDurationMs.toFixed(0)}, elapsedSinceFirst=${elapsedSinceFirst}, ` +
+            `remainingMs=${remainingMs.toFixed(0)} (padding=${playbackPaddingMs})`,
+          );
+        }
 
         if (playbackTimerRef.current) clearTimeout(playbackTimerRef.current);
         playbackTimerRef.current = setTimeout(() => {
@@ -239,6 +281,7 @@ export function useVoiceSessionCore(config: UseVoiceSessionCoreConfig): UseVoice
     wsRef.current = ws;
 
     ws.onopen = () => {
+      if (isOnb) console.log('[onb-timing] WS onopen, sending "start"');
       ws.send(JSON.stringify({ type: 'start', ...(startPayload ?? {}) }));
     };
     ws.onmessage = (event) => {

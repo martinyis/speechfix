@@ -88,6 +88,7 @@ export interface SpeechPattern {
 
 export interface PatternAnalysisInput {
   transcripts: Array<{ sessionId: number; sentences: string[] }>;
+  userProfile?: import('../modules/shared/user-profile-prompt.js').UserProfileInput | null;
 }
 
 export interface PatternAnalysisResult {
@@ -99,6 +100,7 @@ export interface AnalyzerInput {
   mode: 'recording' | 'conversation';
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
   speechTimeline?: import('../modules/voice/speech-types.js').SpeechTimeline;
+  userProfile?: import('../modules/shared/user-profile-prompt.js').UserProfileInput | null;
 }
 
 export interface Analyzer {

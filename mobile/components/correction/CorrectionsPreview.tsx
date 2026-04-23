@@ -1,6 +1,5 @@
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import { CorrectionCard } from './CorrectionCard';
 import { colors, alpha, fonts, spacing, layout } from '../../theme';
 import type { Correction } from '../../types/session';
@@ -11,7 +10,6 @@ interface CorrectionsPreviewProps {
   practicedIds: Set<number>;
   totalCount: number;
   onPractice: (correctionId: number) => void;
-  onSeeAll: () => void;
   isStreaming?: boolean;
   isFresh?: boolean;
 }
@@ -22,7 +20,6 @@ export function CorrectionsPreview({
   practicedIds,
   totalCount,
   onPractice,
-  onSeeAll,
   isStreaming,
   isFresh,
 }: CorrectionsPreviewProps) {
@@ -37,11 +34,6 @@ export function CorrectionsPreview({
         <Text style={styles.headerLabel}>
           CORRECTIONS{totalCount > 0 ? ` (${totalCount})` : ''}
         </Text>
-        {!isStreaming && totalCount > 3 && (
-          <Pressable onPress={onSeeAll} hitSlop={8}>
-            <Text style={styles.seeAllText}>See all &gt;</Text>
-          </Pressable>
-        )}
       </View>
 
       {/* Preview cards */}
@@ -100,10 +92,5 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     color: alpha(colors.white, 0.25),
     letterSpacing: 1.2,
-  },
-  seeAllText: {
-    fontSize: 13,
-    fontFamily: fonts.semibold,
-    color: colors.primary,
   },
 });

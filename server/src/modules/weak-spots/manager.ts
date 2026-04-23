@@ -7,8 +7,10 @@ import {
   weakSpotExercises,
   weakSpotDrillAttempts,
   sessions,
+  users,
 } from '../../db/schema.js';
 import { eq, and, inArray, ne, isNull, sql, asc, desc } from 'drizzle-orm';
+import { buildUserProfileBlock } from '../shared/user-profile-prompt.js';
 
 const groq = new Groq();
 const MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
@@ -215,7 +217,16 @@ export async function generateWeakSpotExercises(
     )
     .join('\n');
 
-  const systemPrompt = `You generate practice sentences for non-native English speakers to drill a specific recurring error.
+  const [userRow] = await db
+    .select({ context: users.context, goals: users.goals })
+    .from(users)
+    .where(eq(users.id, userId));
+  const profileBlock = buildUserProfileBlock({
+    context: userRow?.context ?? null,
+    goals: (userRow?.goals as string[] | null) ?? null,
+  });
+
+  const basePrompt = `You generate practice sentences to help a speaker drill a specific recurring English error. The speaker may be native or non-native — adapt the drill to their actual mistake, not to an assumed profile.
 
 OUTPUT FORMAT — return ONLY valid JSON:
 {"exercises": [{"originalText": "...", "correctedText": "...", "explanation": "..."}]}
@@ -225,7 +236,10 @@ CRITICAL RULES:
 2. "correctedText" must be byte-identical to "originalText" except for the minimal edit that fixes the error. No rephrasing, no synonyms, no restructure. Just the fix.
 3. "explanation" must be concrete and point at the exact word/phrase. Max 15 words. Good: "missing 'to' before 'understand'". Good: "past tense should be 'went', not 'go'". Good: "subject-verb disagreement — 'people are' not 'people is'". Bad: "grammar error", "verb tense issue", "incorrect usage".
 4. Generate ${EXERCISES_PER_SPOT.min}-${EXERCISES_PER_SPOT.max} exercises. 10-20 words each. Everyday conversational topics. Vary the surface vocabulary — do NOT reuse the user's example sentences.
-5. The error must be natural-sounding for a non-native speaker — plausible, not contrived.`;
+5. The error must be natural-sounding — a mistake someone actually makes, not contrived.
+6. When the user has context/goals provided, bias the surface topics of the drill sentences toward their real-world use cases (e.g. meetings, presentations, casual chats) so the practice feels relevant — but NEVER bend rule 1: the micro-error must still be reproduced exactly.`;
+
+  const systemPrompt = profileBlock ? `${profileBlock}\n\n${basePrompt}` : basePrompt;
 
   const userPrompt = `The user keeps making "${correctionType}" errors. Here are their real corrections (wrong → right):
 

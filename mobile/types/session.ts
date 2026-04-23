@@ -174,27 +174,6 @@ export interface Voice {
   sampleUrl?: string;
 }
 
-export interface FillerCoachSession {
-  id: number;
-  userId: number;
-  durationSeconds: number;
-  totalFillerCount: number;
-  fillerData: {
-    fillerWords: Array<{ word: string; count: number }>;
-    fillerPositions: FillerWordPosition[];
-    sentences: string[];
-  } | null;
-  createdAt: string;
-}
-
-export interface FillerCoachStats {
-  totalSessions: number;
-  avgFillersPerMin: number;
-  bestFillersPerMin: number;
-  totalPracticeSeconds: number;
-  topFillers: Array<{ word: string; count: number }>;
-}
-
 export interface FillerSummary {
   words: Array<{
     word: string;

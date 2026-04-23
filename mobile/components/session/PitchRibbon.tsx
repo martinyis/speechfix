@@ -1,80 +1,67 @@
 /**
- * PitchRibbon — horizontally-scrollable Skia prosody visualization.
+ * PitchRibbon — Energy-style spectrogram of user speech over time.
  *
- * ---------------------------------------------------------------------------
- * Coordinate system (single source of truth)
- * ---------------------------------------------------------------------------
- * EVERYTHING on this ribbon lives in **trim-time seconds**:
- *
- *   - `samples[].t`                 seconds from start of trimmed audio
- *   - `fillers[].timeSeconds`       seconds from start of trimmed audio
- *   - `utterance.startTime/endTime` seconds from start of trimmed audio
- *   - `player.currentTime`          position in the silence-trimmed audio file
- *
- * The server (`session-manager.ts#computeSpeechTimeline` + `#persistSessionAudio`)
- * is responsible for remapping all timestamps into this coordinate system and
- * for producing an audio file that matches byte-for-byte. The audio file is
- * PURE user-speech — AI speech is filtered at capture time and the user's
- * between-utterance silences are trimmed out. That makes the client trivial:
- * plot at `value * PX_PER_SECOND`, tap seeks to the tap X, playhead tracks
- * `player.currentTime`. No compression logic needed here.
+ * All timestamps are in trim-time seconds (server filters AI speech + silences).
  *
  * Channels:
- *  - Wave vertical position = pitch (Hz, normalized across session)
- *  - Wave thickness         = volume (per-sample)
- *  - Wave color             = clarity (per-segment from utterance confidence)
- *  - Ticks above ribbon     = filler words
- *  - Gaps in ribbon         = silences > 400ms WITHIN a user utterance
- *  - Time markers below     = every 30s
- * ---------------------------------------------------------------------------
+ *  - Bar height     = per-slot volume
+ *  - Bar Y offset   = per-slot average pitch (low below centerline, high above)
+ *  - Bar tint       = pink if near a filler-word timestamp, otherwise purple
+ *  - Beams (full height) mark specific "point" insights
+ *  - Translucent overlay spans mark "range" insights
+ *  - Numbered chips in the top lane expose each anchored insight to a tap
  */
 
 import { useMemo } from 'react';
-import { ScrollView, View, Text, StyleSheet, type GestureResponderEvent } from 'react-native';
 import {
-  Canvas,
-  Circle,
-  Group,
-  Line,
-  Path,
-  Skia,
-  type SkPath,
-  vec,
-} from '@shopify/react-native-skia';
+  ScrollView,
+  View,
+  Pressable,
+  Text,
+  StyleSheet,
+  type GestureResponderEvent,
+} from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import { colors, alpha, fonts, spacing } from '../../theme';
-import type { DeepInsight, ProsodySample, FillerWordPosition, UtteranceMetadata } from '../../types/session';
-import { useAudioPlayback } from '../../hooks/useAudioPlayback';
-import { InsightMarkers } from './InsightMarkers';
+import Svg, {
+  Defs,
+  LinearGradient,
+  Stop,
+  Rect,
+} from 'react-native-svg';
+import { colors, alpha, fonts } from '../../theme';
+import type {
+  DeepInsight,
+  FillerWordPosition,
+  ProsodySample,
+} from '../../types/session';
+import { useAudioPlayback, type AudioPlaybackAPI } from '../../hooks/useAudioPlayback';
 
 const PX_PER_SECOND = 60;
-const RIBBON_HEIGHT = 140;
-const TICK_ZONE_HEIGHT = 14;
-const AXIS_ZONE_HEIGHT = 24;
-const TOTAL_HEIGHT = RIBBON_HEIGHT + TICK_ZONE_HEIGHT + AXIS_ZONE_HEIGHT;
-const CENTER_Y = TICK_ZONE_HEIGHT + RIBBON_HEIGHT / 2;
-const MAX_AMPLITUDE = RIBBON_HEIGHT / 2 - 12;
-const MIN_STROKE = 2;
-const MAX_STROKE = 12;
+const RIBBON_HEIGHT = 160;
+const TICK_HEIGHT = 26;
+const AXIS_HEIGHT = 22;
+const TOTAL_HEIGHT = RIBBON_HEIGHT + AXIS_HEIGHT + TICK_HEIGHT;
+const CENTER_Y = TICK_HEIGHT + RIBBON_HEIGHT / 2;
+const MAX_BAR_HEIGHT = RIBBON_HEIGHT - 24;
+const MAX_OFFSET = RIBBON_HEIGHT * 0.18;
+const BAR_WIDTH = 3;
+const BAR_GAP = 2;
+const FILLER_WINDOW = 0.18;
 
-// Intra-utterance silence break for path segmentation (cosmetic only —
-// splits a single drawn path when there's a noticeable within-speech pause).
-const INTRA_PAUSE_MS = 400;
-
-const COLOR_HIGH_CLARITY = '#34d399';
-const COLOR_MID_CLARITY = '#fbbf24';
-const COLOR_LOW_CLARITY = '#ff6daf';
-
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
+interface Bar {
+  x: number;
+  cy: number;
+  height: number;
+  tint: 'normal' | 'filler';
 }
 
-function clarityColor(confidence: number): string {
-  if (confidence >= 0.85) return COLOR_HIGH_CLARITY;
-  if (confidence >= 0.65) return COLOR_MID_CLARITY;
-  return COLOR_LOW_CLARITY;
+function pitchRange(samples: ProsodySample[]) {
+  const pitches = samples
+    .map(s => s.pitchHz)
+    .filter((p): p is number => p !== null && isFinite(p));
+  const min = pitches.length ? Math.min(...pitches) : 80;
+  const max = pitches.length ? Math.max(...pitches) : 250;
+  return { min, max, range: Math.max(30, max - min) };
 }
 
 interface PitchRibbonProps {
@@ -82,17 +69,19 @@ interface PitchRibbonProps {
   samples: ProsodySample[];
   fillers: FillerWordPosition[];
   durationSeconds: number;
-  utterances?: UtteranceMetadata[];
-  sentences?: string[];
   audioPath?: string | null;
-  /** Fired with trim-time seconds when the user taps a spot. */
-  onScrub?: (tSeconds: number, meta: { sentence: string; confidence: number }) => void;
-  /** Specific deep insights to overlay as markers on top of the ribbon. */
-  deepInsights?: DeepInsight[];
-  /** Insight currently shown in the peek overlay (for visual highlight). */
-  activeInsight?: DeepInsight | null;
-  /** Tap a marker → client opens peek + seeks audio without auto-playing. */
-  onMarkerPress?: (insight: DeepInsight) => void;
+  /** Pre-sorted (by anchor start) specific insights; get numbered chips. */
+  specificInsights: DeepInsight[];
+  /** Which chip is currently selected (or null). */
+  selectedInsightIdx: number | null;
+  /** Called when a chip is tapped. */
+  onInsightTap: (idx: number) => void;
+  /**
+   * Imperative audio handle. Optional — when omitted, the ribbon creates its
+   * own via useAudioPlayback (legacy/standalone). Provided by session-detail
+   * to share playback with karaoke + transport bar.
+   */
+  audio?: AudioPlaybackAPI;
 }
 
 export function PitchRibbon({
@@ -100,224 +89,182 @@ export function PitchRibbon({
   samples,
   fillers,
   durationSeconds,
-  utterances,
-  sentences,
   audioPath,
-  onScrub,
-  deepInsights,
-  activeInsight,
-  onMarkerPress,
+  specificInsights,
+  selectedInsightIdx,
+  onInsightTap,
+  audio,
 }: PitchRibbonProps) {
-  const playback = useAudioPlayback({
+  const ownAudio = useAudioPlayback({
     sessionId,
-    enabled: !!audioPath,
+    enabled: !audio && !!audioPath,
   });
+  const playback = audio ?? ownAudio;
 
-  // Visual axis width = largest trim-time value we're going to plot.
   const visualDuration = useMemo(() => {
     let max = 0;
     for (const s of samples) if (s.t > max) max = s.t;
-    if (utterances) for (const u of utterances) if (u.endTime > max) max = u.endTime;
     for (const f of fillers) {
       if (typeof f.timeSeconds === 'number' && f.timeSeconds > max) max = f.timeSeconds;
     }
-    return Math.max(0.5, max);
-  }, [samples, utterances, fillers]);
+    return Math.max(durationSeconds, max, 0.5);
+  }, [samples, fillers, durationSeconds]);
 
   const canvasWidth = Math.max(200, Math.round(visualDuration * PX_PER_SECOND));
 
-  // Build Skia paths from samples. Samples are already in trim-time — no
-  // compression needed. We only split paths on intra-utterance pauses for
-  // cosmetic clarity.
-  const segmentPaths = useMemo(() => {
-    if (samples.length === 0) return [] as Array<{ path: SkPath; clarity: number }>;
-
-    const validPitches = samples
-      .map(s => s.pitchHz)
-      .filter((p): p is number => p !== null && isFinite(p));
-    const pMin = validPitches.length > 0 ? Math.min(...validPitches) : 80;
-    const pMax = validPitches.length > 0 ? Math.max(...validPitches) : 250;
-    const pRange = Math.max(30, pMax - pMin);
-
-    const sampleToY = (pitchHz: number | null): number => {
-      if (pitchHz === null || !isFinite(pitchHz)) return CENTER_Y;
-      const norm = (pitchHz - pMin) / pRange;
-      return CENTER_Y + (0.5 - norm) * 2 * MAX_AMPLITUDE;
-    };
-
-    const segments: ProsodySample[][] = [];
-    let current: ProsodySample[] = [];
-    for (let i = 0; i < samples.length; i++) {
-      const s = samples[i];
-      const prev = samples[i - 1];
-      if (prev) {
-        const gapMs = (s.t - prev.t) * 1000;
-        if (gapMs > INTRA_PAUSE_MS) {
-          if (current.length > 1) segments.push(current);
-          current = [];
-        }
-      }
-      current.push(s);
+  const bars = useMemo(() => {
+    if (samples.length === 0) return [] as Bar[];
+    const { min, range } = pitchRange(samples);
+    const slotWidth = BAR_WIDTH + BAR_GAP;
+    const slotCount = Math.floor(canvasWidth / slotWidth);
+    const buckets: { volume: number; pitchNorm: number; hasSample: boolean; t: number }[] = [];
+    for (let i = 0; i < slotCount; i++) {
+      buckets.push({ volume: 0, pitchNorm: 0.5, hasSample: false, t: 0 });
     }
-    if (current.length > 1) segments.push(current);
-
-    return segments.map(segment => {
-      const path = Skia.Path.Make();
-      for (let i = 0; i < segment.length; i++) {
-        const s = segment[i];
-        const x = s.t * PX_PER_SECOND;
-        const y = sampleToY(s.pitchHz);
-        const halfThick = (MIN_STROKE + (MAX_STROKE - MIN_STROKE) * s.volume) / 2;
-        if (i === 0) path.moveTo(x, y - halfThick);
-        else path.lineTo(x, y - halfThick);
+    const counts = new Array(slotCount).fill(0);
+    const pitchSums = new Array(slotCount).fill(0);
+    for (const s of samples) {
+      const idx = Math.floor((s.t / visualDuration) * slotCount);
+      if (idx < 0 || idx >= slotCount) continue;
+      const b = buckets[idx];
+      b.volume = Math.max(b.volume, s.volume);
+      b.hasSample = true;
+      b.t = s.t;
+      if (s.pitchHz !== null && isFinite(s.pitchHz)) {
+        pitchSums[idx] += (s.pitchHz - min) / range;
+        counts[idx] += 1;
       }
-      for (let i = segment.length - 1; i >= 0; i--) {
-        const s = segment[i];
-        const x = s.t * PX_PER_SECOND;
-        const y = sampleToY(s.pitchHz);
-        const halfThick = (MIN_STROKE + (MAX_STROKE - MIN_STROKE) * s.volume) / 2;
-        path.lineTo(x, y + halfThick);
-      }
-      path.close();
+    }
+    for (let i = 0; i < slotCount; i++) {
+      if (counts[i] > 0) buckets[i].pitchNorm = pitchSums[i] / counts[i];
+    }
+    const fillerTimes = fillers
+      .map(f => f.timeSeconds)
+      .filter((t): t is number => typeof t === 'number');
+    return buckets
+      .map((b, i): Bar | null => {
+        if (!b.hasSample || b.volume < 0.05) return null;
+        const x = i * slotWidth;
+        const height = 6 + b.volume * MAX_BAR_HEIGHT;
+        const cy = CENTER_Y + (0.5 - b.pitchNorm) * 2 * MAX_OFFSET;
+        const isFiller = fillerTimes.some(ft => Math.abs(b.t - ft) < FILLER_WINDOW);
+        return { x, cy, height, tint: isFiller ? 'filler' : 'normal' };
+      })
+      .filter((b): b is Bar => b !== null);
+  }, [samples, canvasWidth, visualDuration, fillers]);
 
-      const midT = (segment[0].t + segment[segment.length - 1].t) / 2;
-      const utt = utterances?.find(u => midT >= u.startTime && midT <= u.endTime);
-      const clarity = utt?.avgConfidence ?? 0.9;
-      return { path, clarity };
-    });
-  }, [samples, utterances]);
-
-  const markerCount = Math.floor(visualDuration / 30) + 1;
-  const markers = Array.from({ length: markerCount }, (_, i) => i * 30);
-
-  // Playhead: player.currentTime is already in trim-time (server trims the
-  // audio file to match), so plot at positionSeconds * PX_PER_SECOND directly.
   const playheadStyle = useAnimatedStyle(() => {
     'worklet';
     const t = playback.positionSeconds.value;
     return {
-      transform: [{ translateX: t * PX_PER_SECOND - 1 }],
-      opacity: t > 0 || playback.isPlaying ? 1 : 0,
+      transform: [{ translateX: t * PX_PER_SECOND - 12 }],
+      opacity: t > 0 || playback.isPlaying ? 1 : 0.8,
     };
   });
 
-  // onResponderRelease's locationX is the tap's position inside the inner
-  // View's own coordinate system — which IS the canvas coordinate system.
-  // Never add scrollOffset; that would double-count.
   const handleTap = (e: GestureResponderEvent) => {
     const canvasX = e.nativeEvent.locationX;
     const tSeconds = Math.max(0, Math.min(visualDuration, canvasX / PX_PER_SECOND));
-
-    const utt = utterances?.find(u => tSeconds >= u.startTime && tSeconds <= u.endTime);
-    const sentenceIdx = utterances && utt ? utterances.indexOf(utt) : 0;
-    const sentence = sentences?.[sentenceIdx] ?? '';
-    const confidence = utt?.avgConfidence ?? 0;
-
-    if (audioPath) {
-      playback.play(tSeconds);
-    } else {
-      playback.positionSeconds.value = tSeconds;
-    }
-    onScrub?.(tSeconds, { sentence, confidence });
+    if (audioPath) playback.play(tSeconds);
+    else playback.positionSeconds.value = tSeconds;
   };
 
-  const handleMarkerPress = (insight: DeepInsight) => {
-    const a = insight.anchor;
-    if (!a) return;
-    const t = Math.max(0, Math.min(visualDuration, a.start_seconds));
-    if (audioPath) {
-      playback.seekTo(t);
-    } else {
-      playback.positionSeconds.value = t;
-    }
-    onMarkerPress?.(insight);
-  };
+  if (samples.length === 0 || durationSeconds < 1) return null;
 
-  if (samples.length === 0 || durationSeconds < 1 || visualDuration < 0.5) {
-    return null;
-  }
+  const insightVisuals = specificInsights.map((ins, idx) => {
+    const a = ins.anchor!;
+    const isSelected = selectedInsightIdx === idx;
+    const x = a.start_seconds * PX_PER_SECOND;
+    const w = Math.max(6, (a.end_seconds - a.start_seconds) * PX_PER_SECOND);
+    const isRange = a.kind === 'range';
+    return { idx, x, w, isRange, isSelected, number: idx + 1 };
+  });
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-      >
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View
           style={{ width: canvasWidth, height: TOTAL_HEIGHT }}
           onStartShouldSetResponder={() => true}
           onResponderRelease={handleTap}
         >
-          <Canvas style={{ width: canvasWidth, height: TOTAL_HEIGHT }}>
-            <Line
-              p1={vec(0, CENTER_Y)}
-              p2={vec(canvasWidth, CENTER_Y)}
-              color={alpha(colors.white, 0.05)}
-              strokeWidth={1}
-            />
+          <Svg width={canvasWidth} height={TOTAL_HEIGHT}>
+            <Defs>
+              <LinearGradient id="bar-gradient" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={colors.secondary} stopOpacity="1" />
+                <Stop offset="1" stopColor={colors.primary} stopOpacity="0.55" />
+              </LinearGradient>
+              <LinearGradient id="bar-filler" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={colors.tertiary} stopOpacity="1" />
+                <Stop offset="1" stopColor={colors.tertiary} stopOpacity="0.5" />
+              </LinearGradient>
+            </Defs>
 
-            <Group>
-              {segmentPaths.map(({ path, clarity }, i) => (
-                <Path key={i} path={path} color={clarityColor(clarity)} opacity={0.95} />
-              ))}
-            </Group>
-
-            <Group>
-              {fillers
-                .filter(f => typeof f.timeSeconds === 'number')
-                .map((f, i) => (
-                  <Circle
-                    key={`f-${i}`}
-                    cx={(f.timeSeconds ?? 0) * PX_PER_SECOND}
-                    cy={TICK_ZONE_HEIGHT / 2}
-                    r={3}
-                    color={COLOR_LOW_CLARITY}
-                  />
-                ))}
-            </Group>
-
-            <Group>
-              {markers.map((m, i) => (
-                <Line
-                  key={`m-${i}`}
-                  p1={vec(m * PX_PER_SECOND, TICK_ZONE_HEIGHT + RIBBON_HEIGHT - 4)}
-                  p2={vec(m * PX_PER_SECOND, TICK_ZONE_HEIGHT + RIBBON_HEIGHT + 4)}
-                  color={alpha(colors.white, 0.25)}
-                  strokeWidth={1}
+            {insightVisuals
+              .filter(iv => iv.isRange)
+              .map(iv => (
+                <Rect
+                  key={`range-${iv.idx}`}
+                  x={iv.x}
+                  y={TICK_HEIGHT}
+                  width={iv.w}
+                  height={RIBBON_HEIGHT}
+                  fill={alpha(colors.primary, iv.isSelected ? 0.22 : 0.09)}
+                  stroke={alpha(colors.primary, iv.isSelected ? 0.8 : 0.3)}
+                  strokeWidth={iv.isSelected ? 1.5 : 1}
+                  strokeDasharray={iv.isSelected ? undefined : '3,3'}
+                  rx={4}
                 />
               ))}
-            </Group>
-          </Canvas>
 
-          <View pointerEvents="none" style={styles.labelLayer}>
-            {markers.map((m, i) => (
-              <Text
-                key={`l-${i}`}
-                style={[styles.timeLabel, { left: m * PX_PER_SECOND - 14 }]}
-              >
-                {formatTime(m)}
-              </Text>
+            {insightVisuals
+              .filter(iv => !iv.isRange)
+              .map(iv => (
+                <Rect
+                  key={`beam-${iv.idx}`}
+                  x={iv.x - 1}
+                  y={TICK_HEIGHT}
+                  width={2}
+                  height={RIBBON_HEIGHT}
+                  fill={alpha(colors.primary, iv.isSelected ? 0.85 : 0.45)}
+                />
+              ))}
+
+            {bars.map((b, i) => (
+              <Rect
+                key={`b-${i}`}
+                x={b.x}
+                y={b.cy - b.height / 2}
+                width={BAR_WIDTH}
+                height={b.height}
+                rx={BAR_WIDTH / 2}
+                fill={b.tint === 'filler' ? 'url(#bar-filler)' : 'url(#bar-gradient)'}
+              />
             ))}
-          </View>
+          </Svg>
 
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.playhead, { height: TICK_ZONE_HEIGHT + RIBBON_HEIGHT }, playheadStyle]}
-          />
+          <Animated.View pointerEvents="none" style={[styles.aura, playheadStyle]} />
+          <Animated.View pointerEvents="none" style={[styles.line, playheadStyle]} />
 
-          {deepInsights && deepInsights.length > 0 && (
-            <InsightMarkers
-              insights={deepInsights}
-              durationSeconds={visualDuration}
-              pxPerSecond={PX_PER_SECOND}
-              overlayHeight={TOTAL_HEIGHT}
-              pointY={TICK_ZONE_HEIGHT - 4}
-              bracketY={TICK_ZONE_HEIGHT + RIBBON_HEIGHT + 4}
-              onMarkerPress={handleMarkerPress}
-              activeInsight={activeInsight ?? null}
-            />
-          )}
+          {insightVisuals.map(iv => {
+            const cx = iv.isRange ? iv.x + Math.min(iv.w / 2, 14) : iv.x;
+            return (
+              <Pressable
+                key={`chip-${iv.idx}`}
+                onPress={() => onInsightTap(iv.idx)}
+                hitSlop={6}
+                style={[
+                  styles.chip,
+                  iv.isSelected && styles.chipSelected,
+                  { left: cx - 11, top: 2 },
+                ]}
+              >
+                <Text style={[styles.chipNum, iv.isSelected && styles.chipNumSelected]}>
+                  {iv.number}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </ScrollView>
     </View>
@@ -326,29 +273,51 @@ export function PitchRibbon({
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: spacing.md,
+    paddingVertical: 12,
   },
-  labelLayer: {
+  aura: {
     position: 'absolute',
+    top: TICK_HEIGHT - 6,
+    height: RIBBON_HEIGHT + 12,
     left: 0,
-    right: 0,
-    bottom: 0,
-    height: AXIS_ZONE_HEIGHT,
+    width: 24,
+    borderRadius: 12,
+    backgroundColor: alpha(colors.primary, 0.18),
   },
-  timeLabel: {
+  line: {
     position: 'absolute',
     top: 4,
-    width: 28,
-    textAlign: 'center',
-    fontSize: 10,
-    fontFamily: fonts.medium,
-    color: alpha(colors.white, 0.35),
-  },
-  playhead: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
+    bottom: 4,
+    left: 12,
     width: 2,
-    backgroundColor: '#ffffff',
+    borderRadius: 1,
+    backgroundColor: colors.white,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
+  },
+  chip: {
+    position: 'absolute',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: alpha(colors.primary, 0.25),
+    borderWidth: 1,
+    borderColor: alpha(colors.primary, 0.5),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipSelected: {
+    backgroundColor: colors.primary,
+    borderColor: colors.white,
+  },
+  chipNum: {
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    color: colors.primary,
+  },
+  chipNumSelected: {
+    color: colors.white,
   },
 });

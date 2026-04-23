@@ -5,8 +5,6 @@ import type { AgentConfig } from './handlers/types.js';
 import { db } from '../../db/index.js';
 import { agents } from '../../db/schema.js';
 import { eq, and } from 'drizzle-orm';
-import { buildFillerHistoryPrompt } from '../filler-coach/filler-history.js';
-import { selectTopic } from '../filler-coach/topic-selector.js';
 
 export async function voiceSessionRoute(fastify: FastifyInstance) {
   fastify.get('/voice-session', { websocket: true }, async (socket, req) => {
@@ -52,22 +50,6 @@ export async function voiceSessionRoute(fastify: FastifyInstance) {
       } catch {
         // ignore invalid JSON
       }
-    }
-
-    // Pre-fetch filler history for filler-coach mode
-    if (mode === 'filler-coach') {
-      const fillerHistory = await buildFillerHistoryPrompt(req.user.userId);
-      formContext = formContext ?? {};
-      formContext.fillerHistory = fillerHistory;
-      // Default target words if not provided by client
-      if (!formContext.targetWords) {
-        formContext.targetWords = 'um, uh, like, you know';
-      }
-      // Select cognitive pressure topic
-      const topicSelection = await selectTopic(req.user.userId);
-      formContext.topicDirective = topicSelection.directive;
-      formContext.topicSlug = topicSelection.topicSlug;
-      formContext.cognitiveLevel = topicSelection.level;
     }
 
     const handler = resolveHandler(mode, agentConfig);

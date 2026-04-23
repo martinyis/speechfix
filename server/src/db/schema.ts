@@ -61,6 +61,13 @@ export const sessions = pgTable('sessions', {
    * successful encode (or kept for debugging — cheap).
    */
   audioRawPath: text('audio_raw_path'),
+  /**
+   * Per-session AI/user airtime measurement. Shape: `{ aiWords, userWords, ratio }`
+   * where `ratio = aiWords / (aiWords + userWords)`. `ratio` is null when both
+   * sides spoke zero words. Null for legacy sessions. Used to verify brevity
+   * and draw-out behavior (target ratio ≤ 0.25 for draw-out sessions).
+   */
+  airtimeRatio: jsonb('airtime_ratio'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

@@ -368,13 +368,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 10,
   },
-  // Flat mode — no card chrome, hairline divider
+  // Flat mode — no card chrome, no dividers between cards
   cardFlat: {
     backgroundColor: 'transparent',
     borderRadius: 0,
     borderWidth: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: alpha(colors.white, 0.06),
     marginHorizontal: layout.screenPadding,
     marginBottom: 0,
   },

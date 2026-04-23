@@ -17,23 +17,17 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenHeader, GlassIconPillButton } from '../components/ui';
+import { SuccessScreen } from '../components/success';
 import PracticeRecordOrb from '../components/orbs/PracticeRecordOrb';
 import PracticeFeedbackPanel from '../components/PracticeFeedbackPanel';
 import SuccessCelebration from '../components/SuccessCelebration';
-import ErrorReasonHeader from '../components/practice/ErrorReasonHeader';
-import { wordDiff } from '../lib/wordDiff';
+import DrillPrompt from '../components/practice/DrillPrompt';
 import { useWeakSpots } from '../hooks/data/useWeakSpots';
 import { useDrillRecording } from '../hooks/recording/useDrillRecording';
 import { authFetch } from '../lib/api';
 import { usePreloadSuccessSound, playSuccessSound } from '../lib/sounds';
 import { colors, alpha, spacing, layout, fonts } from '../theme';
 import type { DrillItem, DrillSummary } from '../types/practice';
-
-const SEVERITY_COLOR: Record<string, string> = {
-  error: colors.severityError,
-  improvement: colors.severityImprovement,
-  polish: colors.severityPolish,
-};
 
 export default function WeakSpotDrillScreen() {
   const { weakSpotId } = useLocalSearchParams<{ weakSpotId: string }>();
@@ -201,8 +195,6 @@ export default function WeakSpotDrillScreen() {
     ),
   }));
 
-  const sevColor = weakSpot ? (SEVERITY_COLOR[weakSpot.severity] ?? colors.severityError) : colors.severityError;
-
   // Loading state
   if (!weakSpot || queue.length === 0) {
     return (
@@ -220,56 +212,36 @@ export default function WeakSpotDrillScreen() {
     const totalItems = summary.totalItems;
     const firstTryCount = totalItems - (summary.retriesCount > 0 ? Math.min(summary.retriesCount, totalItems) : 0);
 
+    const stats: { label: string; value: string }[] = [
+      { label: 'Correct on first try', value: `${firstTryCount}/${totalItems}` },
+    ];
+    if (summary.retriesCount > 0) {
+      stats.push({ label: 'Retries', value: String(summary.retriesCount) });
+    }
+    if (!summary.resolved && summary.nextReviewAt) {
+      stats.push({ label: 'Next review', value: formatNextReview(summary.nextReviewAt) });
+    }
+
     return (
-      <View style={styles.container}>
-        <ScreenHeader variant="back" />
-        <Animated.View style={styles.summaryContainer} entering={FadeIn.duration(300)}>
-          {summary.resolved ? (
-            <Animated.View entering={FadeInDown.duration(400).delay(100)}>
-              <Ionicons name="checkmark-circle" size={64} color={colors.severityPolish} />
-            </Animated.View>
-          ) : (
-            <Animated.View entering={FadeInDown.duration(400).delay(100)}>
-              <Ionicons name="trophy" size={64} color={colors.primary} />
-            </Animated.View>
-          )}
-
-          <Text style={styles.summaryTitle}>
-            {summary.resolved ? 'Resolved!' : 'Drill Complete'}
-          </Text>
-
-          <View style={styles.summaryStats}>
-            <View style={styles.statRow}>
-              <Text style={styles.statLabel}>Correct on first try</Text>
-              <Text style={styles.statValue}>{firstTryCount}/{totalItems}</Text>
-            </View>
-            {summary.retriesCount > 0 && (
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Retries</Text>
-                <Text style={styles.statValue}>{summary.retriesCount}</Text>
-              </View>
-            )}
-            {!summary.resolved && summary.nextReviewAt && (
-              <View style={styles.statRow}>
-                <Text style={styles.statLabel}>Next review</Text>
-                <Text style={styles.statValue}>
-                  {formatNextReview(summary.nextReviewAt)}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.summaryActions}>
-            <GlassIconPillButton
-              label="Done"
-              icon="checkmark"
-              variant="primary"
-              fullWidth
-              onPress={() => router.back()}
-            />
-          </View>
-        </Animated.View>
-      </View>
+      <SuccessScreen
+        eyebrow="Drill"
+        title={summary.resolved ? 'Resolved' : 'Drill Complete'}
+        subtitle={
+          summary.resolved
+            ? 'You cleared this weak spot. It\u2019s retired.'
+            : 'Queue cleared. One more strong round and this is retired.'
+        }
+        tone={summary.resolved ? 'polish' : 'victorious'}
+        stats={stats}
+        actions={[
+          {
+            label: 'Done',
+            icon: 'checkmark',
+            variant: summary.resolved ? 'success' : 'primary',
+            onPress: () => router.back(),
+          },
+        ]}
+      />
     );
   }
 
@@ -293,70 +265,28 @@ export default function WeakSpotDrillScreen() {
       </View>
 
       {(() => {
-        const { originalText, correctedText, explanation, correctionType, severity } = currentItem.data;
-        const fullContext = currentItem.type === 'correction' ? currentItem.data.fullContext : null;
+        const { originalText, correctedText, explanation, severity } = currentItem.data;
+        const context = currentItem.type === 'correction' ? currentItem.data.fullContext : null;
         const shortReason = currentItem.type === 'correction' ? currentItem.data.shortReason : null;
-        const sectionLabel = currentItem.type === 'correction' ? 'YOUR ORIGINAL' : 'PRACTICE SENTENCE';
-        const instruction =
-          currentItem.type === 'correction'
-            ? 'Now say the corrected version'
-            : 'Say it the correct way';
-        const itemSevColor = SEVERITY_COLOR[severity] ?? sevColor;
 
         return (
           <View style={styles.body}>
-            {/* Prompt content */}
-            <Animated.View style={[styles.promptContainer, contentOpacity]}>
-              <View>
-                <Text style={styles.sectionLabel}>{sectionLabel}</Text>
-                <Text style={styles.originalText}>
-                  {(() => {
-                    if (fullContext) {
-                      const idx = fullContext.toLowerCase().indexOf(originalText.toLowerCase());
-                      if (idx >= 0) {
-                        const before = fullContext.slice(0, idx);
-                        const match = fullContext.slice(idx, idx + originalText.length);
-                        const after = fullContext.slice(idx + originalText.length);
-                        return (
-                          <>
-                            {before ? <Text>{before}</Text> : null}
-                            <Text style={[styles.errorUnderline, { textDecorationColor: itemSevColor }]}>
-                              {match}
-                            </Text>
-                            {after ? <Text>{after}</Text> : null}
-                          </>
-                        );
-                      }
-                    }
-                    return wordDiff(originalText, correctedText).map((seg, i) => (
-                      <Text
-                        key={i}
-                        style={
-                          seg.type === 'equal'
-                            ? undefined
-                            : [styles.errorUnderline, { textDecorationColor: itemSevColor }]
-                        }
-                      >
-                        {i > 0 ? ' ' : ''}{seg.text}
-                      </Text>
-                    ));
-                  })()}
-                </Text>
-              </View>
-
-              <ErrorReasonHeader
+            <Animated.ScrollView
+              style={[styles.promptScroll, contentOpacity]}
+              contentContainerStyle={styles.promptContainer}
+              showsVerticalScrollIndicator={false}
+            >
+              <DrillPrompt
                 key={`${currentItem.type}-${currentItem.data.id}`}
-                correctionType={correctionType}
-                severity={severity}
-                explanation={explanation}
-                shortReason={shortReason}
                 originalText={originalText}
+                correctedText={correctedText}
+                context={context}
+                severity={severity}
+                shortReason={shortReason}
+                explanation={explanation}
               />
+            </Animated.ScrollView>
 
-              <Text style={styles.instructionText}>{instruction}</Text>
-            </Animated.View>
-
-            {/* Feedback panel (failure) or record area */}
             {recording.state === 'result' && recording.result && !recording.result.passed ? (
               <PracticeFeedbackPanel
                 passed={false}
@@ -416,37 +346,16 @@ const styles = StyleSheet.create({
   },
 
   // Prompt content
-  promptContainer: {
+  promptScroll: {
     flex: 1,
+  },
+  promptContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: layout.screenPadding + 4,
+    paddingVertical: spacing.md,
     gap: 32,
   },
-  sectionLabel: {
-    fontSize: 10,
-    fontFamily: fonts.bold,
-    letterSpacing: 1.5,
-    color: alpha(colors.white, 0.2),
-    marginBottom: 10,
-  },
-  originalText: {
-    fontSize: 20,
-    fontFamily: fonts.medium,
-    color: alpha(colors.white, 0.85),
-    lineHeight: 30,
-  },
-  errorUnderline: {
-    textDecorationLine: 'underline' as const,
-    textDecorationStyle: 'solid' as const,
-  },
-
-  instructionText: {
-    fontSize: 13,
-    fontFamily: fonts.semibold,
-    color: alpha(colors.white, 0.2),
-    textAlign: 'center' as const,
-  },
-
   // Record area
   recordArea: {
     alignItems: 'center',
@@ -459,45 +368,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Summary
-  summaryContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: layout.screenPadding,
-    gap: spacing.md,
-  },
-  summaryTitle: {
-    fontSize: 26,
-    fontFamily: fonts.extrabold,
-    color: colors.onSurface,
-    letterSpacing: -0.5,
-    marginTop: spacing.sm,
-  },
-  summaryStats: {
-    gap: 12,
-    marginTop: spacing.lg,
-    width: '100%',
-    maxWidth: 280,
-  },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  statLabel: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: alpha(colors.white, 0.4),
-  },
-  statValue: {
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: alpha(colors.white, 0.8),
-  },
-  summaryActions: {
-    width: '100%',
-    maxWidth: 300,
-    marginTop: spacing.xl,
-  },
 });

@@ -19,7 +19,7 @@ export async function evaluateSayItRight(
   correction: CorrectionContext,
   transcript: string,
 ): Promise<EvaluationResult> {
-  const systemPrompt = `You are an expert English language evaluator for non-native speakers. You evaluate practice attempts and return JSON results.
+  const systemPrompt = `You are an expert English language evaluator. You evaluate practice attempts from speakers of any level and return JSON results.
 
 RULES:
 - Return ONLY valid JSON: {"passed": true/false, "feedback": "1-2 sentences"}
@@ -65,7 +65,7 @@ export async function evaluateWeakSpotExercise(
   exercise: WeakSpotExerciseContext,
   transcript: string,
 ): Promise<EvaluationResult> {
-  const systemPrompt = `You are an expert English language evaluator for non-native speakers. You evaluate practice attempts and return JSON results.
+  const systemPrompt = `You are an expert English language evaluator. You evaluate practice attempts from speakers of any level and return JSON results.
 
 RULES:
 - Return ONLY valid JSON: {"passed": true/false, "feedback": "1-2 sentences"}
@@ -119,7 +119,7 @@ export async function evaluatePatternExercise(
   exercise: PatternExerciseContext,
   transcript: string,
 ): Promise<EvaluationResult> {
-  const systemPrompt = `You are an expert English language evaluator for non-native speakers. You evaluate whether a speaker successfully avoided using a specific overused word or phrase. Return JSON results.
+  const systemPrompt = `You are an expert English language evaluator. You evaluate whether a speaker successfully avoided using a specific overused word or phrase. Return JSON results.
 
 RULES:
 - Return ONLY valid JSON: {"passed": true/false, "feedback": "1-2 sentences"}
@@ -156,7 +156,7 @@ export async function evaluateReframeExercise(
     exercise.patternType === 'hedging' ? 'hedging language'
     : 'negative framing';
 
-  const systemPrompt = `You are an expert English language evaluator for non-native speakers. You evaluate whether a speaker successfully reframed a sentence to remove ${typeLabel}. Return JSON results.
+  const systemPrompt = `You are an expert English language evaluator. You evaluate whether a speaker successfully reframed a sentence to remove ${typeLabel}. Return JSON results.
 
 RULES:
 - Return ONLY valid JSON: {"passed": true/false, "feedback": "1-2 sentences"}

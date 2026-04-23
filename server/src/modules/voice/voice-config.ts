@@ -21,7 +21,6 @@ export const AVAILABLE_VOICES: VoiceConfig[] = [
 
 // Voice overrides for system modes (null = use DEFAULT_VOICE_ID)
 export const SYSTEM_MODE_VOICES: Record<string, string> = {
-  'filler-coach': '79f8b5fb-2cc8-479a-80df-29f7a7cf1a3e',   // Theo – steady, confident
   'agent-creator': '9626c31c-bec5-4cca-baa8-f8ba9e84c8bc',   // Jacqueline – reassuring, empathic
 };
 

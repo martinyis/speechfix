@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { getFillerSummary } from '../filler-coach/filler-history.js';
+import { getFillerSummary } from './filler-summary.js';
 import { db } from '../../db/index.js';
 import { sessions, corrections, fillerWords, agents } from '../../db/schema.js';
 import { eq, desc, sql, and } from 'drizzle-orm';

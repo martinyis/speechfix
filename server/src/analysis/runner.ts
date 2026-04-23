@@ -1,11 +1,12 @@
 import type { AnalysisResult, AnalysisFlags, AnalyzerInput, Correction, PhasedInsightsPayload } from './types.js';
 import { generatePhasedInsights } from '../modules/sessions/insights-generator.js';
-import { enrichFillerTimestamps } from '../modules/filler-coach/timestamp-enricher.js';
+import { enrichFillerTimestamps } from './filler-timestamp-enricher.js';
 import { GrammarAnalyzer } from './analyzers/grammar.js';
 import { FillerAnalyzer } from './analyzers/fillers.js';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
+import type { UserProfileInput } from '../modules/shared/user-profile-prompt.js';
 
 const grammarAnalyzer = new GrammarAnalyzer();
 const fillerAnalyzer = new FillerAnalyzer();
@@ -17,13 +18,25 @@ const EMPTY_RESULT: AnalysisResult = {
   sessionInsights: [],
 };
 
-async function getAnalysisFlags(userId: number): Promise<AnalysisFlags> {
+async function getAnalysisFlagsAndProfile(
+  userId: number,
+): Promise<{ flags: AnalysisFlags; profile: UserProfileInput }> {
   const [user] = await db
-    .select({ analysisFlags: users.analysisFlags })
+    .select({
+      analysisFlags: users.analysisFlags,
+      context: users.context,
+      goals: users.goals,
+    })
     .from(users)
     .where(eq(users.id, userId));
 
-  return (user?.analysisFlags as AnalysisFlags) ?? { grammar: true, fillers: true, patterns: true };
+  return {
+    flags: (user?.analysisFlags as AnalysisFlags) ?? { grammar: true, fillers: true, patterns: true },
+    profile: {
+      context: user?.context ?? null,
+      goals: (user?.goals as string[] | null) ?? null,
+    },
+  };
 }
 
 function mergeResults(results: AnalysisResult[]): AnalysisResult {
@@ -39,11 +52,12 @@ function mergeResults(results: AnalysisResult[]): AnalysisResult {
 export async function runAnalysis(userId: number, input: AnalyzerInput): Promise<AnalysisResult> {
   if (input.sentences.length === 0) return EMPTY_RESULT;
 
-  const flags = await getAnalysisFlags(userId);
+  const { flags, profile } = await getAnalysisFlagsAndProfile(userId);
+  const withProfile: AnalyzerInput = { ...input, userProfile: input.userProfile ?? profile };
   const tasks: Promise<AnalysisResult>[] = [];
 
-  if (flags.grammar) tasks.push(grammarAnalyzer.analyze(input));
-  if (flags.fillers) tasks.push(fillerAnalyzer.analyze(input));
+  if (flags.grammar) tasks.push(grammarAnalyzer.analyze(withProfile));
+  if (flags.fillers) tasks.push(fillerAnalyzer.analyze(withProfile));
 
   if (tasks.length === 0) return EMPTY_RESULT;
 
@@ -79,12 +93,13 @@ export async function runAnalysisPhased(
     return EMPTY_RESULT;
   }
 
-  const flags = await getAnalysisFlags(userId);
+  const { flags, profile } = await getAnalysisFlagsAndProfile(userId);
+  const withProfile: AnalyzerInput = { ...input, userProfile: input.userProfile ?? profile };
 
   // Phase 1: Fillers (fast, ~1-2s)
   let fillerResult: AnalysisResult = EMPTY_RESULT;
   if (flags.fillers) {
-    fillerResult = await fillerAnalyzer.analyze(input);
+    fillerResult = await fillerAnalyzer.analyze(withProfile);
     // Enrich filler positions with absolute timestamps (for Pitch Ribbon viz)
     if (input.speechTimeline) {
       fillerResult = {
@@ -102,6 +117,7 @@ export async function runAnalysisPhased(
     durationSeconds,
     existingInsights: fillerResult.sessionInsights,
     speechTimeline: input.speechTimeline,
+    userProfile: profile,
   });
 
   // Emit insights_ready — caller creates DB session and sends to client
@@ -110,7 +126,7 @@ export async function runAnalysisPhased(
   // Phase 3: Grammar streaming (slow, ~5-15s)
   let grammarResult: AnalysisResult = EMPTY_RESULT;
   if (flags.grammar) {
-    grammarResult = await grammarAnalyzer.analyzeStreaming(input, onCorrection);
+    grammarResult = await grammarAnalyzer.analyzeStreaming(withProfile, onCorrection);
   }
 
   // Merge everything

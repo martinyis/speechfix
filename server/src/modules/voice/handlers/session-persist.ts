@@ -3,7 +3,7 @@ import type { Correction, FillerWordCount } from '../../../analysis/types.js';
 import { db } from '../../../db/index.js';
 import { corrections as correctionsTable, fillerWords as fillerWordsTable } from '../../../db/schema.js';
 import { regenerateAllGreetings } from '../../agents/greeting-generator.js';
-import { runPatternAnalysisForUser } from '../../patterns/job.js';
+import { runPatternAnalysisForUser, runPostSessionPatternUpdates } from '../../patterns/job.js';
 import { absorbCorrections } from '../../weak-spots/manager.js';
 import { appendContextNotes } from './conversation-handler.js';
 
@@ -54,8 +54,14 @@ export async function runPostAnalysisSideEffects(params: {
   correctionIds: number[];
   userUtterances: string[];
   contextNotes: string[];
+  /**
+   * The id of the session just persisted. When present, graduation +
+   * regression checks run against that session's stored analysis. Optional
+   * for legacy callers that haven't been threaded through yet.
+   */
+  sessionId?: number;
 }): Promise<void> {
-  const { userId, agentConfig, correctionIds, userUtterances, contextNotes } = params;
+  const { userId, agentConfig, correctionIds, userUtterances, contextNotes, sessionId } = params;
 
   if (contextNotes.length > 0) {
     await appendContextNotes(userId, contextNotes, agentConfig?.id ?? null);
@@ -73,4 +79,12 @@ export async function runPostAnalysisSideEffects(params: {
   runPatternAnalysisForUser(userId).catch(err =>
     console.error('[conversation-handler] Auto pattern analysis failed:', err)
   );
+
+  // Graduation + regression tracking. Runs against the session we just
+  // stored — decoupled from the expensive cross-session re-analysis above.
+  if (sessionId != null) {
+    runPostSessionPatternUpdates(userId, sessionId).catch(err =>
+      console.error('[conversation-handler] Pattern graduation/regression failed:', err)
+    );
+  }
 }

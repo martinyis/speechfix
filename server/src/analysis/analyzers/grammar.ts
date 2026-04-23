@@ -8,10 +8,11 @@ import {
   normalizeSessionInsights,
   buildUserMessage,
 } from '../utils.js';
+import { buildUserProfileBlock } from '../../modules/shared/user-profile-prompt.js';
 
 const anthropic = new Anthropic();
 
-const GRAMMAR_SYSTEM_PROMPT = `You are analyzing transcribed speech from a non-native English speaker. Your job is to find EVERY grammar mistake, structural issue, and unnatural phrasing. Be thorough and exhaustive — missing a real error is worse than occasionally flagging a borderline case.
+const GRAMMAR_SYSTEM_PROMPT = `You are analyzing transcribed English speech. The speaker may be native or non-native — treat both the same way and flag anything that deviates from natural American English. Your job is to find EVERY grammar mistake, structural issue, and unnatural phrasing. Be thorough and exhaustive — missing a real error is worse than occasionally flagging a borderline case.
 
 TARGET: Natural, casual-to-professional American English. Not British, not academic, not textbook. The speaker wants to sound like an educated American in everyday work and social settings.
 
@@ -183,13 +184,18 @@ export class GrammarAnalyzer implements Analyzer {
       'Analyze these speech sentences for grammar errors, naturalness issues, and patterns:',
     );
 
+    const profileBlock = buildUserProfileBlock(input.userProfile);
+    const systemPrompt = profileBlock
+      ? `${profileBlock}\n\n${GRAMMAR_SYSTEM_PROMPT}`
+      : GRAMMAR_SYSTEM_PROMPT;
+
     console.log(`[grammar-analyzer] Analyzing ${input.sentences.length} sentences`);
 
     try {
       const response = await anthropic.messages.create({
         model: 'claude-opus-4-6',
         max_tokens: 4096,
-        system: GRAMMAR_SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       });
 
@@ -227,6 +233,11 @@ export class GrammarAnalyzer implements Analyzer {
       'Analyze these speech sentences for grammar errors, naturalness issues, and patterns:',
     );
 
+    const profileBlock = buildUserProfileBlock(input.userProfile);
+    const systemPrompt = profileBlock
+      ? `${profileBlock}\n\n${GRAMMAR_SYSTEM_PROMPT}`
+      : GRAMMAR_SYSTEM_PROMPT;
+
     console.log(`[grammar-analyzer] Starting streaming analysis for ${input.sentences.length} sentences`);
 
     const streamedCorrections: Correction[] = [];
@@ -237,7 +248,7 @@ export class GrammarAnalyzer implements Analyzer {
       const stream = anthropic.messages.stream({
         model: 'claude-opus-4-6',
         max_tokens: 4096,
-        system: GRAMMAR_SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: [{ role: 'user', content: userMessage }],
       });
 

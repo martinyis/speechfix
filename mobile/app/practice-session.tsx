@@ -16,21 +16,15 @@ import Animated, {
   FadeInDown,
 } from 'react-native-reanimated';
 import { ScreenHeader, GlassIconPillButton } from '../components/ui';
+import { SuccessScreen } from '../components/success';
 import PracticeRecordOrb from '../components/orbs/PracticeRecordOrb';
 import PracticeFeedbackPanel from '../components/PracticeFeedbackPanel';
 import SuccessCelebration from '../components/SuccessCelebration';
-import ErrorReasonHeader from '../components/practice/ErrorReasonHeader';
-import { wordDiff } from '../lib/wordDiff';
+import DrillPrompt from '../components/practice/DrillPrompt';
 import { usePracticeTasks } from '../hooks/data/usePracticeTasks';
 import { usePracticeRecording } from '../hooks/recording/usePracticeRecording';
 import { colors, alpha, spacing, layout, fonts } from '../theme';
 import { usePreloadSuccessSound, playSuccessSound } from '../lib/sounds';
-
-const SEVERITY_COLOR: Record<string, string> = {
-  error: colors.severityError,
-  improvement: colors.severityImprovement,
-  polish: colors.severityPolish,
-};
 
 export default function PracticeSessionScreen() {
   const { correctionId, fromList, sessionId } = useLocalSearchParams<{
@@ -181,7 +175,6 @@ export default function PracticeSessionScreen() {
     handleDone();
   }, [sessionQueue, queueIndex, recording, handleDone, handleQueueExhausted]);
 
-  const severityColor = task ? (SEVERITY_COLOR[task.severity] ?? colors.severityError) : colors.severityError;
 
   // Compute orb state: success when passed, otherwise map normally
   const passed = recording.state === 'result' && recording.result?.passed;
@@ -199,11 +192,6 @@ export default function PracticeSessionScreen() {
     const timer = setTimeout(handleNext, 1500);
     return () => clearTimeout(timer);
   }, [passed]);
-
-  // Fade out instruction text on success
-  const instructionFadeStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(passed ? 0 : 1, { duration: 300 }),
-  }));
 
   // Dim content during recording or failure result (not success)
   const contentOpacity = useAnimatedStyle(() => ({
@@ -227,65 +215,46 @@ export default function PracticeSessionScreen() {
   }
 
   // -- Celebration screen --
-  if (completionState) {
+  if (completionState === 'session_complete') {
     return (
-      <View style={styles.container}>
-        <ScreenHeader variant="back" />
-        <Animated.View style={styles.celebrationContainer} entering={FadeIn.duration(300)}>
-          {completionState === 'session_complete' ? (
-            <>
-              <Animated.View entering={FadeInDown.duration(400).delay(100)}>
-                <Ionicons name="trophy" size={64} color={colors.primary} />
-              </Animated.View>
-              <Text style={styles.celebrationTitle}>Session Complete</Text>
-              <Text style={styles.celebrationSubtitle}>
-                All corrections in this session have been practiced.
-              </Text>
-              <View style={styles.celebrationActions}>
-                <GlassIconPillButton
-                  label="Practice Next Session"
-                  icon="arrow-forward"
-                  variant="primary"
-                  fullWidth
-                  onPress={() => {
-                    router.replace('/(tabs)/practice');
-                  }}
-                />
-                <GlassIconPillButton
-                  label="Done"
-                  icon="checkmark"
-                  variant="secondary"
-                  fullWidth
-                  onPress={() => {
-                    router.back();
-                  }}
-                />
-              </View>
-            </>
-          ) : (
-            <>
-              <Animated.View entering={FadeInDown.duration(400).delay(100)}>
-                <Ionicons name="checkmark-circle" size={64} color={colors.severityPolish} />
-              </Animated.View>
-              <Text style={styles.celebrationTitle}>All Caught Up</Text>
-              <Text style={styles.celebrationSubtitle}>
-                Every correction has been practiced.
-              </Text>
-              <View style={styles.celebrationActions}>
-                <GlassIconPillButton
-                  label="New Session"
-                  icon="mic"
-                  variant="primary"
-                  fullWidth
-                  onPress={() => {
-                    router.replace('/(tabs)');
-                  }}
-                />
-              </View>
-            </>
-          )}
-        </Animated.View>
-      </View>
+      <SuccessScreen
+        eyebrow="Session"
+        title="Session Complete"
+        subtitle="All corrections in this session have been practiced."
+        tone="victorious"
+        actions={[
+          {
+            label: 'Practice Next Session',
+            icon: 'arrow-forward',
+            variant: 'primary',
+            onPress: () => router.replace('/(tabs)/practice'),
+          },
+          {
+            label: 'Done',
+            icon: 'checkmark',
+            variant: 'secondary',
+            onPress: () => router.back(),
+          },
+        ]}
+      />
+    );
+  }
+  if (completionState === 'all_complete') {
+    return (
+      <SuccessScreen
+        eyebrow="Inbox zero"
+        title="All Caught Up"
+        subtitle="Every correction has been practiced."
+        tone="polish"
+        actions={[
+          {
+            label: 'New Session',
+            icon: 'mic',
+            variant: 'success',
+            onPress: () => router.replace('/(tabs)'),
+          },
+        ]}
+      />
     );
   }
 
@@ -296,59 +265,21 @@ export default function PracticeSessionScreen() {
 
       <View style={styles.body}>
         {/* Prompt content */}
-        <Animated.View style={[styles.promptContainer, contentOpacity]}>
-          {/* Full sentence with error portion underlined */}
-          <View style={styles.originalWrap}>
-            <Text style={styles.sectionLabel}>YOUR ORIGINAL</Text>
-            <Text style={styles.originalFullText}>
-              {(() => {
-                const ctx = task.contextSnippet;
-                if (ctx) {
-                  const idx = ctx.toLowerCase().indexOf(task.originalText.toLowerCase());
-                  if (idx >= 0) {
-                    const before = ctx.slice(0, idx);
-                    const match = ctx.slice(idx, idx + task.originalText.length);
-                    const after = ctx.slice(idx + task.originalText.length);
-                    return (
-                      <>
-                        {before ? <Text>{before}</Text> : null}
-                        <Text style={[styles.errorUnderline, { textDecorationColor: severityColor }]}>
-                          {match}
-                        </Text>
-                        {after ? <Text>{after}</Text> : null}
-                      </>
-                    );
-                  }
-                }
-                // Fallback: wordDiff on originalText
-                return wordDiff(task.originalText, task.correctedText).map((seg, i) => (
-                  <Text
-                    key={i}
-                    style={
-                      seg.type === 'equal'
-                        ? undefined
-                        : [styles.errorUnderline, { textDecorationColor: severityColor }]
-                    }
-                  >
-                    {i > 0 ? ' ' : ''}{seg.text}
-                  </Text>
-                ));
-              })()}
-            </Text>
-          </View>
-
-          <ErrorReasonHeader
+        <Animated.ScrollView
+          style={[styles.promptScroll, contentOpacity]}
+          contentContainerStyle={styles.promptContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <DrillPrompt
             key={`err-${currentCorrectionId}`}
-            correctionType={task.correctionType}
-            severity={task.severity}
-            explanation={task.explanation}
-            shortReason={task.shortReason}
             originalText={task.originalText}
+            correctedText={task.correctedText}
+            context={task.contextSnippet}
+            severity={task.severity}
+            shortReason={task.shortReason}
+            explanation={task.explanation}
           />
-
-          {/* Instruction */}
-          <Animated.Text style={[styles.instructionText, instructionFadeStyle]}>Now say the corrected version</Animated.Text>
-        </Animated.View>
+        </Animated.ScrollView>
 
         {/* Feedback panel (failure only) or recording/success area */}
         {recording.state === 'result' && recording.result && !recording.result.passed ? (
@@ -397,48 +328,16 @@ const styles = StyleSheet.create({
   },
 
   // Prompt content
-  promptContainer: {
+  promptScroll: {
     flex: 1,
+  },
+  promptContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: layout.screenPadding + 4,
+    paddingVertical: spacing.md,
     gap: 32,
   },
-  sectionLabel: {
-    fontSize: 10,
-    fontFamily: fonts.bold,
-    letterSpacing: 1.5,
-    color: alpha(colors.white, 0.2),
-    marginBottom: 10,
-  },
-
-  // Original sentence with underlined errors
-  originalWrap: {},
-  originalFullText: {
-    fontSize: 20,
-    fontFamily: fonts.medium,
-    color: alpha(colors.white, 0.85),
-    lineHeight: 30,
-  },
-  errorUnderline: {
-    textDecorationLine: 'underline' as const,
-    textDecorationStyle: 'solid' as const,
-  },
-  instructionText: {
-    fontSize: 13,
-    fontFamily: fonts.semibold,
-    color: alpha(colors.white, 0.2),
-    textAlign: 'center' as const,
-  },
-  targetRow: {
-    flexDirection: 'row',
-  },
-  accentBar: {
-    width: 3,
-    borderRadius: 1.5,
-    marginRight: 14,
-    flexShrink: 0,
-  },
-
   // Record area
   recordArea: {
     alignItems: 'center',
@@ -451,34 +350,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Celebration
-  celebrationContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: layout.screenPadding,
-    gap: spacing.md,
-  },
-  celebrationTitle: {
-    fontSize: 26,
-    fontFamily: fonts.extrabold,
-    color: colors.onSurface,
-    letterSpacing: -0.5,
-    marginTop: spacing.sm,
-  },
-  celebrationSubtitle: {
-    fontSize: 15,
-    fontFamily: fonts.regular,
-    color: alpha(colors.white, 0.45),
-    textAlign: 'center',
-    lineHeight: 22,
-    maxWidth: 280,
-  },
-  celebrationActions: {
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.xl,
-    width: '100%',
-    maxWidth: 300,
-  },
 });
