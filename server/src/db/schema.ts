@@ -105,9 +105,43 @@ export const speechPatterns = pgTable('speech_patterns', {
   identifier: text('identifier'),
   data: jsonb('data').notNull(),
   sessionsAnalyzed: jsonb('sessions_analyzed').default([]).notNull(),
+  /**
+   * State machine:
+   *   queued  → waiting in the queue for user to activate (or auto-promote).
+   *   active  → the single pattern the user is currently drilling.
+   *   watching → user finished L1+L2 drills; backend now watches real speech
+   *              to see if the pattern actually fades in future sessions.
+   *   mastered → pattern dropped ≥50% (or didn't appear) across 3 clean sessions
+   *              since entering `watching`. Shown in dedicated Mastered screen.
+   *   dismissed → user said "not actually a pattern" (v1 dismiss action).
+   *
+   * Legacy: `practiced` is deprecated — existing rows are migrated to
+   * `watching` in 0028_patterns_watching.sql. The enum value is still tolerated
+   * for backward compat but nothing writes it anymore.
+   */
   status: text('status').notNull().default('queued'),
   queuePosition: integer('queue_position'),
+  /**
+   * Last drill completion timestamp (the moment the user finished L1+L2 and
+   * the pattern moved to `watching`). Kept for display + legacy queries.
+   */
   completedAt: timestamp('completed_at'),
+  /** When the pattern graduated to `mastered` (nullable until that happens). */
+  masteredAt: timestamp('mastered_at'),
+  /** When the pattern entered `watching` (typically equal to completedAt). */
+  enteredWatchingAt: timestamp('entered_watching_at'),
+  /**
+   * Number of "clean" sessions observed since the pattern entered watching.
+   * A session is clean if frequency for this pattern dropped ≥50% vs
+   * `data.baselineFrequency`, or the pattern didn't appear at all.
+   * Graduates to mastered at 3. Does NOT decrement — stalled sessions leave
+   * the counter unchanged so the user sees honest progress.
+   */
+  cleanSessionCount: integer('clean_session_count').notNull().default(0),
+  /** When a previously-mastered pattern last regressed back to queued. */
+  lastRegressedAt: timestamp('last_regressed_at'),
+  /** When the user dismissed this pattern. */
+  dismissedAt: timestamp('dismissed_at'),
   isReturning: boolean('is_returning').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -129,6 +163,7 @@ export const patternExercises = pgTable('pattern_exercises', {
   patternId: integer('pattern_id').references(() => speechPatterns.id, { onDelete: 'cascade' }).notNull(),
   userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   originalSentence: text('original_sentence').notNull(),
+  fullContext: text('full_context'),
   targetWord: text('target_word'),
   patternType: text('pattern_type').notNull(),
   alternatives: jsonb('alternatives').default([]).notNull(),

@@ -1,10 +1,41 @@
 import Groq from 'groq-sdk';
 import { db } from '../../db/index.js';
-import { patternExercises, speechPatterns } from '../../db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { patternExercises, sessions, speechPatterns } from '../../db/schema.js';
+import { eq, and, inArray } from 'drizzle-orm';
 
 const groq = new Groq();
 const MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+
+// Sentences of speech context to include on each side of the matched example.
+const CONTEXT_WINDOW = 2;
+
+/**
+ * Locate `example` inside any of the provided sentence arrays and return the
+ * ±CONTEXT_WINDOW surrounding sentences joined by spaces. Returns null if the
+ * example can't be found (frontend falls back to single-sentence rendering).
+ */
+function resolveFullContext(
+  example: string,
+  sessionSentences: string[][],
+): string | null {
+  const target = example.trim().toLowerCase();
+  if (!target) return null;
+
+  for (const sentences of sessionSentences) {
+    // Prefer full-sentence equality; fall back to substring containment so
+    // we still land a match when the LLM returned a sentence with trimmed
+    // punctuation or slight whitespace differences.
+    const exactIdx = sentences.findIndex((s) => s.trim().toLowerCase() === target);
+    const containsIdx = exactIdx >= 0 ? exactIdx : sentences.findIndex((s) => s.toLowerCase().includes(target));
+    if (containsIdx < 0) continue;
+
+    const start = Math.max(0, containsIdx - CONTEXT_WINDOW);
+    const end = Math.min(sentences.length, containsIdx + CONTEXT_WINDOW + 1);
+    if (end - start <= 1) return null; // no additional context available
+    return sentences.slice(start, end).join(' ').trim();
+  }
+  return null;
+}
 
 const CATEGORY_A_TYPES = ['overused_word', 'repetitive_starter', 'crutch_phrase'];
 const CATEGORY_B_TYPES = ['hedging', 'negative_framing'];
@@ -22,7 +53,7 @@ export async function generateAlternatives(
       messages: [
         {
           role: 'system',
-          content: `You are an expert English language coach helping non-native speakers improve their speech. Return ONLY valid JSON.`,
+          content: `You are an expert English language coach helping speakers — native or non-native — improve their speech. Return ONLY valid JSON.`,
         },
         {
           role: 'user',
@@ -79,7 +110,7 @@ export async function generateReframeExercise(
       messages: [
         {
           role: 'system',
-          content: `You are an expert English language coach helping non-native speakers speak with more confidence and clarity. Return ONLY valid JSON.`,
+          content: `You are an expert English language coach helping speakers — native or non-native — speak with more confidence and clarity. Return ONLY valid JSON.`,
         },
         {
           role: 'user',
@@ -125,7 +156,11 @@ export async function generatePatternExercises(
 ): Promise<number> {
   // Fetch pattern from DB
   const [pattern] = await db
-    .select({ id: speechPatterns.id, data: speechPatterns.data })
+    .select({
+      id: speechPatterns.id,
+      data: speechPatterns.data,
+      sessionsAnalyzed: speechPatterns.sessionsAnalyzed,
+    })
     .from(speechPatterns)
     .where(eq(speechPatterns.id, patternId));
 
@@ -173,6 +208,25 @@ export async function generatePatternExercises(
 
   if (newExamples.length === 0) return 0;
 
+  // Load sentences from each session this pattern was detected in so we can
+  // resolve ±CONTEXT_WINDOW surrounding sentences around every example.
+  const analyzedSessionIds = Array.isArray(pattern.sessionsAnalyzed)
+    ? (pattern.sessionsAnalyzed as number[])
+    : [];
+  let sessionSentences: string[][] = [];
+  if (analyzedSessionIds.length > 0) {
+    const rows = await db
+      .select({ analysis: sessions.analysis })
+      .from(sessions)
+      .where(inArray(sessions.id, analyzedSessionIds));
+    sessionSentences = rows
+      .map((r) => {
+        const analysis = r.analysis as { sentences?: string[] } | null;
+        return Array.isArray(analysis?.sentences) ? analysis!.sentences : [];
+      })
+      .filter((s) => s.length > 0);
+  }
+
   if (isCategoryA) {
     // Category A: generate word/phrase alternatives
     const results = await Promise.all(
@@ -191,6 +245,7 @@ export async function generatePatternExercises(
         patternId,
         userId,
         originalSentence: r.sentence,
+        fullContext: resolveFullContext(r.sentence, sessionSentences),
         targetWord: identifier!,
         patternType,
         alternatives: r.alternatives,
@@ -224,6 +279,7 @@ export async function generatePatternExercises(
         patternId,
         userId,
         originalSentence: r.sentence,
+        fullContext: resolveFullContext(r.sentence, sessionSentences),
         targetWord: null,
         patternType,
         alternatives: [] as string[],

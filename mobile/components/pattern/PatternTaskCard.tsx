@@ -28,9 +28,17 @@ const PATTERN_TYPE_LABEL: Record<string, string> = {
 
 interface PatternTaskCardProps {
   group: PatternGroup;
+  /**
+   * When true, renders the "Came back" label top-right and swaps the subtitle
+   * for a warm "came back" line. Used on patterns flagged `isReturning=true`.
+   */
+  isReturning?: boolean;
 }
 
-export function PatternTaskCard({ group }: PatternTaskCardProps) {
+export function PatternTaskCard({
+  group,
+  isReturning = false,
+}: PatternTaskCardProps) {
   const scale = useSharedValue(1);
   const severityColor = SEVERITY_COLOR[group.severity] ?? colors.severityError;
   const unpracticedCount = group.exercises.filter((e) => !e.practiced).length;
@@ -67,7 +75,13 @@ export function PatternTaskCard({ group }: PatternTaskCardProps) {
         <Text style={styles.identifier} numberOfLines={1}>
           {group.identifier ? `"${group.identifier}"` : PATTERN_TYPE_LABEL[group.type] ?? group.type}
         </Text>
-        {group.identifier ? (
+        {isReturning ? (
+          <Text style={styles.returningSubtitle} numberOfLines={2}>
+            {group.identifier
+              ? `"${group.identifier}" came back. This is normal — let's watch it again.`
+              : `${PATTERN_TYPE_LABEL[group.type] ?? group.type} came back. This is normal — let's watch it again.`}
+          </Text>
+        ) : group.identifier ? (
           <Text style={styles.typeLabel}>
             {PATTERN_TYPE_LABEL[group.type] ?? group.type}
           </Text>
@@ -77,7 +91,11 @@ export function PatternTaskCard({ group }: PatternTaskCardProps) {
       </View>
 
       {/* Right indicator */}
-      {allPracticed ? (
+      {isReturning ? (
+        <View style={styles.returningBadge}>
+          <Text style={styles.returningBadgeText}>Came back</Text>
+        </View>
+      ) : allPracticed ? (
         <Ionicons name="checkmark" size={14} color={alpha(colors.white, 0.25)} />
       ) : (
         <View style={[styles.badge, { backgroundColor: alpha(severityColor, 0.15) }]}>
@@ -129,5 +147,26 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 11,
     fontFamily: fonts.bold,
+  },
+  returningSubtitle: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: alpha(colors.white, 0.55),
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  returningBadge: {
+    backgroundColor: alpha(colors.tertiary, 0.15),
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginLeft: 12,
+    alignSelf: 'flex-start',
+  },
+  returningBadgeText: {
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.tertiary,
+    letterSpacing: 0.5,
   },
 });
