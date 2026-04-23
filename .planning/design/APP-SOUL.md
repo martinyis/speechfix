@@ -4,7 +4,7 @@
 
 ## What Reflexa Is
 
-A premium AI-powered speech improvement instrument for non-native English speakers. Reflexa records natural speech, analyzes it with expert precision, and surfaces exactly what needs fixing — grammar errors, structural issues, filler words, and unconscious patterns nobody else will point out.
+A premium AI-powered speech improvement instrument for anyone who wants to speak English better — native speakers and non-native speakers alike. Reflexa records natural speech, analyzes it with expert precision, and surfaces exactly what needs fixing — grammar errors, structural issues, filler words, and unconscious patterns nobody else will point out.
 
 ## Core Emotional Promise
 
@@ -30,7 +30,7 @@ Visual reference: Arc Browser, Linear, high-end developer tools. Dark, refined, 
 Reflexa's voice is an expert speech analyst, not a friend or cheerleader. Think of a skilled speech therapist who respects your time:
 
 - **Speaks precisely**: "Subject-verb disagreement in clause 2" not "Oops, small mistake!"
-- **Provides context**: "This is a common pattern for L1 speakers. The native form is..."
+- **Provides context**: "This is a common pattern. The cleaner form is..."
 - **Never judges**: States facts about language, never implies the user is bad at English
 - **Data-driven**: References specific counts, frequencies, and patterns
 - **Efficient**: Says what needs to be said, nothing more
@@ -47,13 +47,15 @@ Reflexa's voice is an expert speech analyst, not a friend or cheerleader. Think 
 
 ## Target Audience
 
-All non-native English speakers who already know English well but want to eliminate unconscious errors:
+Anyone who already speaks English well but wants to refine it — native speakers and non-native speakers alike. Reflexa is not for learning English from scratch; it is for sharpening speech that is already functional.
 
-- **Working professionals** — need polished English for meetings, presentations, emails
-- **Students & academics** — want fluent English for lectures, papers, discussions
-- **Immigrants** — building confidence in everyday English conversations
+- **Working professionals** — polished speech for meetings, presentations, emails
+- **Students & academics** — fluent delivery for lectures, papers, discussions
+- **Native speakers** — refining filler words, hedging, and unconscious verbal patterns
+- **Non-native speakers** — eliminating lingering grammar errors and non-native phrasing
+- **Immigrants & bilingual speakers** — building confidence across formal and casual contexts
 
-The common thread: they don't need to *learn* English. They need to *refine* it.
+The common thread: they don't need to *learn* English. They need to *refine* it. Reflexa meets each speaker where they are — a native speaker's "improvement" looks different from a non-native speaker's, and the app adapts via onboarding-driven analysis flags.
 
 ## Core UX Loop
 
