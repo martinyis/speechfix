@@ -3,7 +3,6 @@ import type { BrevityOptions } from '../response-generator.js';
 import { ConversationHandler } from './conversation-handler.js';
 import { ROLEPLAY_AUTHORITY_BLOCK, ROLEPLAY_BEHAVIOR_PROMPT, ROLEPLAY_SESSION_PROMPT } from '../prompts/session-types/roleplay.js';
 import { buildUserContextPrompt } from '../prompts/context.js';
-import { resolveElicitationStyle, ELICITATION_PROMPTS } from '../prompts/elicitation.js';
 import {
   BREVITY_PROMPT_ROLEPLAY,
   ROLEPLAY_TRUNCATE_WORDS,
@@ -13,7 +12,7 @@ import {
 export class RoleplayHandler extends ConversationHandler {
   override readonly maxCompletionTokens = { withTools: 200, withoutTools: 70 };
 
-  override getBrevityBudget(isDirectQuestion: boolean, hasTools: boolean): BrevityOptions {
+  override getBrevityBudget(isDirectQuestion: boolean, hasTools: boolean, _agentConfig: AgentConfig | null): BrevityOptions {
     if (hasTools) {
       return { maxCompletionTokens: this.maxCompletionTokens.withTools };
     }
@@ -35,17 +34,13 @@ export class RoleplayHandler extends ConversationHandler {
     layers.push(ROLEPLAY_BEHAVIOR_PROMPT);
     layers.push(ROLEPLAY_SESSION_PROMPT);
 
-    const elicitationFragment = ELICITATION_PROMPTS[resolveElicitationStyle(agentConfig)];
-    if (elicitationFragment) {
-      layers.push(elicitationFragment);
-    }
-
     const contextPrompt = buildUserContextPrompt(userContext, agentConfig?.id ?? null);
     if (contextPrompt) {
       layers.push(contextPrompt);
     }
 
     // Brevity fragment must be LAST so LLMs weight it most heavily.
+    // It also reinforces the stage-directions ban from ROLEPLAY_AUTHORITY_BLOCK.
     layers.push(BREVITY_PROMPT_ROLEPLAY);
 
     return layers.join('\n\n');

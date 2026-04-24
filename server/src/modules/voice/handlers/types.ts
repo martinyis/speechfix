@@ -54,11 +54,12 @@ export interface AgentTypeHandler {
   shouldAutoEnd(turnCount: number, conversationHistory: ConversationMessage[]): boolean;
   /**
    * Return per-turn brevity budget based on whether the user asked a direct
-   * question and whether tools are enabled this turn. Handlers that opt out
+   * question, whether tools are enabled this turn, and which agent is active
+   * (custom agents get more slack than Reflexa). Handlers that opt out
    * (no budget) should omit this method — the default (`maxCompletionTokens`
    * from the handler, no truncation) will be used.
    */
-  getBrevityBudget?(isDirectQuestion: boolean, hasTools: boolean): BrevityOptions;
+  getBrevityBudget?(isDirectQuestion: boolean, hasTools: boolean, agentConfig: AgentConfig | null): BrevityOptions;
   onSessionEnd(
     userId: number,
     agentConfig: AgentConfig | null,

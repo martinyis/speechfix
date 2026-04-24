@@ -970,6 +970,7 @@ export async function practiceRoutes(fastify: FastifyInstance) {
             patternType: patternExercises.patternType,
             alternatives: patternExercises.alternatives,
             highlightPhrases: patternExercises.highlightPhrases,
+            suggestedReframe: patternExercises.suggestedReframe,
             practiceCount: patternExercises.practiceCount,
           })
           .from(patternExercises)
@@ -1003,6 +1004,7 @@ export async function practiceRoutes(fastify: FastifyInstance) {
           originalSentence: exerciseRow.originalSentence,
           patternType: exerciseRow.patternType,
           highlightPhrases: (exerciseRow.highlightPhrases as string[]) ?? [],
+          suggestedReframe: exerciseRow.suggestedReframe,
         };
         result = await evaluateReframeExercise(reframeCtx, transcription.text);
       } else {

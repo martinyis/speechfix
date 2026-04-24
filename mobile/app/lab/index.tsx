@@ -14,15 +14,7 @@ interface LabEntry {
 
 // Register dev prototypes here. Kept empty after each prototype ships to
 // production so the lab stays quiet by default.
-const ENTRIES: LabEntry[] = [
-  {
-    key: 'pressure-drill',
-    title: 'Pressure Drill setup',
-    subtitle: 'Scenario + duration picker (Phase 5 smoke-test)',
-    route: '/pressure-drill',
-    icon: 'stopwatch-outline',
-  },
-];
+const ENTRIES: LabEntry[] = [];
 
 export default function LabIndexScreen() {
   return (

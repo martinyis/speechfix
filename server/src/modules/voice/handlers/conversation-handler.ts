@@ -7,11 +7,12 @@ import { IDENTITY_PROMPT } from '../prompts/identity.js';
 import { BEHAVIOR_PROMPT, CUSTOM_AGENT_BEHAVIOR_PROMPT } from '../prompts/behavior.js';
 import { REFLEXA_SESSION_PROMPT, CUSTOM_AGENT_SESSION_PROMPT } from '../prompts/session-types/conversation.js';
 import { buildUserContextPrompt } from '../prompts/context.js';
-import { resolveElicitationStyle, ELICITATION_PROMPTS } from '../prompts/elicitation.js';
 import {
   BREVITY_PROMPT_DEFAULT,
   DEFAULT_TRUNCATE_WORDS,
   QUESTION_TRUNCATE_WORDS,
+  ROLEPLAY_TRUNCATE_WORDS,
+  ROLEPLAY_QUESTION_TRUNCATE_WORDS,
 } from '../prompts/brevity.js';
 import { runAnalysis, runAnalysisPhased } from '../../../analysis/index.js';
 import type { PhasedInsightsPayload } from '../../../analysis/types.js';
@@ -50,8 +51,8 @@ export function buildAirtimeRatio(
 
 /**
  * Structured log line for airtime. Persistent — this is the long-term
- * feedback signal for whether brevity is working. Target for draw-out
- * sessions: ratio ≤ 0.25 (per the elicitation prompt's explicit goal).
+ * feedback signal for whether brevity is working. Target for Reflexa
+ * sessions: ratio ≤ 0.25.
  */
 export function logAirtime(
   dbSessionId: number | null,
@@ -76,39 +77,30 @@ export class ConversationHandler implements AgentTypeHandler {
   buildSystemPrompt(agentConfig: AgentConfig | null, userContext?: FullUserContext, _formContext?: Record<string, unknown> | null): string {
     const layers: string[] = [];
 
-    const elicitationFragment = ELICITATION_PROMPTS[resolveElicitationStyle(agentConfig)];
-
     if (agentConfig) {
-      // Custom agent path
+      // Custom agent path — character-first. No Reflexa-style probe/brevity.
       layers.push(`Your name is ${agentConfig.name}.\n\n${agentConfig.systemPrompt}`);
       layers.push(CUSTOM_AGENT_BEHAVIOR_PROMPT);
       if (agentConfig.behaviorPrompt) {
         layers.push(agentConfig.behaviorPrompt);
       }
       layers.push(CUSTOM_AGENT_SESSION_PROMPT);
-      if (elicitationFragment) {
-        layers.push(elicitationFragment);
-      }
       const contextPrompt = buildUserContextPrompt(userContext, agentConfig.id);
       if (contextPrompt) {
         layers.push(contextPrompt);
       }
     } else {
-      // Reflexa path
+      // Reflexa path — adaptive probing + brevity mandate.
       layers.push(IDENTITY_PROMPT);
       layers.push(BEHAVIOR_PROMPT);
       layers.push(REFLEXA_SESSION_PROMPT);
-      if (elicitationFragment) {
-        layers.push(elicitationFragment);
-      }
       const contextPrompt = buildUserContextPrompt(userContext, null);
       if (contextPrompt) {
         layers.push(contextPrompt);
       }
+      // Brevity fragment last so LLMs weight it most heavily. Reflexa only.
+      layers.push(BREVITY_PROMPT_DEFAULT);
     }
-
-    // Brevity fragment must be LAST so LLMs weight it most heavily.
-    layers.push(BREVITY_PROMPT_DEFAULT);
 
     return layers.join('\n\n');
   }
@@ -121,11 +113,18 @@ export class ConversationHandler implements AgentTypeHandler {
     return false;
   }
 
-  getBrevityBudget(isDirectQuestion: boolean, hasTools: boolean): BrevityOptions {
+  getBrevityBudget(isDirectQuestion: boolean, hasTools: boolean, agentConfig: AgentConfig | null): BrevityOptions {
     // Tool-call turns keep slack for the `end_session` tool payload and are
     // never truncated — truncating tool-call JSON corrupts the protocol.
     if (hasTools) {
       return { maxCompletionTokens: this.maxCompletionTokens.withTools };
+    }
+    // Custom agents get more room so the character can breathe (1-2 sentences).
+    // Reflexa stays tight — it's meant to be extractive, not chatty.
+    if (agentConfig) {
+      return isDirectQuestion
+        ? { maxCompletionTokens: 100, truncateToWords: ROLEPLAY_QUESTION_TRUNCATE_WORDS }
+        : { maxCompletionTokens: 70, truncateToWords: ROLEPLAY_TRUNCATE_WORDS };
     }
     return isDirectQuestion
       ? { maxCompletionTokens: 60, truncateToWords: QUESTION_TRUNCATE_WORDS }

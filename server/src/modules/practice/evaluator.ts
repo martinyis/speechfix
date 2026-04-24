@@ -113,6 +113,29 @@ export interface ReframeExerciseContext {
   originalSentence: string;
   patternType: string;
   highlightPhrases: string[];
+  suggestedReframe?: string | null;
+}
+
+function normalizeForMatch(s: string): string {
+  return s.toLowerCase().replace(/[^\w\s']/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Accept the user's attempt if it closely matches the hint the app showed them
+// ("TRY SAYING …"). Without this short-circuit the evaluator LLM sometimes
+// rejects the very phrase the generator LLM told the user to say, creating a
+// contradiction where the "Correct Version" on the fail screen equals what
+// the user just spoke.
+function matchesSuggestedReframe(transcript: string, suggested: string): boolean {
+  const a = normalizeForMatch(transcript);
+  const b = normalizeForMatch(suggested);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return true;
+  const aWords = new Set(a.split(' '));
+  const bWords = b.split(' ');
+  if (bWords.length === 0) return false;
+  const overlap = bWords.filter((w) => aWords.has(w)).length;
+  return overlap / bWords.length >= 0.8;
 }
 
 export async function evaluatePatternExercise(
@@ -152,6 +175,13 @@ export async function evaluateReframeExercise(
   exercise: ReframeExerciseContext,
   transcript: string,
 ): Promise<EvaluationResult> {
+  if (
+    exercise.suggestedReframe &&
+    matchesSuggestedReframe(transcript, exercise.suggestedReframe)
+  ) {
+    return { passed: true, feedback: '' };
+  }
+
   const typeLabel =
     exercise.patternType === 'hedging' ? 'hedging language'
     : 'negative framing';
@@ -162,10 +192,14 @@ RULES:
 - Return ONLY valid JSON: {"passed": true/false, "feedback": "1-2 sentences"}
 - Be direct, precise, expert tone`;
 
+  const hintLine = exercise.suggestedReframe
+    ? `\nHINT SHOWN TO SPEAKER (treat as an acceptable answer; do not contradict it): "${exercise.suggestedReframe}"`
+    : '';
+
   const userPrompt = `The speaker's original sentence contained ${typeLabel}:
 
 ORIGINAL: "${exercise.originalSentence}"
-PROBLEMATIC PHRASES: ${exercise.highlightPhrases.map((p) => `"${p}"`).join(', ')}
+PROBLEMATIC PHRASES: ${exercise.highlightPhrases.map((p) => `"${p}"`).join(', ')}${hintLine}
 
 They were asked to reframe this sentence without the ${typeLabel}.
 

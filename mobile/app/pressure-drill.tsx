@@ -1,9 +1,20 @@
-import { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+  SlideInRight,
+  SlideOutLeft,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { GlassIconPillButton, ScreenHeader } from '../components/ui';
 import {
   SCENARIOS,
@@ -11,100 +22,203 @@ import {
 } from '../lib/pressureDrillScenarios';
 import { DURATION_PRESETS } from '../types/pressureDrill';
 import type { ScenarioSlug, DurationPreset } from '../types/pressureDrill';
-import { colors, alpha, spacing, typography, fonts, layout, borderRadius } from '../theme';
+import {
+  colors,
+  alpha,
+  spacing,
+  typography,
+  fonts,
+  layout,
+} from '../theme';
+
+function DurationTabBar({
+  value,
+  onChange,
+}: {
+  value: DurationPreset;
+  onChange: (d: DurationPreset) => void;
+}) {
+  const idx = DURATION_PRESETS.indexOf(value);
+  const [width, setWidth] = useState(0);
+  const translate = useSharedValue(0);
+  const tabWidth = width / DURATION_PRESETS.length;
+
+  useEffect(() => {
+    if (tabWidth > 0) {
+      translate.value = withTiming(idx * tabWidth, {
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+      });
+    }
+  }, [idx, tabWidth, translate]);
+
+  const indicatorStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translate.value }],
+    width: tabWidth,
+  }));
+
+  return (
+    <View
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      style={styles.tabBar}
+    >
+      <View style={styles.tabRow}>
+        {DURATION_PRESETS.map((d) => {
+          const active = d === value;
+          return (
+            <Pressable
+              key={d}
+              hitSlop={8}
+              onPress={() => {
+                Haptics.selectionAsync();
+                onChange(d);
+              }}
+              style={styles.tab}
+            >
+              <Text
+                style={[
+                  styles.tabLabel,
+                  active ? styles.tabLabelActive : styles.tabLabelInactive,
+                ]}
+              >
+                {DURATION_LABELS[d]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <View style={styles.tabBaseline} />
+      {width > 0 && (
+        <Animated.View style={[styles.tabIndicator, indicatorStyle]} />
+      )}
+    </View>
+  );
+}
 
 export default function PressureDrillSetupScreen() {
   const insets = useSafeAreaInsets();
-  const [scenario, setScenario] = useState<ScenarioSlug>(SCENARIOS[0].slug);
+  const [scenarioIdx, setScenarioIdx] = useState(0);
   const [duration, setDuration] = useState<DurationPreset>(180);
+  const [browsing, setBrowsing] = useState(false);
+
+  const scenarioObj = SCENARIOS[scenarioIdx];
+  const scenario: ScenarioSlug = scenarioObj.slug;
 
   const handleStart = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Route is created by Phase 6 — cast until expo-router regenerates types.
     router.push({
       pathname: '/pressure-drill-session',
       params: { scenario, duration: String(duration) },
     } as never);
   };
 
+  const cycle = () => {
+    Haptics.selectionAsync();
+    setScenarioIdx((i) => (i + 1) % SCENARIOS.length);
+  };
+
+  const toggleBrowse = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setBrowsing((b) => !b);
+  };
+
+  const pickFromBrowse = (idx: number) => {
+    Haptics.selectionAsync();
+    setScenarioIdx(idx);
+    setBrowsing(false);
+  };
+
   return (
     <View style={styles.container}>
-      <ScreenHeader variant="back" title="Pressure Drill" onBack={() => router.back()} />
+      <ScreenHeader
+        variant="back"
+        title="Pressure Drill"
+        onBack={() => router.back()}
+      />
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 120 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Intro copy */}
+      <View style={styles.content}>
         <View style={styles.intro}>
           <Text style={styles.eyebrow}>TIMED MONOLOGUE</Text>
           <Text style={styles.hero}>Talk. Don't stop.</Text>
-          <Text style={styles.sub}>
-            Pick a scenario and a duration. We'll feed you angles on screen. Pause is the skill.
-          </Text>
         </View>
 
-        {/* Scenario picker */}
-        <Text style={styles.sectionLabel}>SCENARIO</Text>
-        <View style={styles.scenarioList}>
-          {SCENARIOS.map((s) => {
-            const selected = s.slug === scenario;
-            return (
-              <Pressable
-                key={s.slug}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setScenario(s.slug);
-                }}
-                style={[styles.scenarioRow, selected && styles.scenarioRowSelected]}
-              >
-                <View style={styles.scenarioTextBlock}>
-                  <Text style={[styles.scenarioLabel, selected && styles.scenarioLabelSelected]}>
-                    {s.label}
-                  </Text>
-                  <Text style={styles.scenarioSubtitle}>{s.subtitle}</Text>
-                </View>
-                {selected && (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
+        <Text style={styles.sectionLabel}>DURATION</Text>
+        <DurationTabBar value={duration} onChange={setDuration} />
 
-        {/* Duration picker */}
-        <Text style={[styles.sectionLabel, { marginTop: spacing.xxl }]}>DURATION</Text>
-        <View style={styles.durationRow}>
-          {DURATION_PRESETS.map((d) => {
-            const selected = d === duration;
-            return (
-              <Pressable
-                key={d}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setDuration(d);
-                }}
-                style={[styles.durationPill, selected && styles.durationPillSelected]}
+        <Text style={[styles.sectionLabel, { marginTop: spacing.xxl }]}>
+          SCENARIO
+        </Text>
+
+        <Animated.View
+          layout={LinearTransition.springify().damping(20).stiffness(200)}
+        >
+          <View style={styles.peekRow}>
+            <View style={styles.peekText}>
+              <Animated.View
+                key={scenario}
+                entering={SlideInRight.duration(220)}
+                exiting={SlideOutLeft.duration(180)}
               >
-                <Text style={[styles.durationText, selected && styles.durationTextSelected]}>
-                  {DURATION_LABELS[d]}
+                <Text style={styles.scenarioLabel} numberOfLines={1}>
+                  {scenarioObj.label}
                 </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+                <Text style={styles.scenarioSubtitle} numberOfLines={1}>
+                  {scenarioObj.subtitle}
+                </Text>
+              </Animated.View>
+            </View>
 
-        {/* Mechanic explainer */}
-        <View style={styles.explainer}>
-          <Text style={styles.explainerText}>
-            Obvious fillers (um, uh, er) flash amber with a gentle buzz. Pauses are fine — they're
-            the skill. Swap prompts anytime if you're stuck.
-          </Text>
-        </View>
-      </ScrollView>
+            <Pressable onPress={cycle} hitSlop={12} style={styles.cycleBtn}>
+              <View style={styles.cycleBloom} pointerEvents="none" />
+              <Ionicons name="shuffle" size={22} color={colors.primary} />
+            </Pressable>
+          </View>
 
-      {/* Start button — fixed to bottom */}
+          <Pressable onPress={toggleBrowse} hitSlop={8} style={styles.browseLinkWrap}>
+            <Text style={styles.browseLink}>
+              {browsing ? 'Hide list' : 'Browse all 6'}
+            </Text>
+            <Text style={styles.indexHint}>
+              {scenarioIdx + 1} of {SCENARIOS.length}
+            </Text>
+          </Pressable>
+
+          {browsing && (
+            <Animated.View
+              entering={FadeIn.duration(180)}
+              exiting={FadeOut.duration(100)}
+              style={styles.browseList}
+            >
+              {SCENARIOS.map((s, i) => {
+                const selected = i === scenarioIdx;
+                const isLast = i === SCENARIOS.length - 1;
+                return (
+                  <Pressable
+                    key={s.slug}
+                    onPress={() => pickFromBrowse(i)}
+                    style={[
+                      styles.browseRow,
+                      selected && styles.browseRowActive,
+                      !isLast && styles.browseRowDivider,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.browseLabel,
+                        selected && styles.browseLabelActive,
+                      ]}
+                    >
+                      {s.label}
+                    </Text>
+                    <Text style={styles.scenarioSubtitle}>{s.subtitle}</Text>
+                  </Pressable>
+                );
+              })}
+            </Animated.View>
+          )}
+        </Animated.View>
+      </View>
+
       <View style={[styles.startBar, { paddingBottom: insets.bottom + spacing.md }]}>
         <GlassIconPillButton
           icon="play"
@@ -118,33 +232,25 @@ export default function PressureDrillSetupScreen() {
   );
 }
 
+const INDICATOR_HEIGHT = 2;
+const HAIRLINE = alpha(colors.white, 0.08);
+const TEXT_INACTIVE = alpha(colors.white, 0.5);
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
+  container: { flex: 1, backgroundColor: colors.background },
+  content: { flex: 1, paddingHorizontal: layout.screenPadding },
 
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: layout.screenPadding },
-
-  // Intro
-  intro: { marginBottom: spacing.xxl, marginTop: spacing.md },
+  intro: { marginTop: spacing.md, marginBottom: spacing.xxl },
   eyebrow: {
     ...typography.labelMd,
     color: colors.primary,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   hero: {
     fontFamily: fonts.extrabold,
-    fontSize: 36,
+    fontSize: 32,
     color: colors.onSurface,
-    letterSpacing: -1.2,
-    marginBottom: spacing.sm,
-  },
-  sub: {
-    ...typography.bodyMd,
-    color: alpha(colors.white, 0.55),
-    lineHeight: 21,
+    letterSpacing: -1,
   },
 
   sectionLabel: {
@@ -153,82 +259,118 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
 
-  // Scenario picker — flat rows with borderBottom
-  scenarioList: {},
-  scenarioRow: {
+  tabBar: { position: 'relative' },
+  tabRow: { flexDirection: 'row' },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  tabLabel: { fontFamily: fonts.semibold, fontSize: 16, letterSpacing: -0.2 },
+  tabLabelInactive: { color: TEXT_INACTIVE },
+  tabLabelActive: { color: colors.onSurface, fontFamily: fonts.bold },
+  tabBaseline: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: HAIRLINE,
+  },
+  tabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    height: INDICATOR_HEIGHT,
+    backgroundColor: colors.primary,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+  },
+
+  peekRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: spacing.md,
+    gap: spacing.md,
+    paddingVertical: spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: HAIRLINE,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: alpha(colors.white, 0.07),
+    borderBottomColor: HAIRLINE,
+    overflow: 'hidden',
   },
-  scenarioRowSelected: {},
-  scenarioTextBlock: { flex: 1, paddingRight: spacing.md },
+  peekText: { flex: 1, gap: 2 },
   scenarioLabel: {
     ...typography.bodyLg,
+    fontFamily: fonts.semibold,
     color: colors.onSurface,
-    marginBottom: 2,
-  },
-  scenarioLabelSelected: {
-    color: colors.primary,
   },
   scenarioSubtitle: {
     ...typography.bodySm,
-    color: alpha(colors.white, 0.4),
-  },
-
-  // Duration picker — 4 pills
-  durationRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  durationPill: {
-    flex: 1,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.full,
-    borderWidth: 1,
-    borderColor: alpha(colors.white, 0.08),
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
-  durationPillSelected: {
-    borderColor: colors.primary,
-    backgroundColor: alpha(colors.primary, 0.12),
-  },
-  durationText: {
-    ...typography.bodyMdMedium,
     color: alpha(colors.white, 0.5),
   },
-  durationTextSelected: {
-    color: colors.primary,
-    fontFamily: fonts.bold,
-  },
 
-  // Explainer
-  explainer: {
-    marginTop: spacing.xxl,
-    paddingVertical: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: alpha(colors.white, 0.06),
+  cycleBtn: {
+    padding: spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  explainerText: {
-    ...typography.bodySm,
-    color: alpha(colors.white, 0.4),
-    lineHeight: 18,
-  },
-
-  // Start bar
-  startBar: {
+  cycleBloom: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.primary,
+    opacity: 0.18,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.8,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 0 },
+  },
+
+  browseLinkWrap: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: spacing.sm,
+  },
+  browseLink: {
+    ...typography.bodySm,
+    fontFamily: fonts.semibold,
+    color: colors.primary,
+  },
+  indexHint: {
+    ...typography.bodySm,
+    color: alpha(colors.white, 0.35),
+  },
+
+  browseList: {
+    marginTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: HAIRLINE,
+  },
+  browseRow: {
+    paddingVertical: spacing.md,
+    paddingLeft: spacing.md,
+    borderLeftWidth: 2,
+    borderLeftColor: 'transparent',
+  },
+  browseRowActive: {
+    borderLeftColor: colors.primary,
+  },
+  browseRowDivider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: alpha(colors.white, 0.06),
+  },
+  browseLabel: {
+    ...typography.bodyMdMedium,
+    fontFamily: fonts.medium,
+    color: alpha(colors.white, 0.85),
+    marginBottom: 2,
+  },
+  browseLabelActive: { color: colors.primary },
+
+  startBar: {
     paddingHorizontal: layout.screenPadding,
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: alpha(colors.white, 0.06),
+    borderTopColor: HAIRLINE,
     backgroundColor: colors.background,
   },
 });

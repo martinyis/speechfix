@@ -36,18 +36,18 @@ export function buildUserContextPrompt(userContext?: FullUserContext, agentId?: 
     const recent = filtered.slice(-10);
     if (recent.length > 0) {
       lines.push('');
-      lines.push('THINGS YOU KNOW FROM PAST CONVERSATIONS:');
+      lines.push('THINGS YOU KNOW FROM PAST CONVERSATIONS (dated — weight by recency):');
       for (const entry of recent) {
         for (const note of entry.notes) {
-          lines.push(`- ${note}`);
+          lines.push(`- [${entry.date}] ${note}`);
         }
       }
     }
   }
 
   lines.push('');
-  lines.push('Use this context naturally. Reference past topics when relevant to what the user brings up. Never recite facts back unprompted.');
-  lines.push('When greeting (first message), you can use their name and briefly reference something you know. Keep it natural, 1-2 sentences.');
+  lines.push('Use this context naturally. Weight recent items — anything from weeks or months ago may no longer be relevant, so do NOT lead with it. Reference past topics only when the user brings them up, or when something from the last session or last few days is clearly still live. Never recite facts back unprompted.');
+  lines.push('When greeting (first message): only reference context if something recent is clearly still relevant. Otherwise skip the callback — don\'t force it, and don\'t resurface items from weeks ago.');
 
   return lines.join('\n');
 }

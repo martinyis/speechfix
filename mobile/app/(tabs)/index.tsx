@@ -22,6 +22,7 @@ import MicBloomOrb from '../../components/orbs/MicBloomOrb';
 import { AgentSelector } from '../../components/agent/AgentSelector';
 import { AgentCreationSheet } from '../../components/agent/AgentCreationSheet';
 import { VoiceSessionOverlay } from '../../components/voice/VoiceSessionOverlay';
+import LoadingScreen from '../../components/loading/LoadingScreen';
 import { SessionRow } from '../../components/session/SessionRow';
 import { SectionHeader } from '../../components/ui';
 import { useSessionStore } from '../../stores/sessionStore';
@@ -210,6 +211,22 @@ export default function HomeScreen() {
             sessionMode="conversation"
           />
         </Animated.View>
+      )}
+
+      {/* Takes over the moment End is pressed, before navigation to session-detail. */}
+      {isActive && voiceState === 'analyzing' && (
+        <View style={StyleSheet.absoluteFill}>
+          <LoadingScreen
+            title="Analyzing speech"
+            eyebrow="Analyzing"
+            steps={[
+              'Processing audio',
+              'Detecting filler words',
+              'Checking grammar',
+              'Generating insights',
+            ]}
+          />
+        </View>
       )}
 
       {/* ===== AGENT SELECTOR (top-right avatar) ===== */}

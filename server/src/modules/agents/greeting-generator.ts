@@ -103,13 +103,22 @@ function buildGreetingPrompt(ctx: GreetingContext, _mode: string): string {
 
   if (!isRoleplay) {
     lines.push('');
-    lines.push('Generate a 1-2 sentence greeting for the start of a voice conversation session.');
+    lines.push('Generate a 1-sentence greeting for the start of a voice conversation session.');
     lines.push('Rules:');
     lines.push('- Be direct and precise, not bubbly or scripted.');
     lines.push('- Never introduce yourself to returning users. They know who you are.');
-    lines.push('- End with an implicit or explicit invitation to speak.');
     lines.push('- If you know their name, use it naturally (not every time).');
     lines.push('- Output ONLY the greeting text. No quotes, no labels, no explanation.');
+    lines.push('');
+    lines.push('CONTEXT REFERENCES — BE SELECTIVE:');
+    lines.push('- ONLY reference a past topic if it\'s from the most recent session or the last few days AND still clearly relevant.');
+    lines.push('- Do NOT resurface items from weeks or months ago — treat them as stale even if they\'re in the list below.');
+    lines.push('- If nothing recent feels genuinely worth bringing up, DO NOT force a callback. Use a directive priming opener instead (see below).');
+    lines.push('');
+    lines.push('OPENER STYLE WHEN THERE\'S NO FRESH HOOK:');
+    lines.push('- Use a short, directive line that nudges the user to just start talking.');
+    lines.push('- Examples: "Time to start practicing.", "Alright, let\'s get into it.", "Ready when you are.", "Let\'s run it."');
+    lines.push('- NEVER open with: "What\'s on your mind?", "How are you?", "How\'s it going?", "What\'s up?", "Busy day?", or any open-ended mental-state question.');
   }
 
   lines.push('');
@@ -137,15 +146,25 @@ function buildGreetingPrompt(ctx: GreetingContext, _mode: string): string {
     }
   }
 
-  // Context notes — scoped by agent
+  // Context notes — scoped by agent, dated so the model can judge freshness
   if (ctx.contextNotes && ctx.contextNotes.length > 0) {
     const filtered = isCustomAgent
       ? ctx.contextNotes.filter(e => e.agentId === ctx.agentId)
       : ctx.contextNotes;
 
-    const recentNotes = filtered.slice(-3).flatMap(e => e.notes);
-    if (recentNotes.length > 0) {
-      lines.push(`Recent context: ${recentNotes.slice(-5).join('; ')}`);
+    const recentEntries = filtered.slice(-5);
+    const datedNotes: string[] = [];
+    for (const entry of recentEntries) {
+      for (const note of entry.notes) {
+        datedNotes.push(`[${entry.date}] ${note}`);
+      }
+    }
+
+    if (datedNotes.length > 0) {
+      lines.push('Past notes (DATED — older items are likely stale, do not lead with them):');
+      for (const n of datedNotes.slice(-8)) {
+        lines.push(`- ${n}`);
+      }
     }
   }
 

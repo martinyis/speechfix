@@ -20,7 +20,7 @@ import { PitchRibbon } from '../components/session/PitchRibbon';
 import { PitchRibbonTransport } from '../components/session/PitchRibbonTransport';
 import { SessionKaraoke } from '../components/session/SessionKaraoke';
 import { SessionFullReport } from '../components/session/SessionFullReport';
-import { AnalyzingBanner } from '../components/session/AnalyzingBanner';
+import LoadingScreen from '../components/loading/LoadingScreen';
 import { ScreenHeader, EmptyState } from '../components/ui';
 import { formatDuration } from '../lib/formatters';
 import { colors, alpha, fonts } from '../theme';
@@ -127,27 +127,33 @@ export default function SessionDetailScreen() {
     );
   }
 
-  const showAnalyzingBanner = isFresh && !isInsightsReady && !session;
+  // Stay on LoadingScreen until ALL streaming analysis is done — no progressive
+  // reveal of corrections or insights. Once finalized, navigate into the full
+  // results view in one shot.
+  const isAnalyzing = isFresh && (isStreaming || !isInsightsReady || !session);
   const insightsAvailable = isFresh ? isInsightsReady : true;
-  const correctionsStillStreaming = isFresh && isStreaming && isInsightsReady;
 
-  if (showAnalyzingBanner) {
+  if (isAnalyzing) {
     return (
-      <View style={styles.container}>
-        <ScreenHeader
-          variant="back"
-          onBack={() => router.replace('/(tabs)')}
-        />
-        <AnalyzingBanner visible />
-      </View>
+      <LoadingScreen
+        title="Analyzing speech"
+        eyebrow="Analyzing"
+        steps={[
+          'Processing audio',
+          'Detecting filler words',
+          'Checking grammar',
+          'Generating insights',
+        ]}
+        meta="Working in the background. You can leave this screen."
+        onBack={() => router.replace('/(tabs)')}
+      />
     );
   }
 
   if (!session) return null;
 
   const hasCorrections = session.corrections.length > 0;
-  const isClean = !hasCorrections && !correctionsStillStreaming;
-  const analysisComplete = !isStreaming;
+  const isClean = !hasCorrections;
 
   const prosodySamples = session.speechTimeline?.prosodySamples ?? [];
   const showPitchRibbon = prosodySamples.length > 0;
@@ -233,17 +239,7 @@ export default function SessionDetailScreen() {
           />
         )}
 
-        {correctionsStillStreaming && !hasCorrections && (
-          <Animated.View
-            style={styles.grammarIndicator}
-            entering={FadeIn.duration(200)}
-          >
-            <ActivityIndicator size="small" color={alpha(colors.white, 0.3)} />
-            <Text style={styles.grammarIndicatorText}>Checking grammar...</Text>
-          </Animated.View>
-        )}
-
-        {(hasCorrections || correctionsStillStreaming) && (
+        {hasCorrections && (
           <View style={styles.correctionsWrap}>
             <CorrectionsPreview
               corrections={session.corrections}
@@ -251,13 +247,13 @@ export default function SessionDetailScreen() {
               practicedIds={new Set<number>()}
               totalCount={session.corrections.length}
               onPractice={handlePracticeCorrection}
-              isStreaming={isStreaming}
+              isStreaming={false}
               isFresh={isFresh}
             />
           </View>
         )}
 
-        {analysisComplete && isClean && (
+        {isClean && (
           <EmptyState
             icon="checkmark-circle-outline"
             iconColor={alpha(colors.severityPolish, 0.5)}
@@ -266,7 +262,7 @@ export default function SessionDetailScreen() {
           />
         )}
 
-        {insightsAvailable && analysisComplete && (
+        {insightsAvailable && (
           <SessionFullReport
             session={session}
             initialExpanded={expandedParam === '1'}
@@ -303,18 +299,6 @@ const styles = StyleSheet.create({
     color: alpha(colors.white, 0.3),
     fontFamily: fonts.medium,
     letterSpacing: 0.5,
-  },
-  grammarIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  grammarIndicatorText: {
-    fontSize: 14,
-    fontFamily: fonts.medium,
-    color: alpha(colors.white, 0.35),
   },
   correctionsWrap: {
     marginTop: 32,

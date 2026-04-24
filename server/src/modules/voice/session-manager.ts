@@ -709,7 +709,7 @@ export class VoiceSession {
 
       let brevityOptions: BrevityOptions | undefined;
       if (this.handler.getBrevityBudget) {
-        brevityOptions = this.handler.getBrevityBudget(isQuestion, hasTools);
+        brevityOptions = this.handler.getBrevityBudget(isQuestion, hasTools, this.agentConfig);
       } else if (this.handler.maxCompletionTokens) {
         // Fallback: preserve pre-brevity behavior for handlers that don't opt
         // in (e.g. onboarding, agent-creator). Tokens only, no truncation.

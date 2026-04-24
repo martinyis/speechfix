@@ -39,6 +39,7 @@ import { StyleChips } from '../components/StyleChips';
 import { AgentAvatar } from '../components/agent/AgentAvatar';
 import { ALL_AVATAR_IDS, resolveAvatarId, type AvatarId } from '../lib/avatars';
 import { GlassIconPillButton, ScreenHeader } from '../components/ui';
+import LoadingScreen from '../components/loading/LoadingScreen';
 import type { Agent } from '../types/session';
 
 const STYLE_OPTIONS = ['Casual', 'Professional', 'Challenging', 'Supportive', 'Direct'];
@@ -433,6 +434,21 @@ export default function AgentCreateScreen() {
   };
 
   // ── Form Phase (Progressive Focus) ──────────────────────────────────
+  if (isCreating) {
+    return (
+      <LoadingScreen
+        title="Creating agent"
+        eyebrow="Creating"
+        steps={[
+          'Designing persona',
+          'Tuning voice',
+          'Scripting greeting',
+          'Warming it up',
+        ]}
+      />
+    );
+  }
+
   if (phase === 'form') {
     return (
       <View style={styles.container}>
